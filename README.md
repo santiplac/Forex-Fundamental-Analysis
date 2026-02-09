@@ -55,7 +55,7 @@ The application is designed as a standalone HTML file requiring no compilation o
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/forex-dashboard.git
+git clone https://github.com/GlobalInvesting/forex-dashboard.git
 
 # Navigate to directory
 cd forex-dashboard
@@ -71,7 +71,7 @@ cd forex-dashboard
 3. Configure source branch: `main`
 4. Set directory: `/ (root)`
 5. Confirm deployment
-6. Access via: `https://yourusername.github.io/forex-dashboard`
+6. Access via: `https://GlobalInvesting.github.io/forex-dashboard`
 
 ### Local Development Environment
 
@@ -291,7 +291,7 @@ This project is licensed under the MIT License.
 ```
 MIT License
 
-Copyright (c) 2026 [Your Name/Organization]
+Copyright (c) 2026 [Santiago Plá/GlobalInvesting]
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -315,16 +315,16 @@ SOFTWARE.
 ## Contact and Support
 
 **Technical Support**
-- Issue Tracking: https://github.com/yourusername/forex-dashboard/issues
-- Discussion Forum: https://github.com/yourusername/forex-dashboard/discussions
+- Issue Tracking: https://github.com/GlobalInvesting/forex-dashboard/issues
+- Discussion Forum: https://github.com/GlobalInvesting/forex-dashboard/discussions
 
 **Professional Inquiries**
-- GitHub: [@santiplac](https://github.com/santiplac/)
+- GitHub: [@GlobalInvesting](https://github.com/GlobalInvesting/)
 - Email: santiagocasuriaga@gmail.com
 - LinkedIn: https://www.linkedin.com/in/santiago-pla-casuriaga/
 
 **Security Concerns**
-For security-related issues, please contact security@yourdomain.com directly rather than opening public issues.
+For security-related issues, please contact santiagocasuriaga@gmail.com directly rather than opening public issues.
 
 ## Acknowledgments
 
