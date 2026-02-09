@@ -1,9 +1,35 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forex Fundamental Analysis | Professional Dashboard</title>
+    
+    <!-- SEO Meta Tags -->
+    <title>Forex Fundamental Analysis Dashboard | Real-Time Economic Indicators & Currency Strength</title>
+    <meta name="description" content="Professional forex fundamental analysis dashboard with real-time economic indicators, central bank data, and currency strength rankings for major pairs. Track GDP, inflation, interest rates, and trade balance.">
+    <meta name="keywords" content="forex analysis, currency strength, economic indicators, forex dashboard, fundamental analysis, forex trading, central bank rates, GDP growth, inflation data, interest rates, forex signals, currency pairs, forex tools">
+    <meta name="author" content="Global Investing">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://globalinvesting.github.io/Forex-Fundamental-Analysis/">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://globalinvesting.github.io/Forex-Fundamental-Analysis/">
+    <meta property="og:title" content="Forex Fundamental Analysis Dashboard - Real-Time Currency Analysis">
+    <meta property="og:description" content="Professional-grade fundamental analysis for major currency pairs. Real-time economic indicators, central bank data, and quantitative strength rankings.">
+    <meta property="og:image" content="https://globalinvesting.github.io/Forex-Fundamental-Analysis/og-image.png">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://globalinvesting.github.io/Forex-Fundamental-Analysis/">
+    <meta property="twitter:title" content="Forex Fundamental Analysis Dashboard">
+    <meta property="twitter:description" content="Professional forex fundamental analysis with real-time data for major currency pairs.">
+    <meta property="twitter:image" content="https://globalinvesting.github.io/Forex-Fundamental-Analysis/og-image.png">
+    
+    <!-- Google AdSense - PASTE YOUR CODE BELOW -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7977842731354565"
+     crossorigin="anonymous"></script>
+    
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -111,6 +137,24 @@
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
+        }
+
+        .page-nav-links {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .page-nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .page-nav-links a:hover {
+            color: var(--text-primary);
         }
 
         .nav-tabs {
@@ -905,6 +949,12 @@
                                 <div className="brand-title">Forex Fundamental Analysis</div>
                                 <div className="brand-subtitle">Professional Dashboard</div>
                             </div>
+                            <div className="page-nav-links">
+                                <a href="about.html">About</a>
+                                <a href="terms.html">Terms</a>
+                                <a href="privacy.html">Privacy</a>
+                                <a href="contact.html">Contact</a>
+                            </div>
                             <div className="header-info">
                                 <div className="info-item">
                                     <div className="status-live"></div>
@@ -1262,6 +1312,15 @@
                                     <div className="source-label">Update Frequency</div>
                                     <div>FX Rates: 60s | Fundamentals: 24h</div>
                                 </div>
+                            </div>
+                            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)', textAlign: 'center', fontSize: '0.875rem' }}>
+                                <a href="about.html" style={{ color: 'var(--text-secondary)', marginRight: '1.5rem', textDecoration: 'none' }}>About</a>
+                                <a href="terms.html" style={{ color: 'var(--text-secondary)', marginRight: '1.5rem', textDecoration: 'none' }}>Terms of Service</a>
+                                <a href="privacy.html" style={{ color: 'var(--text-secondary)', marginRight: '1.5rem', textDecoration: 'none' }}>Privacy Policy</a>
+                                <a href="contact.html" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>Contact</a>
+                            </div>
+                            <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+                                © 2026 Global Investing. All rights reserved.
                             </div>
                         </div>
                     </div>
