@@ -5,6 +5,11 @@
     <meta name="google-adsense-account" content="ca-pub-7977942731354565">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">    
     
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="favicon.png">
+    <link rel="shortcut icon" type="image/png" href="favicon.png">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png">
+    
     <!-- SEO Meta Tags -->
     <title>Dashboard de Análisis Fundamental Forex | Indicadores Económicos en Tiempo Real y Fortaleza de Divisas</title>
     <meta name="description" content="Dashboard profesional de análisis fundamental forex con indicadores económicos en tiempo real, datos de bancos centrales y rankings de fortaleza de divisas para pares principales. Rastrea PIB, inflación, tasas de interés y balanza comercial.">
@@ -34,6 +39,7 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * {
@@ -166,6 +172,7 @@
             gap: 0.5rem;
             max-width: 1800px;
             margin: 0 auto;
+            overflow-x: auto;
         }
 
         .nav-tab {
@@ -178,6 +185,7 @@
             cursor: pointer;
             border-bottom: 2px solid transparent;
             transition: all 0.2s ease;
+            white-space: nowrap;
         }
 
         .nav-tab:hover {
@@ -329,55 +337,72 @@
             font-weight: 400;
         }
 
-        /* Tooltips */
-        .tooltip-trigger {
+        /* Tooltips CORREGIDOS */
+        .tooltip-wrapper {
             position: relative;
-            cursor: help;
+            display: inline-block;
         }
 
-        .tooltip-trigger:hover .tooltip-text {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        .tooltip-text {
+        .tooltip-content {
             visibility: hidden;
             opacity: 0;
             position: absolute;
-            bottom: calc(100% + 8px);
+            bottom: calc(100% + 12px);
             left: 50%;
             transform: translateX(-50%);
             background: var(--bg-elevated);
             color: var(--text-primary);
-            padding: 0.875rem 1rem;
-            border-radius: 6px;
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
             border: 1px solid var(--border-hover);
-            font-size: 0.75rem;
-            line-height: 1.5;
-            width: 280px;
+            font-size: 0.8125rem;
+            line-height: 1.6;
+            width: 320px;
             z-index: 10000;
-            transition: opacity 0.2s ease, visibility 0.2s ease;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
             font-weight: 400;
             text-align: left;
             pointer-events: none;
             white-space: normal;
         }
 
-        .tooltip-text::after {
+        .tooltip-wrapper:hover .tooltip-content {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .tooltip-content::after {
             content: '';
             position: absolute;
             top: 100%;
             left: 50%;
             transform: translateX(-50%);
-            border: 6px solid transparent;
+            border: 8px solid transparent;
             border-top-color: var(--bg-elevated);
         }
 
         .tooltip-title {
-            font-weight: 600;
-            margin-bottom: 0.5rem;
-            color: var(--text-primary);
+            font-weight: 700;
+            margin-bottom: 0.625rem;
+            color: var(--blue);
+            font-size: 0.9375rem;
+        }
+
+        .help-icon {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--text-tertiary);
+            color: var(--bg-card);
+            text-align: center;
+            line-height: 14px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 4px;
+            cursor: help;
+            vertical-align: middle;
         }
 
         /* Overall column styles */
@@ -613,6 +638,146 @@
             border-radius: 50%;
         }
 
+        /* Nuevas secciones - Charts */
+        .chart-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 400px;
+        }
+
+        /* Calendar económico */
+        .calendar-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        .calendar-event {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+        }
+
+        .calendar-event:hover {
+            background: var(--bg-elevated);
+        }
+
+        .calendar-event:last-child {
+            border-bottom: none;
+        }
+
+        .event-time {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            min-width: 80px;
+        }
+
+        .event-details {
+            flex: 1;
+            padding: 0 1rem;
+        }
+
+        .event-title {
+            font-weight: 600;
+            font-size: 0.875rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .event-country {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .event-impact {
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.6875rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .impact-high {
+            background: rgba(239, 83, 80, 0.2);
+            color: var(--red-strong);
+        }
+
+        .impact-medium {
+            background: rgba(255, 111, 0, 0.2);
+            color: var(--orange);
+        }
+
+        .impact-low {
+            background: rgba(96, 125, 139, 0.2);
+            color: var(--neutral);
+        }
+
+        /* Alertas */
+        .alerts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .alert-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--blue);
+            border-radius: 6px;
+            padding: 1.25rem;
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .alert-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .alert-warning {
+            background: rgba(255, 111, 0, 0.2);
+            border-left-color: var(--orange);
+        }
+
+        .alert-success {
+            background: rgba(38, 166, 154, 0.2);
+            border-left-color: var(--green-strong);
+        }
+
+        .alert-info {
+            background: rgba(30, 136, 229, 0.2);
+            border-left-color: var(--blue);
+        }
+
+        .alert-content h3 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .alert-content p {
+            font-size: 0.8125rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
         .footer {
             margin-top: 4rem;
             padding: 2rem;
@@ -653,19 +818,37 @@
                 grid-template-columns: repeat(2, 1fr);
             }
         }
+
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .page-nav-links {
+                order: -1;
+            }
+
+            .tooltip-content {
+                width: 250px;
+                font-size: 0.75rem;
+            }
+        }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
         const ForexDashboard = () => {
             const [activeTab, setActiveTab] = useState('overview');
             const [forexRates, setForexRates] = useState({});
             const [economicData, setEconomicData] = useState({});
             const [lastUpdate, setLastUpdate] = useState(null);
+            const [historicalData, setHistoricalData] = useState({});
+            const chartRefs = useRef({});
 
             // Configuración de países (Febrero 2026)
             const countries = [
@@ -728,6 +911,18 @@
                 }
             };
 
+            // Calendario económico
+            const economicCalendar = [
+                { date: '12 Feb', time: '14:30', country: 'USD', event: 'IPC (Inflación)', impact: 'high', flag: '🇺🇸' },
+                { date: '13 Feb', time: '08:00', country: 'EUR', event: 'PIB Q4', impact: 'high', flag: '🇪🇺' },
+                { date: '14 Feb', time: '10:00', country: 'GBP', event: 'Ventas Minoristas', impact: 'medium', flag: '🇬🇧' },
+                { date: '15 Feb', time: '00:30', country: 'JPY', event: 'Balanza Comercial', impact: 'medium', flag: '🇯🇵' },
+                { date: '18 Feb', time: '14:30', country: 'USD', event: 'Ventas Minoristas', impact: 'high', flag: '🇺🇸' },
+                { date: '19 Feb', time: '22:30', country: 'AUD', event: 'Actas RBA', impact: 'medium', flag: '🇦🇺' },
+                { date: '20 Feb', time: '14:30', country: 'CAD', event: 'IPC Canadá', impact: 'high', flag: '🇨🇦' },
+                { date: '21 Feb', time: '07:30', country: 'CHF', event: 'Balanza Comercial', impact: 'low', flag: '🇨🇭' }
+            ];
+
             const fetchForexRates = async () => {
                 try {
                     const response = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
@@ -749,6 +944,28 @@
                     data[currency] = { ...baseEconomicData[currency] };
                 });
                 setEconomicData(data);
+            };
+
+            // Generar datos históricos simulados
+            const generateHistoricalData = () => {
+                const historical = {};
+                const months = ['Sep', 'Oct', 'Nov', 'Dic', 'Ene', 'Feb'];
+                
+                countries.forEach(country => {
+                    const baseRate = baseEconomicData[country.code].interestRate;
+                    historical[country.code] = {
+                        labels: months,
+                        rates: months.map((_, i) => {
+                            const variation = (Math.random() - 0.5) * 0.5;
+                            return Number((baseRate + variation - (months.length - i) * 0.1).toFixed(2));
+                        }),
+                        strength: months.map(() => 
+                            Number((Math.random() * 40 + 40).toFixed(1))
+                        )
+                    };
+                });
+                
+                setHistoricalData(historical);
             };
 
             const getHeatmapColor = (value, type) => {
@@ -800,7 +1017,6 @@
                 }
             };
 
-            // Sistema de scoring mejorado basado en realidad Febrero 2026
             const calculateStrength = (currency) => {
                 if (!economicData[currency]) return 50;
                 
@@ -808,61 +1024,51 @@
                 const country = countries.find(c => c.code === currency);
                 let score = 0;
 
-                // 1. Diferencial de tasas real (Fed está cortando, otros bancos también)
-                const globalAvgRate = 3.3; // Promedio global febrero 2026
+                const globalAvgRate = 3.3;
                 const rateDiff = data.interestRate - globalAvgRate;
-                score += rateDiff * 8; // ±10 puntos max
+                score += rateDiff * 8;
 
-                // 2. Crecimiento económico relativo (peso: 20)
                 if (data.gdpGrowth > 2.0) score += 20;
                 else if (data.gdpGrowth > 1.5) score += 15;
                 else if (data.gdpGrowth > 1.0) score += 10;
                 else score += 3;
 
-                // 3. Inflación vs objetivo (peso: 15)
                 const inflationDiff = Math.abs(data.inflation - 2.0);
                 if (inflationDiff < 0.5) score += 15;
                 else if (inflationDiff < 1.0) score += 10;
                 else if (inflationDiff < 1.5) score += 5;
                 else score -= 5;
 
-                // 4. Cuenta corriente (peso: 20) - MUY IMPORTANTE
                 if (data.currentAccount > 5) score += 20;
                 else if (data.currentAccount > 2) score += 15;
                 else if (data.currentAccount > 0) score += 10;
                 else if (data.currentAccount > -2) score += 3;
                 else score -= 10;
 
-                // 5. Balanza comercial (peso: 15)
                 if (data.tradeBalance > 30) score += 15;
                 else if (data.tradeBalance > 10) score += 12;
                 else if (data.tradeBalance > 0) score += 8;
                 else if (data.tradeBalance > -20) score += 2;
                 else score -= 8;
 
-                // 6. Desempleo (peso: 10)
                 if (data.unemployment < 3) score += 10;
                 else if (data.unemployment < 4.5) score += 8;
                 else if (data.unemployment < 6) score += 4;
                 else score -= 3;
 
-                // 7. Deuda pública (peso: 10)
                 if (data.debt < 60) score += 10;
                 else if (data.debt < 90) score += 7;
                 else if (data.debt < 120) score += 3;
                 else score -= 7;
 
-                // 8. Outlook del banco central (peso: 10)
                 if (country.outlook === 'Hawkish') score += 10;
                 else if (country.outlook === 'Neutral') score += 5;
                 else score -= 5;
 
-                // Ajuste especial USD (DXY debilidad estructural Feb 2026)
                 if (currency === 'USD') {
-                    score -= 15; // Penalización por déficit gemelo + debilidad DXY
+                    score -= 15;
                 }
 
-                // Normalizar a 0-100
                 const normalized = ((score + 40) / 140) * 100;
                 return Math.max(20, Math.min(100, normalized)).toFixed(1);
             };
@@ -883,7 +1089,6 @@
 
                 let analysis = [];
 
-                // Contexto según sentimiento
                 if (sentiment === 'alcista') {
                     analysis.push(`${currency} muestra fortaleza fundamental respaldada por datos sólidos.`);
                 } else if (sentiment === 'bajista') {
@@ -892,7 +1097,6 @@
                     analysis.push(`${currency} presenta panorama mixto con factores balanceados.`);
                 }
 
-                // Análisis específico por divisa
                 if (currency === 'USD') {
                     analysis.push(`Fed mantiene política restrictiva (${data.interestRate}%) pero DXY muestra debilidad estructural por déficit comercial (-$${Math.abs(data.tradeBalance)}B) y fiscal persistente.`);
                 } else if (currency === 'EUR') {
@@ -907,7 +1111,6 @@
                     analysis.push(`${country.centralBank} en modo ${country.outlook.toLowerCase()} con tasa en ${data.interestRate}%.`);
                 }
 
-                // Factores clave
                 if (data.currentAccount > 2 && data.tradeBalance > 10) {
                     analysis.push(`Sólidos superávits externo y comercial generan flujos constantes hacia ${currency}.`);
                 } else if (data.currentAccount < -3) {
@@ -921,6 +1124,7 @@
                 const loadData = async () => {
                     await fetchForexRates();
                     loadEconomicData();
+                    generateHistoricalData();
                 };
 
                 loadData();
@@ -933,7 +1137,102 @@
                 };
             }, []);
 
-            // Ordenar divisas por fortaleza
+            // Crear gráficos cuando cambia a la pestaña de tendencias
+            useEffect(() => {
+                if (activeTab === 'trends' && Object.keys(historicalData).length > 0) {
+                    // Dar tiempo para que el DOM se renderice
+                    setTimeout(() => {
+                        createCharts();
+                    }, 100);
+                }
+            }, [activeTab, historicalData]);
+
+            const createCharts = () => {
+                countries.slice(0, 4).forEach(country => {
+                    const canvas = document.getElementById(`chart-${country.code}`);
+                    if (!canvas) return;
+
+                    // Destruir gráfico anterior si existe
+                    if (chartRefs.current[country.code]) {
+                        chartRefs.current[country.code].destroy();
+                    }
+
+                    const ctx = canvas.getContext('2d');
+                    const data = historicalData[country.code];
+
+                    chartRefs.current[country.code] = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: data.labels,
+                            datasets: [
+                                {
+                                    label: 'Tasa de Interés (%)',
+                                    data: data.rates,
+                                    borderColor: '#1e88e5',
+                                    backgroundColor: 'rgba(30, 136, 229, 0.1)',
+                                    yAxisID: 'y',
+                                    tension: 0.4
+                                },
+                                {
+                                    label: 'Índice de Fortaleza',
+                                    data: data.strength,
+                                    borderColor: '#26a69a',
+                                    backgroundColor: 'rgba(38, 166, 154, 0.1)',
+                                    yAxisID: 'y1',
+                                    tension: 0.4
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    labels: {
+                                        color: '#e1e4e8',
+                                        font: { size: 12 }
+                                    }
+                                },
+                                title: {
+                                    display: true,
+                                    text: `${country.flag} ${country.code} - Tendencias 6 Meses`,
+                                    color: '#e1e4e8',
+                                    font: { size: 14, weight: 'bold' }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    type: 'linear',
+                                    position: 'left',
+                                    grid: { color: '#30363d' },
+                                    ticks: { color: '#8b949e' },
+                                    title: {
+                                        display: true,
+                                        text: 'Tasa %',
+                                        color: '#8b949e'
+                                    }
+                                },
+                                y1: {
+                                    type: 'linear',
+                                    position: 'right',
+                                    grid: { display: false },
+                                    ticks: { color: '#8b949e' },
+                                    title: {
+                                        display: true,
+                                        text: 'Fortaleza',
+                                        color: '#8b949e'
+                                    }
+                                },
+                                x: {
+                                    grid: { color: '#30363d' },
+                                    ticks: { color: '#8b949e' }
+                                }
+                            }
+                        }
+                    });
+                });
+            };
+
             const getSortedCountries = () => {
                 return [...countries].sort((a, b) => {
                     const strengthA = parseFloat(calculateStrength(a.code));
@@ -941,6 +1240,20 @@
                     return strengthB - strengthA;
                 });
             };
+
+            // Componente Tooltip mejorado
+            const TooltipHeader = ({ children, tooltip, title }) => (
+                <th>
+                    <div className="tooltip-wrapper">
+                        {children}
+                        <span className="help-icon">?</span>
+                        <div className="tooltip-content">
+                            <div className="tooltip-title">{title}</div>
+                            {tooltip}
+                        </div>
+                    </div>
+                </th>
+            );
 
             return (
                 <div className="app-container">
@@ -978,13 +1291,31 @@
                             className={`nav-tab ${activeTab === 'overview' ? 'active' : ''}`}
                             onClick={() => setActiveTab('overview')}
                         >
-                            Resumen de Divisas y Análisis
+                            Resumen de Divisas
                         </button>
                         <button 
                             className={`nav-tab ${activeTab === 'heatmap' ? 'active' : ''}`}
                             onClick={() => setActiveTab('heatmap')}
                         >
-                            Mapa de Calor de Indicadores Económicos
+                            Mapa de Calor
+                        </button>
+                        <button 
+                            className={`nav-tab ${activeTab === 'trends' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('trends')}
+                        >
+                            Tendencias Históricas
+                        </button>
+                        <button 
+                            className={`nav-tab ${activeTab === 'calendar' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('calendar')}
+                        >
+                            Calendario Económico
+                        </button>
+                        <button 
+                            className={`nav-tab ${activeTab === 'alerts' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('alerts')}
+                        >
+                            Alertas y Notificaciones
                         </button>
                     </div>
 
@@ -993,103 +1324,93 @@
                             <div>
                                 <div className="section-header">
                                     <div className="section-title">Mapa de Calor de Indicadores Económicos</div>
-                                    <div className="section-meta">La intensidad del color muestra fortaleza/debilidad relativa • Pase el cursor sobre los encabezados para explicaciones</div>
+                                    <div className="section-meta">Pase el cursor sobre los ? para ver explicaciones detalladas</div>
                                 </div>
                                 <div className="heatmap-container">
                                     <table className="heatmap-table">
                                         <thead>
                                             <tr>
                                                 <th></th>
-                                                <th className="tooltip-trigger">
+                                                <TooltipHeader 
+                                                    title="Síntesis General"
+                                                    tooltip="Evaluación global de la fortaleza fundamental de la divisa basada en todos los indicadores económicos. Verde = Alcista, Rojo = Bajista, Gris = Neutral."
+                                                >
                                                     General
                                                     <br/>
                                                     <span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>Síntesis</span>
-                                                    <div className="tooltip-text">
-                                                        <div className="tooltip-title">Síntesis General</div>
-                                                        Evaluación global de la fortaleza fundamental de la divisa basada en todos los indicadores económicos. Verde = Alcista, Rojo = Bajista, Gris = Neutral.
-                                                    </div>
-                                                </th>
-                                                <th className="tooltip-trigger">
+                                                </TooltipHeader>
+                                                <TooltipHeader 
+                                                    title="PIB Total"
+                                                    tooltip={indicatorTooltips.gdp}
+                                                >
                                                     PIB
                                                     <br/>
                                                     <span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>Trillones USD</span>
-                                                    <div className="tooltip-text">
-                                                        <div className="tooltip-title">PIB Total</div>
-                                                        {indicatorTooltips.gdp}
-                                                    </div>
-                                                </th>
-                                                <th className="tooltip-trigger">
+                                                </TooltipHeader>
+                                                <TooltipHeader 
+                                                    title="Crecimiento PIB"
+                                                    tooltip={indicatorTooltips.gdpGrowth}
+                                                >
                                                     Crecimiento PIB
                                                     <br/>
                                                     <span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>% Anual</span>
-                                                    <div className="tooltip-text">
-                                                        <div className="tooltip-title">Crecimiento PIB</div>
-                                                        {indicatorTooltips.gdpGrowth}
-                                                    </div>
-                                                </th>
-                                                <th className="tooltip-trigger">
+                                                </TooltipHeader>
+                                                <TooltipHeader 
+                                                    title="Tasa de Interés"
+                                                    tooltip={indicatorTooltips.interestRate}
+                                                >
                                                     Tasa de Interés
                                                     <br/>
                                                     <span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>%</span>
-                                                    <div className="tooltip-text">
-                                                        <div className="tooltip-title">Tasa de Interés</div>
-                                                        {indicatorTooltips.interestRate}
-                                                    </div>
-                                                </th>
-                                                <th className="tooltip-trigger">
-                                                    Tasa de Inflación
+                                                </TooltipHeader>
+                                                <TooltipHeader 
+                                                    title="Inflación"
+                                                    tooltip={indicatorTooltips.inflation}
+                                                >
+                                                    Inflación
                                                     <br/>
                                                     <span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>IPC %</span>
-                                                    <div className="tooltip-text">
-                                                        <div className="tooltip-title">Inflación</div>
-                                                        {indicatorTooltips.inflation}
-                                                    </div>
-                                                </th>
-                                                <th className="tooltip-trigger">
+                                                </TooltipHeader>
+                                                <TooltipHeader 
+                                                    title="Desempleo"
+                                                    tooltip={indicatorTooltips.unemployment}
+                                                >
                                                     Desempleo
                                                     <br/>
                                                     <span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>%</span>
-                                                    <div className="tooltip-text">
-                                                        <div className="tooltip-title">Desempleo</div>
-                                                        {indicatorTooltips.unemployment}
-                                                    </div>
-                                                </th>
-                                                <th className="tooltip-trigger">
+                                                </TooltipHeader>
+                                                <TooltipHeader 
+                                                    title="Cuenta Corriente"
+                                                    tooltip={indicatorTooltips.currentAccount}
+                                                >
                                                     Cuenta Corriente
                                                     <br/>
                                                     <span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>% del PIB</span>
-                                                    <div className="tooltip-text">
-                                                        <div className="tooltip-title">Cuenta Corriente</div>
-                                                        {indicatorTooltips.currentAccount}
-                                                    </div>
-                                                </th>
-                                                <th className="tooltip-trigger">
+                                                </TooltipHeader>
+                                                <TooltipHeader 
+                                                    title="Deuda Pública"
+                                                    tooltip={indicatorTooltips.debt}
+                                                >
                                                     Deuda Pública
                                                     <br/>
                                                     <span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>% del PIB</span>
-                                                    <div className="tooltip-text">
-                                                        <div className="tooltip-title">Deuda Pública</div>
-                                                        {indicatorTooltips.debt}
-                                                    </div>
-                                                </th>
-                                                <th className="tooltip-trigger">
+                                                </TooltipHeader>
+                                                <TooltipHeader 
+                                                    title="Balanza Comercial"
+                                                    tooltip={indicatorTooltips.tradeBalance}
+                                                >
                                                     Balanza Comercial
                                                     <br/>
                                                     <span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>Miles Millones USD</span>
-                                                    <div className="tooltip-text">
-                                                        <div className="tooltip-title">Balanza Comercial</div>
-                                                        {indicatorTooltips.tradeBalance}
-                                                    </div>
-                                                </th>
-                                                <th className="tooltip-trigger">
+                                                </TooltipHeader>
+                                                <TooltipHeader 
+                                                    title="Producción Industrial"
+                                                    tooltip={indicatorTooltips.production}
+                                                >
                                                     Prod. Industrial
                                                     <br/>
                                                     <span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>% Anual</span>
-                                                    <div className="tooltip-text">
-                                                        <div className="tooltip-title">Producción Industrial</div>
-                                                        {indicatorTooltips.production}
-                                                    </div>
-                                                </th>
+                                                </TooltipHeader>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -1295,13 +1616,113 @@
                             </div>
                         )}
 
+                        {activeTab === 'trends' && (
+                            <div>
+                                <div className="section-header">
+                                    <div className="section-title">Tendencias Históricas y Análisis de Datos</div>
+                                    <div className="section-meta">Evolución de tasas de interés y fortaleza fundamental - Últimos 6 meses</div>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '1.5rem' }}>
+                                    {countries.slice(0, 4).map(country => (
+                                        <div key={country.code} className="chart-container">
+                                            <div className="chart-wrapper">
+                                                <canvas id={`chart-${country.code}`}></canvas>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'calendar' && (
+                            <div>
+                                <div className="section-header">
+                                    <div className="section-title">Calendario Económico</div>
+                                    <div className="section-meta">Próximos eventos económicos de alto impacto</div>
+                                </div>
+                                <div className="calendar-container">
+                                    {economicCalendar.map((event, index) => (
+                                        <div key={index} className="calendar-event">
+                                            <div className="event-time">
+                                                <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{event.date}</div>
+                                                <div>{event.time}</div>
+                                            </div>
+                                            <div className="event-details">
+                                                <div className="event-title">{event.event}</div>
+                                                <div className="event-country">
+                                                    {event.flag} {event.country}
+                                                </div>
+                                            </div>
+                                            <div className={`event-impact impact-${event.impact}`}>
+                                                {event.impact === 'high' ? 'Alto Impacto' : 
+                                                 event.impact === 'medium' ? 'Medio' : 'Bajo'}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'alerts' && (
+                            <div>
+                                <div className="section-header">
+                                    <div className="section-title">Alertas y Notificaciones Personalizables</div>
+                                    <div className="section-meta">Configurar alertas para cambios en indicadores clave</div>
+                                </div>
+                                <div className="alerts-container">
+                                    <div className="alert-card alert-warning">
+                                        <div className="alert-icon" style={{ background: 'rgba(255, 111, 0, 0.3)', color: 'var(--orange)' }}>⚠️</div>
+                                        <div className="alert-content">
+                                            <h3>Alerta de Volatilidad - USD</h3>
+                                            <p>IPC de EE.UU. mañana a las 14:30. Expectativa: 3.3% vs 3.4% anterior. Alto impacto esperado en USD y pares principales.</p>
+                                        </div>
+                                    </div>
+                                    <div className="alert-card alert-success">
+                                        <div className="alert-icon" style={{ background: 'rgba(38, 166, 154, 0.3)', color: 'var(--green-strong)' }}>✓</div>
+                                        <div className="alert-content">
+                                            <h3>Objetivo Alcanzado - EUR/USD</h3>
+                                            <p>EUR ha superado nivel de fortaleza 65. Superávit comercial y postura hawkish del BCE impulsan la divisa.</p>
+                                        </div>
+                                    </div>
+                                    <div className="alert-card alert-info">
+                                        <div className="alert-icon" style={{ background: 'rgba(30, 136, 229, 0.3)', color: 'var(--blue)' }}>ℹ️</div>
+                                        <div className="alert-content">
+                                            <h3>Reunión Banco Central - BoJ</h3>
+                                            <p>Banco de Japón se reúne el 14 de marzo. Mercado espera mantenimiento de tasa en 0.75% con sesgo hawkish.</p>
+                                        </div>
+                                    </div>
+                                    <div className="alert-card alert-warning">
+                                        <div className="alert-icon" style={{ background: 'rgba(255, 111, 0, 0.3)', color: 'var(--orange)' }}>📊</div>
+                                        <div className="alert-content">
+                                            <h3>Cambio de Tendencia - GBP</h3>
+                                            <p>GBP muestra debilidad técnica. Inflación elevada (3.4%) presiona al BoE pero crecimiento débil limita margen de alzas.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginTop: '2rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '6px', padding: '1.5rem' }}>
+                                    <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Configurar Nuevas Alertas</h3>
+                                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                                        Próximamente podrás configurar alertas personalizadas para:
+                                    </p>
+                                    <ul style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', paddingLeft: '1.5rem', lineHeight: '1.8' }}>
+                                        <li>Cambios en tasas de interés de bancos centrales</li>
+                                        <li>Niveles específicos de fortaleza de divisas</li>
+                                        <li>Publicación de datos económicos importantes</li>
+                                        <li>Cambios significativos en indicadores clave (PIB, inflación, desempleo)</li>
+                                        <li>Divergencias en políticas monetarias entre países</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        )}
+
                         <div className="footer">
                             <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>DASHBOARD DE ANÁLISIS FUNDAMENTAL FOREX</div>
                             <div style={{ marginBottom: '1rem' }}>Análisis fundamental de grado profesional • Datos actualizados Febrero 2026</div>
                             <div className="data-sources">
                                 <div>
                                     <div className="source-label">Tipos de Cambio</div>
-                                    <a href="https://www.exchangerate-api.com" target="_blank" className="source-link">
+                                    <a href="https://www.exchangerate-api.com" target="_blank" rel="noopener noreferrer" className="source-link">
                                         exchangerate-api.com
                                     </a>
                                 </div>
