@@ -1620,6 +1620,74 @@
         };
 
 
+        // ========== FUNCIÓN DE FORTALEZA ==========
+        
+        // Calcular fortaleza de una divisa basada en indicadores económicos
+        const calculateStrength = (currency, data = null) => {
+            if (!data) return 50;
+            
+            let score = 0;
+
+            if (data.interestRate !== null && data.interestRate !== undefined) {
+                const globalAvgRate = 3.3;
+                const rateDiff = data.interestRate - globalAvgRate;
+                score += rateDiff * 8;
+            }
+
+            if (data.gdpGrowth !== null && data.gdpGrowth !== undefined) {
+                if (data.gdpGrowth > 2.0) score += 20;
+                else if (data.gdpGrowth > 1.5) score += 15;
+                else if (data.gdpGrowth > 1.0) score += 10;
+                else score += 3;
+            }
+
+            if (data.inflation !== null && data.inflation !== undefined) {
+                const inflationDiff = Math.abs(data.inflation - 2.0);
+                if (inflationDiff < 0.5) score += 15;
+                else if (inflationDiff < 1.0) score += 10;
+                else if (inflationDiff < 1.5) score += 5;
+                else score -= 5;
+            }
+
+            if (data.currentAccount !== null && data.currentAccount !== undefined) {
+                if (data.currentAccount > 5) score += 20;
+                else if (data.currentAccount > 2) score += 15;
+                else if (data.currentAccount > 0) score += 10;
+                else if (data.currentAccount > -2) score += 3;
+                else score -= 10;
+            }
+
+            if (data.tradeBalance !== null && data.tradeBalance !== undefined) {
+                if (data.tradeBalance > 30) score += 15;
+                else if (data.tradeBalance > 10) score += 12;
+                else if (data.tradeBalance > 0) score += 8;
+                else if (data.tradeBalance > -20) score += 2;
+                else score -= 8;
+            }
+
+            if (data.unemployment !== null && data.unemployment !== undefined) {
+                if (data.unemployment < 3) score += 10;
+                else if (data.unemployment < 4.5) score += 8;
+                else if (data.unemployment < 6) score += 4;
+                else score -= 3;
+            }
+
+            if (data.debt !== null && data.debt !== undefined) {
+                if (data.debt < 60) score += 10;
+                else if (data.debt < 90) score += 7;
+                else if (data.debt < 120) score += 3;
+                else score -= 7;
+            }
+
+            if (currency === 'USD') {
+                score -= 15;
+            }
+
+            const normalized = ((score + 40) / 140) * 100;
+            return Math.max(20, Math.min(100, normalized)).toFixed(1);
+        };
+
+
         // ========== ALERTAS DINÁMICAS ==========
 
         // Generar alertas basadas en datos económicos reales
@@ -1814,70 +1882,6 @@
 
         // Función auxiliar para calcular fortaleza (se definirá en el componente principal)
         // Esta es una referencia temporal
-        const calculateStrength = (currency, data = null) => {
-            if (!data) return 50;
-            
-            let score = 0;
-
-            if (data.interestRate !== null && data.interestRate !== undefined) {
-                const globalAvgRate = 3.3;
-                const rateDiff = data.interestRate - globalAvgRate;
-                score += rateDiff * 8;
-            }
-
-            if (data.gdpGrowth !== null && data.gdpGrowth !== undefined) {
-                if (data.gdpGrowth > 2.0) score += 20;
-                else if (data.gdpGrowth > 1.5) score += 15;
-                else if (data.gdpGrowth > 1.0) score += 10;
-                else score += 3;
-            }
-
-            if (data.inflation !== null && data.inflation !== undefined) {
-                const inflationDiff = Math.abs(data.inflation - 2.0);
-                if (inflationDiff < 0.5) score += 15;
-                else if (inflationDiff < 1.0) score += 10;
-                else if (inflationDiff < 1.5) score += 5;
-                else score -= 5;
-            }
-
-            if (data.currentAccount !== null && data.currentAccount !== undefined) {
-                if (data.currentAccount > 5) score += 20;
-                else if (data.currentAccount > 2) score += 15;
-                else if (data.currentAccount > 0) score += 10;
-                else if (data.currentAccount > -2) score += 3;
-                else score -= 10;
-            }
-
-            if (data.tradeBalance !== null && data.tradeBalance !== undefined) {
-                if (data.tradeBalance > 30) score += 15;
-                else if (data.tradeBalance > 10) score += 12;
-                else if (data.tradeBalance > 0) score += 8;
-                else if (data.tradeBalance > -20) score += 2;
-                else score -= 8;
-            }
-
-            if (data.unemployment !== null && data.unemployment !== undefined) {
-                if (data.unemployment < 3) score += 10;
-                else if (data.unemployment < 4.5) score += 8;
-                else if (data.unemployment < 6) score += 4;
-                else score -= 3;
-            }
-
-            if (data.debt !== null && data.debt !== undefined) {
-                if (data.debt < 60) score += 10;
-                else if (data.debt < 90) score += 7;
-                else if (data.debt < 120) score += 3;
-                else score -= 7;
-            }
-
-            if (currency === 'USD') {
-                score -= 15;
-            }
-
-            const normalized = ((score + 40) / 140) * 100;
-            return Math.max(20, Math.min(100, normalized)).toFixed(1);
-        };
-
 
         // ========== FUNCIÓN DE CARGA PRINCIPAL MEJORADA ==========
 
@@ -2118,44 +2122,6 @@
         // ========================================
 
         // ========== CONFIGURACIÓN DE APIs ==========
-        const API_CONFIG = {
-            worldBank: {
-                baseUrl: 'https://api.worldbank.org/v2',
-                format: 'json',
-                dateRange: '2020:2024'
-            },
-            fred: {
-                baseUrl: 'https://api.stlouisfed.org/fred',
-                // apiKey: 'YOUR_FRED_API_KEY', // Opcional - agregar si tienes una
-            },
-            forex: {
-                primary: 'https://api.exchangerate-api.com/v4/latest/USD',
-                fallback: 'https://api.exchangerate.host/latest?base=USD'
-            }
-        };
-
-        // Mapeo de indicadores World Bank
-        const WORLD_BANK_INDICATORS = {
-            gdp: 'NY.GDP.MKTP.CD',              // GDP (current US$)
-            gdpGrowth: 'NY.GDP.MKTP.KD.ZG',     // GDP growth (annual %)
-            inflation: 'FP.CPI.TOTL.ZG',        // Inflation, consumer prices (annual %)
-            unemployment: 'SL.UEM.TOTL.ZS',     // Unemployment, total (% of total labor force)
-            currentAccount: 'BN.CAB.XOKA.GD.ZS', // Current account balance (% of GDP)
-            debt: 'GC.DOD.TOTL.GD.ZS',          // Central government debt, total (% of GDP)
-            tradeBalance: 'NE.RSB.GNFS.CD'      // External balance on goods and services (current US$)
-        };
-
-        // Mapeo de códigos ISO para World Bank
-        const ISO_COUNTRY_CODES = {
-            USD: 'USA',
-            EUR: 'EMU',  // Euro area
-            GBP: 'GBR',
-            JPY: 'JPN',
-            AUD: 'AUS',
-            CAD: 'CAN',
-            CHF: 'CHE',
-            NZD: 'NZL'
-        };
         // ========== CONFIGURACIÓN DE PAÍSES (AMPLIADA) ==========
         const countries = [
             { 
@@ -2272,156 +2238,14 @@
         // ========== FUNCIONES DE API ==========
 
         // Función auxiliar para delay (evitar rate limiting)
-        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
         // Fetch datos de World Bank
-        const fetchWorldBankData = async (countryCode, indicator) => {
-            try {
-                const isoCode = ISO_COUNTRY_CODES[countryCode];
-                if (!isoCode) {
-                    console.warn(`No ISO code for ${countryCode}`);
-                    return null;
-                }
-
-                const url = `${API_CONFIG.worldBank.baseUrl}/country/${isoCode}/indicator/${indicator}?format=${API_CONFIG.worldBank.format}&date=${API_CONFIG.worldBank.dateRange}&per_page=5`;
-                
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                
-                const data = await response.json();
-                
-                // World Bank devuelve array [metadata, data]
-                if (data && data.length > 1 && data[1] && data[1].length > 0) {
-                    // Buscar el valor más reciente no-null
-                    for (let item of data[1]) {
-                        if (item.value !== null) {
-                            return item.value;
-                        }
-                    }
-                }
-                
-                return null;
-            } catch (error) {
-                console.error(`Error fetching ${indicator} for ${countryCode}:`, error);
-                return null;
-            }
-        };
 
         // Fetch tasa de interés (FRED para algunos, estimaciones para otros)
-        const fetchInterestRate = async (country) => {
-            try {
-                // Tasas aproximadas actuales (Febrero 2026)
-                // En producción, esto vendría de FRED API o scraping de bancos centrales
-                const currentRates = {
-                    USD: 4.25,
-                    EUR: 3.00,
-                    GBP: 4.50,
-                    JPY: 0.75,
-                    AUD: 4.10,
-                    CAD: 3.75,
-                    CHF: 1.25,
-                    NZD: 4.75
-                };
-
-                return currentRates[country.code] || null;
-            } catch (error) {
-                console.error(`Error fetching interest rate for ${country.code}:`, error);
-                return null;
-            }
-        };
 
         // Fetch tipos de cambio forex
-        const fetchForexRates = async () => {
-            try {
-                const response = await fetch(API_CONFIG.forex.primary);
-                if (!response.ok) throw new Error('Primary forex API failed');
-                
-                const data = await response.json();
-                return data.rates || {};
-            } catch (error) {
-                console.error('Primary forex API failed, trying fallback:', error);
-                
-                try {
-                    const response = await fetch(API_CONFIG.forex.fallback);
-                    const data = await response.json();
-                    return data.rates || {};
-                } catch (fallbackError) {
-                    console.error('Fallback forex API also failed:', fallbackError);
-                    // Fallback hardcodeado
-                    return {
-                        EUR: 0.92, GBP: 0.79, JPY: 149.5, AUD: 1.52,
-                        CAD: 1.36, CHF: 0.88, NZD: 1.65
-                    };
-                }
-            }
-        };
 
         // Cargar todos los datos económicos
-        const loadAllEconomicData = async (setEconomicData, setDataLoadingStatus) => {
-            const economicData = {};
-            const totalCountries = countries.length;
-
-            for (let i = 0; i < countries.length; i++) {
-                const country = countries[i];
-                
-                setDataLoadingStatus({
-                    status: `Cargando datos de ${country.name}...`,
-                    progress: Math.round((i / totalCountries) * 100)
-                });
-
-                economicData[country.code] = {};
-
-                // Fetch PIB
-                const gdpValue = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.gdp);
-                economicData[country.code].gdp = gdpValue ? (gdpValue / 1e12) : null; // Convertir a trillones
-
-                await delay(100); // Evitar rate limiting
-
-                // Fetch Crecimiento PIB
-                economicData[country.code].gdpGrowth = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.gdpGrowth);
-                await delay(100);
-
-                // Fetch Inflación
-                economicData[country.code].inflation = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.inflation);
-                await delay(100);
-
-                // Fetch Desempleo
-                economicData[country.code].unemployment = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.unemployment);
-                await delay(100);
-
-                // Fetch Cuenta Corriente
-                economicData[country.code].currentAccount = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.currentAccount);
-                await delay(100);
-
-                // Fetch Deuda Pública
-                economicData[country.code].debt = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.debt);
-                await delay(100);
-
-                // Fetch Balanza Comercial
-                const tradeBalance = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.tradeBalance);
-                economicData[country.code].tradeBalance = tradeBalance ? (tradeBalance / 1e9) : null; // Convertir a billones
-                await delay(100);
-
-                // Fetch Tasa de Interés
-                economicData[country.code].interestRate = await fetchInterestRate(country);
-                
-                // Producción Industrial (pendiente integración OECD)
-                // Por ahora, valores estimados
-                const productionEstimates = {
-                    USD: 1.6, EUR: 1.1, GBP: 0.8, JPY: 2.1,
-                    AUD: 2.4, CAD: 1.2, CHF: 1.7, NZD: 1.1
-                };
-                economicData[country.code].production = productionEstimates[country.code] || null;
-            }
-
-            setDataLoadingStatus({
-                status: 'Datos cargados',
-                progress: 100
-            });
-
-            setEconomicData(economicData);
-            return economicData;
-        };
         // ========== COMPONENTE PRINCIPAL ==========
         const ForexDashboard = () => {
             const [activeTab, setActiveTab] = useState('overview');
@@ -2479,40 +2303,6 @@
             // El calendario ahora se carga dinámicamente en useEffect
 
             // Generar datos históricos (basados en datos reales cuando estén disponibles)
-            const generateHistoricalData = (currentData) => {
-                const historical = {};
-                const months = ['Sep', 'Oct', 'Nov', 'Dic', 'Ene', 'Feb'];
-                
-                // Función de semilla para números pseudo-aleatorios consistentes
-                const seededRandom = (seed) => {
-                    const x = Math.sin(seed) * 10000;
-                    return x - Math.floor(x);
-                };
-                
-                countries.forEach((country, countryIndex) => {
-                    const data = currentData[country.code] || {};
-                    const baseRate = data.interestRate || 3.0;
-                    const baseStrength = parseFloat(calculateStrength(country.code, data));
-                    
-                    historical[country.code] = {
-                        labels: months,
-                        rates: months.map((_, i) => {
-                            const seed = countryIndex * 100 + i;
-                            const variation = (seededRandom(seed) - 0.5) * 0.4;
-                            const trend = -(months.length - i - 1) * 0.08;
-                            return Number((baseRate + variation + trend).toFixed(2));
-                        }),
-                        strength: months.map((_, i) => {
-                            const seed = countryIndex * 100 + i + 1000;
-                            const variation = (seededRandom(seed) - 0.5) * 15;
-                            const trend = (i - 3) * 2;
-                            return Number(Math.max(20, Math.min(100, baseStrength + variation + trend)).toFixed(1));
-                        })
-                    };
-                });
-                
-                return historical;
-            };
 
             // Calcular color del heatmap (sin cambios)
             const getHeatmapColor = (value, type) => {
