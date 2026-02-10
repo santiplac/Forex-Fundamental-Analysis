@@ -2644,7 +2644,7 @@
                                 },
                                 title: {
                                     display: true,
-                                    text: `${country.flag} ${country.code} - Tendencias 6 Meses`,
+                                    text: `${country.code} - Tendencias 6 Meses`,
                                     color: '#e1e4e8',
                                     font: { size: 14, weight: 'bold' }
                                 }
@@ -2988,15 +2988,31 @@
                                                             <span className="cell-value">{formatValue(data.unemployment)}%</span>
                                                         </td>
                                                         <td style={{ background: getHeatmapColor(data.currentAccount, 'currentAccount') }}>
-                                                            <span className="cell-value">{data.currentAccount !== null && data.currentAccount > 0 ? '+' : ''}{formatValue(data.currentAccount)}%</span>
-                                                            <span className="cell-suffix-white">del PIB</span>
+                                                            {data.currentAccount !== null && data.currentAccount !== undefined ? (
+                                                                <>
+                                                                    <span className="cell-value">{data.currentAccount > 0 ? '+' : ''}{formatValue(data.currentAccount)}%</span>
+                                                                    <span className="cell-suffix-white">del PIB</span>
+                                                                </>
+                                                            ) : (
+                                                                <span className="cell-value">N/D</span>
+                                                            )}
                                                         </td>
                                                         <td style={{ background: getHeatmapColor(data.debt, 'debt') }}>
-                                                            <span className="cell-value">{formatValue(data.debt)}%</span>
-                                                            <span className="cell-suffix-white">del PIB</span>
+                                                            {data.debt !== null && data.debt !== undefined ? (
+                                                                <>
+                                                                    <span className="cell-value">{formatValue(data.debt)}%</span>
+                                                                    <span className="cell-suffix-white">del PIB</span>
+                                                                </>
+                                                            ) : (
+                                                                <span className="cell-value">N/D</span>
+                                                            )}
                                                         </td>
                                                         <td style={{ background: getHeatmapColor(data.tradeBalance, 'tradeBalance') }}>
-                                                            <span className="cell-value">{data.tradeBalance !== null && data.tradeBalance > 0 ? '+' : ''}{formatValue(data.tradeBalance)}B</span>
+                                                            {data.tradeBalance !== null && data.tradeBalance !== undefined ? (
+                                                                <span className="cell-value">{data.tradeBalance > 0 ? '+' : ''}{formatValue(data.tradeBalance)}B</span>
+                                                            ) : (
+                                                                <span className="cell-value">N/D</span>
+                                                            )}
                                                         </td>
                                                         <td style={{ background: getHeatmapColor(data.production, 'production') }}>
                                                             <span className="cell-value">{data.production !== null && data.production > 0 ? '+' : ''}{formatValue(data.production)}%</span>
@@ -3300,7 +3316,7 @@
                                         marginBottom: '0.5rem'
                                     }}
                                 >
-                                    🗑️ Limpiar Caché y Recargar Datos
+                                    Limpiar Caché y Recargar Datos
                                 </button>
                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
                                     Los datos se cachean por 24 horas. Usa este botón para forzar actualización.
