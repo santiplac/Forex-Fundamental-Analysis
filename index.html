@@ -33,7 +33,7 @@
     <meta property="twitter:image" content="https://globalinvesting.github.io/og-image.png">
     
     <!-- Google AdSense -->
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7977942731354565"
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7977942731354565"
      crossorigin="anonymous"></script>
     
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -41,6 +41,8 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Noto Color Emoji para soporte de emojis en todos los navegadores -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -80,6 +82,13 @@
             font-size: 14px;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Estilo para banderas con fallback */
+        .flag-emoji {
+            font-family: 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+            font-size: inherit;
+            line-height: inherit;
         }
 
         .app-container {
@@ -337,7 +346,15 @@
             font-weight: 400;
         }
 
-        /* Tooltips CORREGIDOS - Versión mejorada */
+        /* CORREGIDO: Sufijo en columnas específicas */
+        .cell-suffix-white {
+            display: block;
+            font-size: 0.6rem;
+            color: var(--text-primary);
+            font-weight: 400;
+        }
+
+        /* Tooltips CORREGIDOS */
         .tooltip-header {
             position: relative;
             cursor: help;
@@ -383,6 +400,7 @@
             text-align: left;
             white-space: normal;
             animation: tooltipFadeIn 0.3s ease;
+            pointer-events: none;
         }
 
         @keyframes tooltipFadeIn {
@@ -858,7 +876,7 @@
                 order: -1;
             }
 
-            .tooltip-content {
+            .tooltip-box {
                 width: 250px;
                 font-size: 0.75rem;
             }
@@ -975,22 +993,35 @@
                 setEconomicData(data);
             };
 
-            // Generar datos históricos simulados
+            // CORREGIDO: Generar datos históricos ESTABLES con semilla fija
             const generateHistoricalData = () => {
                 const historical = {};
                 const months = ['Sep', 'Oct', 'Nov', 'Dic', 'Ene', 'Feb'];
                 
-                countries.forEach(country => {
+                // Función de semilla para números pseudo-aleatorios consistentes
+                const seededRandom = (seed) => {
+                    const x = Math.sin(seed) * 10000;
+                    return x - Math.floor(x);
+                };
+                
+                countries.forEach((country, countryIndex) => {
                     const baseRate = baseEconomicData[country.code].interestRate;
+                    const baseStrength = parseFloat(calculateStrength(country.code, baseEconomicData[country.code]));
+                    
                     historical[country.code] = {
                         labels: months,
                         rates: months.map((_, i) => {
-                            const variation = (Math.random() - 0.5) * 0.5;
-                            return Number((baseRate + variation - (months.length - i) * 0.1).toFixed(2));
+                            const seed = countryIndex * 100 + i;
+                            const variation = (seededRandom(seed) - 0.5) * 0.4;
+                            const trend = -(months.length - i - 1) * 0.08;
+                            return Number((baseRate + variation + trend).toFixed(2));
                         }),
-                        strength: months.map(() => 
-                            Number((Math.random() * 40 + 40).toFixed(1))
-                        )
+                        strength: months.map((_, i) => {
+                            const seed = countryIndex * 100 + i + 1000;
+                            const variation = (seededRandom(seed) - 0.5) * 15;
+                            const trend = (i - 3) * 2;
+                            return Number(Math.max(20, Math.min(100, baseStrength + variation + trend)).toFixed(1));
+                        })
                     };
                 });
                 
@@ -1046,52 +1077,52 @@
                 }
             };
 
-            const calculateStrength = (currency) => {
-                if (!economicData[currency]) return 50;
+            const calculateStrength = (currency, data = null) => {
+                const currencyData = data || economicData[currency];
+                if (!currencyData) return 50;
                 
-                const data = economicData[currency];
                 const country = countries.find(c => c.code === currency);
                 let score = 0;
 
                 const globalAvgRate = 3.3;
-                const rateDiff = data.interestRate - globalAvgRate;
+                const rateDiff = currencyData.interestRate - globalAvgRate;
                 score += rateDiff * 8;
 
-                if (data.gdpGrowth > 2.0) score += 20;
-                else if (data.gdpGrowth > 1.5) score += 15;
-                else if (data.gdpGrowth > 1.0) score += 10;
+                if (currencyData.gdpGrowth > 2.0) score += 20;
+                else if (currencyData.gdpGrowth > 1.5) score += 15;
+                else if (currencyData.gdpGrowth > 1.0) score += 10;
                 else score += 3;
 
-                const inflationDiff = Math.abs(data.inflation - 2.0);
+                const inflationDiff = Math.abs(currencyData.inflation - 2.0);
                 if (inflationDiff < 0.5) score += 15;
                 else if (inflationDiff < 1.0) score += 10;
                 else if (inflationDiff < 1.5) score += 5;
                 else score -= 5;
 
-                if (data.currentAccount > 5) score += 20;
-                else if (data.currentAccount > 2) score += 15;
-                else if (data.currentAccount > 0) score += 10;
-                else if (data.currentAccount > -2) score += 3;
+                if (currencyData.currentAccount > 5) score += 20;
+                else if (currencyData.currentAccount > 2) score += 15;
+                else if (currencyData.currentAccount > 0) score += 10;
+                else if (currencyData.currentAccount > -2) score += 3;
                 else score -= 10;
 
-                if (data.tradeBalance > 30) score += 15;
-                else if (data.tradeBalance > 10) score += 12;
-                else if (data.tradeBalance > 0) score += 8;
-                else if (data.tradeBalance > -20) score += 2;
+                if (currencyData.tradeBalance > 30) score += 15;
+                else if (currencyData.tradeBalance > 10) score += 12;
+                else if (currencyData.tradeBalance > 0) score += 8;
+                else if (currencyData.tradeBalance > -20) score += 2;
                 else score -= 8;
 
-                if (data.unemployment < 3) score += 10;
-                else if (data.unemployment < 4.5) score += 8;
-                else if (data.unemployment < 6) score += 4;
+                if (currencyData.unemployment < 3) score += 10;
+                else if (currencyData.unemployment < 4.5) score += 8;
+                else if (currencyData.unemployment < 6) score += 4;
                 else score -= 3;
 
-                if (data.debt < 60) score += 10;
-                else if (data.debt < 90) score += 7;
-                else if (data.debt < 120) score += 3;
+                if (currencyData.debt < 60) score += 10;
+                else if (currencyData.debt < 90) score += 7;
+                else if (currencyData.debt < 120) score += 3;
                 else score -= 7;
 
-                if (country.outlook === 'Hawkish') score += 10;
-                else if (country.outlook === 'Neutral') score += 5;
+                if (country && country.outlook === 'Hawkish') score += 10;
+                else if (country && country.outlook === 'Neutral') score += 5;
                 else score -= 5;
 
                 if (currency === 'USD') {
@@ -1169,7 +1200,6 @@
             // Crear gráficos cuando cambia a la pestaña de tendencias
             useEffect(() => {
                 if (activeTab === 'trends' && Object.keys(historicalData).length > 0) {
-                    // Dar tiempo para que el DOM se renderice
                     setTimeout(() => {
                         createCharts();
                     }, 100);
@@ -1177,11 +1207,11 @@
             }, [activeTab, historicalData]);
 
             const createCharts = () => {
-                countries.slice(0, 4).forEach(country => {
+                // CORREGIDO: Mostrar todas las 8 divisas
+                countries.forEach(country => {
                     const canvas = document.getElementById(`chart-${country.code}`);
                     if (!canvas) return;
 
-                    // Destruir gráfico anterior si existe
                     if (chartRefs.current[country.code]) {
                         chartRefs.current[country.code].destroy();
                     }
@@ -1270,7 +1300,7 @@
                 });
             };
 
-            // Componente Tooltip mejorado con JavaScript
+            // Componente Tooltip mejorado
             const TooltipCell = ({ children, tooltip, title }) => {
                 const [showTooltip, setShowTooltip] = React.useState(false);
                 const [position, setPosition] = React.useState({ x: 0, y: 0 });
@@ -1278,8 +1308,22 @@
 
                 const handleMouseEnter = (e) => {
                     const rect = e.target.getBoundingClientRect();
+                    const viewportWidth = window.innerWidth;
+                    
+                    let x = rect.left + rect.width / 2;
+                    const tooltipWidth = 340;
+                    
+                    // Ajustar si se sale por la derecha
+                    if (x + tooltipWidth / 2 > viewportWidth) {
+                        x = viewportWidth - tooltipWidth / 2 - 20;
+                    }
+                    // Ajustar si se sale por la izquierda
+                    if (x - tooltipWidth / 2 < 0) {
+                        x = tooltipWidth / 2 + 20;
+                    }
+                    
                     setPosition({
-                        x: rect.left + rect.width / 2,
+                        x: x,
                         y: rect.top - 10
                     });
                     setShowTooltip(true);
@@ -1487,7 +1531,7 @@
                                                     <tr key={country.code}>
                                                         <td>
                                                             <div className="country-cell">
-                                                                <span className="country-flag">{country.flag}</span>
+                                                                <span className="country-flag flag-emoji">{country.flag}</span>
                                                                 <div className="country-info">
                                                                     <div className="country-name">{country.name}</div>
                                                                     <div className="country-currency">{country.code}</div>
@@ -1520,11 +1564,11 @@
                                                         </td>
                                                         <td style={{ background: getHeatmapColor(data.currentAccount, 'currentAccount') }}>
                                                             <span className="cell-value">{data.currentAccount > 0 ? '+' : ''}{data.currentAccount?.toFixed(1)}%</span>
-                                                            <span className="cell-suffix">del PIB</span>
+                                                            <span className="cell-suffix-white">del PIB</span>
                                                         </td>
                                                         <td style={{ background: getHeatmapColor(data.debt, 'debt') }}>
                                                             <span className="cell-value">{data.debt?.toFixed(1)}%</span>
-                                                            <span className="cell-suffix">del PIB</span>
+                                                            <span className="cell-suffix-white">del PIB</span>
                                                         </td>
                                                         <td style={{ background: getHeatmapColor(data.tradeBalance, 'tradeBalance') }}>
                                                             <span className="cell-value">{data.tradeBalance > 0 ? '+' : ''}{data.tradeBalance?.toFixed(1)}B</span>
@@ -1558,7 +1602,7 @@
                                             <div key={country.code} className="currency-card">
                                                 <div className="card-header">
                                                     <div className="card-title-section">
-                                                        <span className="card-flag">{country.flag}</span>
+                                                        <span className="card-flag flag-emoji">{country.flag}</span>
                                                         <div>
                                                             <div className="card-currency-code">{country.code}</div>
                                                             <div className="card-currency-name">{country.currency}</div>
@@ -1685,7 +1729,7 @@
                                     <div className="section-meta">Evolución de tasas de interés y fortaleza fundamental - Últimos 6 meses</div>
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '1.5rem' }}>
-                                    {countries.slice(0, 4).map(country => (
+                                    {countries.map(country => (
                                         <div key={country.code} className="chart-container">
                                             <div className="chart-wrapper">
                                                 <canvas id={`chart-${country.code}`}></canvas>
@@ -1712,7 +1756,7 @@
                                             <div className="event-details">
                                                 <div className="event-title">{event.event}</div>
                                                 <div className="event-country">
-                                                    {event.flag} {event.country}
+                                                    <span className="flag-emoji">{event.flag}</span> {event.country}
                                                 </div>
                                             </div>
                                             <div className={`event-impact impact-${event.impact}`}>
@@ -1728,8 +1772,8 @@
                         {activeTab === 'alerts' && (
                             <div>
                                 <div className="section-header">
-                                    <div className="section-title">Alertas y Notificaciones Personalizables</div>
-                                    <div className="section-meta">Configurar alertas para cambios en indicadores clave</div>
+                                    <div className="section-title">Alertas y Notificaciones</div>
+                                    <div className="section-meta">Eventos relevantes y actualizaciones del mercado</div>
                                 </div>
                                 <div className="alerts-container">
                                     <div className="alert-card alert-warning">
@@ -1742,38 +1786,38 @@
                                     <div className="alert-card alert-success">
                                         <div className="alert-icon" style={{ background: 'rgba(38, 166, 154, 0.3)', color: 'var(--green-strong)' }}>✓</div>
                                         <div className="alert-content">
-                                            <h3>Objetivo Alcanzado - EUR/USD</h3>
-                                            <p>EUR ha superado nivel de fortaleza 65. Superávit comercial y postura hawkish del BCE impulsan la divisa.</p>
+                                            <h3>Fortaleza Destacada - EUR</h3>
+                                            <p>EUR mantiene nivel de fortaleza superior a 75 puntos. Superávit comercial y postura hawkish del BCE continúan impulsando la divisa.</p>
                                         </div>
                                     </div>
                                     <div className="alert-card alert-info">
                                         <div className="alert-icon" style={{ background: 'rgba(30, 136, 229, 0.3)', color: 'var(--blue)' }}>ℹ️</div>
                                         <div className="alert-content">
                                             <h3>Reunión Banco Central - BoJ</h3>
-                                            <p>Banco de Japón se reúne el 14 de marzo. Mercado espera mantenimiento de tasa en 0.75% con sesgo hawkish.</p>
+                                            <p>Banco de Japón se reúne el 14 de marzo. Mercado espera mantenimiento de tasa en 0.75% con sesgo hawkish en comunicado oficial.</p>
                                         </div>
                                     </div>
                                     <div className="alert-card alert-warning">
                                         <div className="alert-icon" style={{ background: 'rgba(255, 111, 0, 0.3)', color: 'var(--orange)' }}>📊</div>
                                         <div className="alert-content">
-                                            <h3>Cambio de Tendencia - GBP</h3>
-                                            <p>GBP muestra debilidad técnica. Inflación elevada (3.4%) presiona al BoE pero crecimiento débil limita margen de alzas.</p>
+                                            <h3>Tendencia Bajista - GBP</h3>
+                                            <p>GBP muestra debilidad técnica y fundamental. Inflación elevada (3.4%) presiona al BoE pero crecimiento débil limita margen de alzas.</p>
                                         </div>
                                     </div>
-                                </div>
-
-                                <div style={{ marginTop: '2rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '6px', padding: '1.5rem' }}>
-                                    <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1rem' }}>Configurar Nuevas Alertas</h3>
-                                    <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-                                        Próximamente podrás configurar alertas personalizadas para:
-                                    </p>
-                                    <ul style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', paddingLeft: '1.5rem', lineHeight: '1.8' }}>
-                                        <li>Cambios en tasas de interés de bancos centrales</li>
-                                        <li>Niveles específicos de fortaleza de divisas</li>
-                                        <li>Publicación de datos económicos importantes</li>
-                                        <li>Cambios significativos en indicadores clave (PIB, inflación, desempleo)</li>
-                                        <li>Divergencias en políticas monetarias entre países</li>
-                                    </ul>
+                                    <div className="alert-card alert-info">
+                                        <div className="alert-icon" style={{ background: 'rgba(30, 136, 229, 0.3)', color: 'var(--blue)' }}>🌐</div>
+                                        <div className="alert-content">
+                                            <h3>Divergencia Monetaria</h3>
+                                            <p>Diferencial de tasas Fed-ECB se estrecha a 125 puntos básicos. Normalización del BoJ añade presión adicional al carry trade tradicional.</p>
+                                        </div>
+                                    </div>
+                                    <div className="alert-card alert-success">
+                                        <div className="alert-icon" style={{ background: 'rgba(38, 166, 154, 0.3)', color: 'var(--green-strong)' }}>💰</div>
+                                        <div className="alert-content">
+                                            <h3>Superávit Comercial - CHF</h3>
+                                            <p>Suiza reporta superávit comercial de $48.7B, el más alto del trimestre. Demanda estructural de CHF como refugio seguro continúa sólida.</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
