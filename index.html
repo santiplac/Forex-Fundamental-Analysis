@@ -1743,72 +1743,132 @@
             const [isLoading, setIsLoading] = useState(true);
             const chartRefs = useRef({});
 
-            // ✅ createCharts DENTRO del componente
             const createCharts = () => {
-                setTimeout(() => {
-                    countries.forEach(country => {
-                        const canvas = document.getElementById(`chart-${country.code}`);
-                        if (!canvas) {
-                            console.warn(`Canvas not found for ${country.code}`);
-                            return;
-                        }
+    // Limpiar gráficos existentes primero
+    Object.values(chartRefs.current).forEach(chart => {
+        if (chart) {
+            try {
+                chart.destroy();
+            } catch (e) {
+                console.warn('Error destroying chart:', e);
+            }
+        }
+    });
+    chartRefs.current = {};
 
-                        if (chartRefs.current[country.code]) {
-                            chartRefs.current[country.code].destroy();
-                        }
+    setTimeout(() => {
+        countries.forEach(country => {
+            const canvas = document.getElementById(`chart-${country.code}`);
+            if (!canvas) {
+                console.warn(`Canvas not found for ${country.code}`);
+                return;
+            }
 
-                        const ctx = canvas.getContext('2d');
-                        const data = historicalData[country.code];
+            const ctx = canvas.getContext('2d');
+            const data = historicalData[country.code];
 
-                        if (!data?.labels || !data?.rates || !data?.strength) {
-                            console.warn(`No data for ${country.code}`);
-                            return;
-                        }
+            if (!data?.labels || !data?.rates || !data?.strength) {
+                console.warn(`No data for ${country.code}`);
+                return;
+            }
 
-                        try {
-                            chartRefs.current[country.code] = new Chart(ctx, {
-                                type: 'line',
-                                data: {
-                                    labels: data.labels,
-                                    datasets: [
-                                        {
-                                            label: 'Tasa de Interés (%)',
-                                            data: data.rates,
-                                            borderColor: '#1e88e5',
-                                            backgroundColor: 'rgba(30, 136, 229, 0.1)',
-                                            yAxisID: 'y',
-                                            tension: 0.4
-                                        },
-                                        {
-                                            label: 'Índice de Fortaleza',
-                                            data: data.strength,
-                                            borderColor: '#26a69a',
-                                            backgroundColor: 'rgba(38, 166, 154, 0.1)',
-                                            yAxisID: 'y1',
-                                            tension: 0.4
-                                        }
-                                    ]
-                                },
-                                options: {
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    plugins: {
-                                        legend: { labels: { color: '#e1e4e8', font: { size: 12 } } },
-                                        title: { display: true, text: `${country.code} - Tendencias 6 Meses`, color: '#e1e4e8', font: { size: 14, weight: 'bold' } }
-                                    },
-                                    scales: {
-                                        y: { type: 'linear', position: 'left', grid: { color: '#30363d' }, ticks: { color: '#8b949e' }, title: { display: true, text: 'Tasa %', color: '#8b949e' } },
-                                        y1: { type: 'linear', position: 'right', grid: { display: false }, ticks: { color: '#8b949e' }, title: { display: true, text: 'Fortaleza', color: '#8b949e' } },
-                                        x: { grid: { color: '#30363d' }, ticks: { color: '#8b949e' } }
-                                    }
-                                }
-                            });
-                        } catch (error) {
-                            console.error(`Error creating chart for ${country.code}:`, error);
+            try {
+                chartRefs.current[country.code] = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [
+                            {
+                                label: 'Tasa de Interés (%)',
+                                data: data.rates,
+                                borderColor: '#1e88e5',
+                                backgroundColor: 'rgba(30, 136, 229, 0.1)',
+                                yAxisID: 'y',
+                                tension: 0.4,
+                                borderWidth: 2,
+                                pointRadius: 3,
+                                pointHoverRadius: 5
+                            },
+                            {
+                                label: 'Índice de Fortaleza',
+                                data: data.strength,
+                                borderColor: '#26a69a',
+                                backgroundColor: 'rgba(38, 166, 154, 0.1)',
+                                yAxisID: 'y1',
+                                tension: 0.4,
+                                borderWidth: 2,
+                                pointRadius: 3,
+                                pointHoverRadius: 5
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false
+                        },
+                        plugins: {
+                            legend: { 
+                                labels: { 
+                                    color: '#e1e4e8', 
+                                    font: { size: 12 },
+                                    padding: 15
+                                } 
+                            },
+                            title: { 
+                                display: true, 
+                                text: `${country.code} - Tendencias 6 Meses`, 
+                                color: '#e1e4e8', 
+                                font: { size: 14, weight: 'bold' },
+                                padding: { bottom: 20 }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                                titleColor: '#e1e4e8',
+                                bodyColor: '#8b949e',
+                                borderColor: '#30363d',
+                                borderWidth: 1
+                            }
+                        },
+                        scales: {
+                            y: { 
+                                type: 'linear', 
+                                position: 'left', 
+                                grid: { color: '#30363d' }, 
+                                ticks: { color: '#8b949e' }, 
+                                title: { 
+                                    display: true, 
+                                    text: 'Tasa %', 
+                                    color: '#8b949e' 
+                                } 
+                            },
+                            y1: { 
+                                type: 'linear', 
+                                position: 'right', 
+                                grid: { display: false }, 
+                                ticks: { color: '#8b949e' }, 
+                                title: { 
+                                    display: true, 
+                                    text: 'Fortaleza', 
+                                    color: '#8b949e' 
+                                } 
+                            },
+                            x: { 
+                                grid: { color: '#30363d' }, 
+                                ticks: { color: '#8b949e' } 
+                            }
                         }
-                    });
-                }, 100);
-            };
+                    }
+                });
+                console.log(`✅ Chart created for ${country.code}`);
+            } catch (error) {
+                console.error(`Error creating chart for ${country.code}:`, error);
+            }
+        });
+    }, 250);
+};
 
             const TooltipCell = ({ children, tooltip, title }) => {
                 const [showTooltip, setShowTooltip] = React.useState(false);
@@ -1971,19 +2031,21 @@
                 return () => clearInterval(ratesInterval);
             }, []);
 
-            useEffect(() => {
-                if (activeTab === 'trends' && Object.keys(historicalData).length > 0) {
-                    createCharts();
-                }
-                return () => {
-                    if (activeTab !== 'trends') {
-                        Object.values(chartRefs.current).forEach(chart => {
-                            if (chart) chart.destroy();
-                        });
-                        chartRefs.current = {};
-                    }
-                };
-            }, [activeTab, historicalData]);
+useEffect(() => {
+    if (activeTab === 'trends' && Object.keys(historicalData).length > 0) {
+        // Dar tiempo al DOM para renderizar los canvas
+        const timer = setTimeout(() => {
+            createCharts();
+        }, 200);
+        return () => clearTimeout(timer);
+    }
+    return () => {
+        Object.values(chartRefs.current).forEach(chart => {
+            if (chart) chart.destroy();
+        });
+        chartRefs.current = {};
+    };
+}, [activeTab, historicalData]);
 
             if (isLoading) {
                 return (
