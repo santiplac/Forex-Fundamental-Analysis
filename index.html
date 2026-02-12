@@ -1358,6 +1358,7 @@ const fetchTradingEconomicsPublic = async (countryCode, indicator) => {
 };
 
 const fetchOECDviaProxy = async (countryCode, indicator) => {
+    console.log(`🔍 [DEBUG] Attempting OECD for ${countryCode} ${indicator}`);
     const cacheKey = `oecd_proxy_${countryCode}_${indicator}`;
     const cached = CacheManager.get(cacheKey);
     if (cached !== null) return cached;
@@ -1456,28 +1457,41 @@ const fetchUNComtradeBalance = async (countryCode) => {
     const country = unCountryCodes[countryCode];
     if (!country) return null;
 
-    try {
-        // UN Comtrade API pública
-        const year = new Date().getFullYear() - 1;
-        const url = `https://comtradeapi.un.org/data/v1/get/C/A/${year}/total/${country}?freq=A&type=C`;
-        
-        const response = await fetch(url);
-        if (response.ok) {
-            const data = await response.json();
-            if (data.data?.length > 0) {
-                const tradeData = data.data[0];
-                const exports = tradeData.primaryValue || 0;
-                const imports = tradeData.netWgt || 0;
-                const balance = (exports - imports) / 1e9; // Convertir a billones
-                
-                console.log(`✓ UN Comtrade balance for ${countryCode}: ${balance.toFixed(1)}B`);
-                CacheManager.set(cacheKey, parseFloat(balance.toFixed(1)), CACHE_CONFIG.ECONOMIC_DATA);
-                return parseFloat(balance.toFixed(1));
+    const year = new Date().getFullYear() - 1;
+    const baseUrl = `https://comtradeapi.un.org/data/v1/get/C/A/${year}/total/${country}?freq=A&type=C`;
+    
+    // ✅ Usar proxies CORS
+    const proxies = [
+        'https://corsproxy.io/?',
+        'https://api.codetabs.com/v1/proxy?quest='
+    ];
+    
+    for (const proxy of proxies) {
+        try {
+            const response = await fetch(proxy + encodeURIComponent(baseUrl), {
+                signal: AbortSignal.timeout(8000)
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.data?.length > 0) {
+                    const tradeData = data.data[0];
+                    const exports = tradeData.primaryValue || 0;
+                    const imports = tradeData.netWgt || 0;
+                    const balance = (exports - imports) / 1e9;
+                    
+                    console.log(`✓ UN Comtrade balance for ${countryCode}: ${balance.toFixed(1)}B`);
+                    CacheManager.set(cacheKey, parseFloat(balance.toFixed(1)), CACHE_CONFIG.ECONOMIC_DATA);
+                    return parseFloat(balance.toFixed(1));
+                }
             }
+        } catch (error) {
+            console.warn(`UN Comtrade proxy ${proxy} failed for ${countryCode}`);
+            continue;
         }
-    } catch (error) {
-        console.warn(`UN Comtrade failed for ${countryCode}`);
     }
+    
+    console.warn(`UN Comtrade failed for ${countryCode}`);
     return null;
 };
         // ✅ VERSIÓN MEJORADA - Usando FRED API (Federal Reserve Economic Data)
@@ -1670,9 +1684,9 @@ const fetchUNComtradeBalance = async (countryCode) => {
 
 // ========== ESTRATEGIA 3: CORS Proxies con fuentes oficiales ==========
 const corsProxies = [
-    'https://api.allorigins.win/raw?url=',
-    'https://corsproxy.io/?',
-    'https://api.codetabs.com/v1/proxy?quest='
+    'https://corsproxy.io/?',  // ✅ Más estable
+    'https://api.codetabs.com/v1/proxy?quest=',
+    'https://api.allorigins.win/raw?url='  // Último recurso
 ];
 
 const officialRateSources = {
