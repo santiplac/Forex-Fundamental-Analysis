@@ -1872,186 +1872,249 @@ const getFallbackValue = async (countryCode, indicator) => {
     const cached = CacheManager.get(cacheKey);
     if (cached !== null) return cached;
 
-    // ========== ESTRATEGIA 1: Alpha Vantage (CORS-friendly, gratis 500/día) ==========
-    const alphaVantageKeys = [
-        '2TW8Y8DDBPRQ2VTV', // Key pública de demostración
-        'RIBXT3XYLI69O5WY', // Backup key 1
-        'YOUR_ALPHAVANTAGE_KEY' // Usuario puede reemplazar
-    ];
-    
-    const avSeriesMap = {
-        USD: 'FEDFUNDS', // Federal Funds Rate
-        EUR: 'ECBDFR', // ECB Deposit Facility Rate
-        GBP: 'IUQABEDR', // Bank of England Base Rate
-        JPY: 'BOJCJPY', // Bank of Japan Policy Rate
-        AUD: 'TCMNOM_AUD', // RBA Cash Rate Target
-        CAD: 'IRSTCB01CAM156N', // Bank of Canada Target Rate
-        CHF: 'SNBPOLIC', // SNB Policy Rate
-        NZD: 'RBNZ_OCR' // RBNZ Official Cash Rate
+    // ========== ESTRATEGIA 1: Trading Economics (mejorado) ==========
+    const teRateMappings = {
+        USD: 'united-states/interest-rate',
+        EUR: 'euro-area/interest-rate',
+        GBP: 'united-kingdom/interest-rate',
+        JPY: 'japan/interest-rate',
+        AUD: 'australia/interest-rate',
+        CAD: 'canada/interest-rate',
+        CHF: 'switzerland/interest-rate',
+        NZD: 'new-zealand/interest-rate'
     };
 
-    for (const apiKey of alphaVantageKeys) {
-        const series = avSeriesMap[country.code];
-        if (series) {
+    const ratePath = teRateMappings[country.code];
+    if (ratePath) {
+        const proxies = [
+            'https://api.allorigins.win/get?url=',
+            'https://corsproxy.io/?'
+        ];
+        
+        for (const proxy of proxies) {
             try {
-                const url = `https://www.alphavantage.co/query?function=FEDERAL_FUNDS_RATE&apikey=${apiKey}&datatype=json`;
-                const response = await fetch(url);
+                const url = `https://tradingeconomics.com/${ratePath}`;
+                const response = await fetch(proxy + encodeURIComponent(url), {
+                    signal: AbortSignal.timeout(8000)
+                });
+                
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.data && data.data.length > 0) {
-                        const rate = parseFloat(data.data[0].value);
-                        if (!isNaN(rate)) {
-                            console.log(`✓ Alpha Vantage rate for ${country.code}: ${rate}%`);
-                            CacheManager.set(cacheKey, rate, CACHE_CONFIG.ECONOMIC_DATA);
-                            return rate;
+                    const html = data.contents || await response.text();
+                    
+                    // Patrones mejorados para extraer la tasa
+                    const patterns = [
+                        /id="actual"[^>]*>([^<]*)</i,
+                        /class="actual"[^>]*>([^<]*)</i,
+                        /"actual":"([^"]+)"/i,
+                        /Latest Release<\/strong><\/td>\s*<td>([^<]*)</i,
+                        /Previous<\/strong><\/td>\s*<td>([^<]*)</i
+                    ];
+                    
+                    for (const pattern of patterns) {
+                        const match = html.match(pattern);
+                        if (match) {
+                            const rateText = match[1].trim().replace(/[^\d.-]/g, '');
+                            const rate = parseFloat(rateText);
+                            if (!isNaN(rate) && rate >= -2 && rate < 25) {
+                                console.log(`✓ Trading Economics rate for ${country.code}: ${rate}%`);
+                                CacheManager.set(cacheKey, rate, CACHE_CONFIG.ECONOMIC_DATA);
+                                return rate;
+                            }
                         }
                     }
                 }
             } catch (error) {
-                console.warn(`Alpha Vantage attempt failed for ${country.code}`);
+                console.warn(`Trading Economics proxy ${proxy} failed for ${country.code}`);
+                continue;
             }
         }
     }
 
-    // ========== ESTRATEGIA 2: Twelve Data API (CORS-friendly, 800/día gratis) ==========
-    const twelveDataKeys = ['2TW8Y8DDBPRQ2VTV', 'YOUR_TWELVEDATA_KEY'];
-    const tdSymbolMap = {
-        USD: 'FEDFUNDS',
-        EUR: 'EUREONIA',
-        GBP: 'GBPSONIA',
-        JPY: 'JPYTONA',
-        AUD: 'AUDBBSW',
-        CAD: 'CADCDOR',
-        CHF: 'CHFSARON',
-        NZD: 'NZDBKBM'
+    // ========== ESTRATEGIA 2: Investing.com ==========
+    const investingMappings = {
+        USD: 'rates-bonds/us-fed-funds-rate',
+        EUR: 'rates-bonds/ecb-deposit-facility-rate',
+        GBP: 'rates-bonds/uk-bank-rate',
+        JPY: 'rates-bonds/japan-interest-rate',
+        AUD: 'rates-bonds/australia-interest-rate',
+        CAD: 'rates-bonds/canada-interest-rate',
+        CHF: 'rates-bonds/switzerland-interest-rate',
+        NZD: 'rates-bonds/new-zealand-interest-rate'
     };
 
-    for (const apiKey of twelveDataKeys) {
-        const symbol = tdSymbolMap[country.code];
-        if (symbol) {
+    const investingPath = investingMappings[country.code];
+    if (investingPath) {
+        const proxies = [
+            'https://api.allorigins.win/get?url=',
+            'https://corsproxy.io/?'
+        ];
+        
+        for (const proxy of proxies) {
             try {
-                const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=1day&outputsize=1&apikey=${apiKey}`;
-                const response = await fetch(url);
+                const url = `https://www.investing.com/${investingPath}`;
+                const response = await fetch(proxy + encodeURIComponent(url), {
+                    signal: AbortSignal.timeout(8000)
+                });
+                
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.values && data.values.length > 0) {
-                        const rate = parseFloat(data.values[0].close);
-                        if (!isNaN(rate)) {
-                            console.log(`✓ Twelve Data rate for ${country.code}: ${rate}%`);
-                            CacheManager.set(cacheKey, rate, CACHE_CONFIG.ECONOMIC_DATA);
-                            return rate;
+                    const html = data.contents || await response.text();
+                    
+                    const patterns = [
+                        /data-test="instrument-price-last"[^>]*>([^<]*)</i,
+                        /class="[^"]*last-price[^"]*"[^>]*>([^<]*)</i,
+                        /pid-\d+-last[^>]*>([^<]*)</i,
+                        /"last":([^,}]+)/i
+                    ];
+                    
+                    for (const pattern of patterns) {
+                        const match = html.match(pattern);
+                        if (match) {
+                            const rateText = match[1].trim().replace(/[^\d.-]/g, '');
+                            const rate = parseFloat(rateText);
+                            if (!isNaN(rate) && rate >= -2 && rate < 25) {
+                                console.log(`✓ Investing.com rate for ${country.code}: ${rate}%`);
+                                CacheManager.set(cacheKey, rate, CACHE_CONFIG.ECONOMIC_DATA);
+                                return rate;
+                            }
                         }
                     }
                 }
             } catch (error) {
-                console.warn(`Twelve Data failed for ${country.code}`);
+                console.warn(`Investing.com proxy ${proxy} failed for ${country.code}`);
+                continue;
             }
         }
     }
 
-// ========== ESTRATEGIA 3: CORS Proxies con fuentes oficiales ==========
-const corsProxies = [
-    'https://corsproxy.io/?',  // ✅ Más estable
-    'https://api.codetabs.com/v1/proxy?quest=',
-    'https://api.allorigins.win/raw?url='  // Último recurso
-];
-
-const officialRateSources = {
-    USD: 'https://markets.newyorkfed.org/api/rates/all/latest.json',
-    EUR: 'https://data.ecb.europa.eu/data-detail-api/MIR.M.U2.B.A2C.AM.R.A.2250.EUR.N',
-    GBP: 'https://www.bankofengland.co.uk/boeapps/database/Bank-Rate.asp',
-    JPY: 'https://www.boj.or.jp/en/statistics/boj/other/discount/discount.htm',
-    AUD: 'https://www.rba.gov.au/statistics/cash-rate/',
-    CAD: 'https://www.bankofcanada.ca/rates/interest-rates/canadian-interest-rates/',
-    CHF: 'https://data.snb.ch/en/topics/ziredev#!/cube/zimoma',
-    NZD: 'https://www.rbnz.govt.nz/monetary-policy/official-cash-rate-decisions'
-};
-
-for (const proxy of corsProxies) {
-    const sourceUrl = officialRateSources[country.code];
-    if (sourceUrl) {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000);
-            
-            const response = await fetch(proxy + encodeURIComponent(sourceUrl), { 
-                signal: controller.signal 
-            });
-            
-            clearTimeout(timeoutId);
-            
-            if (response.ok) {
-                const text = await response.text();
-                // Parsear según formato (JSON, HTML, CSV)
-                const rateMatch = text.match(/(\d+\.?\d*)\s*%?/);
-                if (rateMatch) {
-                    const rate = parseFloat(rateMatch[1]);
-                    if (!isNaN(rate) && rate > 0 && rate < 20) {
-                        console.log(`✓ Proxy rate for ${country.code}: ${rate}%`);
-                        CacheManager.set(cacheKey, rate, CACHE_CONFIG.ECONOMIC_DATA);
-                        return rate;
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn(`Proxy failed for ${country.code}`);
-        }
-    }
-}
-
-    // ========== ESTRATEGIA 4: TradingView Scanner ==========
-    const tradingViewRates = {
-        USD: { symbol: 'FRED:FEDFUNDS', multiplier: 1 },
-        EUR: { symbol: 'ECONOMICS:EUDEPO', multiplier: 1 },
-        GBP: { symbol: 'ECONOMICS:GBBR', multiplier: 1 },
-        JPY: { symbol: 'ECONOMICS:JPIR', multiplier: 1 },
-        AUD: { symbol: 'ECONOMICS:AUCASH', multiplier: 1 },
-        CAD: { symbol: 'ECONOMICS:CABROVER', multiplier: 1 },
-        CHF: { symbol: 'ECONOMICS:CHPOLICYRATE', multiplier: 1 },
-        NZD: { symbol: 'ECONOMICS:NZOCR', multiplier: 1 }
+    // ========== ESTRATEGIA 3: Yahoo Finance ==========
+    const yahooSymbols = {
+        USD: '^IRX', // US 13 Week Treasury Bill
+        EUR: 'EURIBOR3MD=X',
+        GBP: 'GBPBANKRATE=X',
+        JPY: 'JPYBANKRATE=X',
+        AUD: 'AUDBANKRATE=X',
+        CAD: 'CADBANKRATE=X',
+        CHF: 'CHFBANKRATE=X',
+        NZD: 'NZDBANKRATE=X'
     };
 
-    const tvData = tradingViewRates[country.code];
-    if (tvData) {
+    const yahooSymbol = yahooSymbols[country.code];
+    if (yahooSymbol) {
         try {
-            const url = `https://scanner.tradingview.com/symbol?symbol=${encodeURIComponent(tvData.symbol)}&fields=close&no_404=true`;
-            const response = await fetch(url);
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}?interval=1d&range=5d`;
+            const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+            
             if (response.ok) {
                 const data = await response.json();
-                if (data.close !== undefined) {
-                    const rate = parseFloat(data.close) * tvData.multiplier;
-                    if (!isNaN(rate)) {
-                        console.log(`✓ TradingView rate for ${country.code}: ${rate}%`);
+                const quote = data.chart?.result?.[0]?.meta?.regularMarketPrice;
+                
+                if (quote !== undefined) {
+                    const rate = parseFloat(quote);
+                    if (!isNaN(rate) && rate >= -2 && rate < 25) {
+                        console.log(`✓ Yahoo Finance rate for ${country.code}: ${rate}%`);
                         CacheManager.set(cacheKey, rate, CACHE_CONFIG.ECONOMIC_DATA);
                         return rate;
                     }
                 }
             }
         } catch (error) {
-            console.warn(`TradingView failed for ${country.code}`);
+            console.warn(`Yahoo Finance failed for ${country.code}`);
         }
     }
 
-    // ========== ESTRATEGIA 5: Estimación basada en datos económicos (Regla de Taylor) ==========
-    try {
-        const economicData = {
-            inflation: await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.inflation),
-            gdpGrowth: await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.gdpGrowth)
-        };
+    // ========== ESTRATEGIA 4: FRED API (probado funcional para algunas series) ==========
+    const fredRateSeries = {
+        USD: 'DFF', // Effective Federal Funds Rate
+        EUR: 'ECBDFR', // ECB Deposit Facility Rate
+        GBP: 'IUQABEDR', // Bank of England Base Rate
+        JPY: 'INTDSRJPM193N', // Japan Discount Rate
+        AUD: 'INTDSRAUA193N', // Australia Cash Rate
+        CAD: 'INTDSRCAM193N', // Canada Target Rate
+        CHF: 'INTDSRCHM193N', // Switzerland Policy Rate
+        NZD: 'INTDSRNZM193N'  // New Zealand OCR
+    };
 
-        if (economicData.inflation !== null && economicData.gdpGrowth !== null) {
-            // Regla de Taylor simplificada: r = π + 0.5y + 0.5(π - 2) + 2
-            const naturalRate = 2.0;
-            const targetInflation = 2.0;
-            const estimatedRate = economicData.inflation + 
-                                  0.5 * economicData.gdpGrowth + 
-                                  0.5 * (economicData.inflation - targetInflation) + 
-                                  naturalRate;
+    const fredSeries = fredRateSeries[country.code];
+    if (fredSeries) {
+        const fredApiKeys = ['5e0ae2ba29361b8ddb614fd5f92c0a51'];
+        
+        for (const apiKey of fredApiKeys) {
+            const proxies = ['', 'https://corsproxy.io/?'];
             
-            const bounded = Math.max(0.1, Math.min(estimatedRate, 15));
-            console.log(`✓ Taylor rule estimate for ${country.code}: ${bounded.toFixed(2)}%`);
-            CacheManager.set(cacheKey, parseFloat(bounded.toFixed(2)), CACHE_CONFIG.ECONOMIC_DATA);
-            return parseFloat(bounded.toFixed(2));
+            for (const proxy of proxies) {
+                try {
+                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${fredSeries}&api_key=${apiKey}&file_type=json&limit=1&sort_order=desc`;
+                    const fetchUrl = proxy ? proxy + encodeURIComponent(url) : url;
+                    const response = await fetch(fetchUrl, { signal: AbortSignal.timeout(6000) });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.observations?.[0]?.value) {
+                            const rate = parseFloat(data.observations[0].value);
+                            if (!isNaN(rate) && rate >= -2 && rate < 25) {
+                                console.log(`✓ FRED rate for ${country.code}: ${rate}%`);
+                                CacheManager.set(cacheKey, rate, CACHE_CONFIG.ECONOMIC_DATA);
+                                return rate;
+                            }
+                        }
+                    }
+                } catch (error) {
+                    continue;
+                }
+            }
+        }
+    }
+
+    // ========== ESTRATEGIA 5: Estimación mejorada por Regla de Taylor Extendida ==========
+    try {
+        console.log(`⚠️ Attempting Taylor Rule estimation for ${country.code}...`);
+        
+        // Obtener datos económicos
+        const inflation = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.inflation);
+        const gdpGrowth = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.gdpGrowth);
+        const unemployment = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.unemployment);
+        
+        if (inflation !== null && gdpGrowth !== null) {
+            // Parámetros específicos por país
+            const countryParams = {
+                USD: { naturalRate: 2.5, targetInflation: 2.0, inflationWeight: 1.5, outputWeight: 0.5 },
+                EUR: { naturalRate: 2.0, targetInflation: 2.0, inflationWeight: 1.5, outputWeight: 0.5 },
+                GBP: { naturalRate: 2.5, targetInflation: 2.0, inflationWeight: 1.5, outputWeight: 0.5 },
+                JPY: { naturalRate: 0.0, targetInflation: 2.0, inflationWeight: 1.2, outputWeight: 0.3 },
+                AUD: { naturalRate: 3.0, targetInflation: 2.5, inflationWeight: 1.5, outputWeight: 0.5 },
+                CAD: { naturalRate: 2.5, targetInflation: 2.0, inflationWeight: 1.5, outputWeight: 0.5 },
+                CHF: { naturalRate: 1.0, targetInflation: 2.0, inflationWeight: 1.3, outputWeight: 0.4 },
+                NZD: { naturalRate: 3.0, targetInflation: 2.0, inflationWeight: 1.5, outputWeight: 0.5 }
+            };
+            
+            const params = countryParams[country.code] || { naturalRate: 2.0, targetInflation: 2.0, inflationWeight: 1.5, outputWeight: 0.5 };
+            
+            // Regla de Taylor: r = r* + π + α(π - π*) + β(y - y*)
+            // Donde: r* = tasa natural, π = inflación, π* = meta de inflación
+            // α = peso de inflación, β = peso de output gap
+            
+            const outputGap = gdpGrowth - 2.0; // Asumimos 2% como crecimiento potencial
+            const inflationGap = inflation - params.targetInflation;
+            
+            let estimatedRate = params.naturalRate + inflation + 
+                                (params.inflationWeight * inflationGap) + 
+                                (params.outputWeight * outputGap);
+            
+            // Ajuste por desempleo si está disponible
+            if (unemployment !== null) {
+                const naturalUnemployment = 5.0; // NAIRU típico
+                const unemploymentGap = unemployment - naturalUnemployment;
+                estimatedRate -= (0.3 * unemploymentGap); // Curva de Phillips
+            }
+            
+            // Aplicar límites razonables
+            estimatedRate = Math.max(-1, Math.min(estimatedRate, 15));
+            
+            console.log(`✓ Taylor Rule estimate for ${country.code}: ${estimatedRate.toFixed(2)}% (Inflation: ${inflation}%, GDP: ${gdpGrowth}%)`);
+            CacheManager.set(cacheKey, parseFloat(estimatedRate.toFixed(2)), CACHE_CONFIG.ECONOMIC_DATA);
+            return parseFloat(estimatedRate.toFixed(2));
         }
     } catch (error) {
         console.warn(`Taylor rule estimation failed for ${country.code}`);
