@@ -4,6 +4,7 @@
   "data": {
     "gdp": 260.0,
     "gdpGrowth": 1.1,
+    "inflation": 3.1,
     "unemployment": 5.4,
     "debt": 45.2,
     "tradeBalance": 52.0,
