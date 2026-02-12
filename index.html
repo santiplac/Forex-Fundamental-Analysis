@@ -1142,13 +1142,54 @@
             }
         };
 
-        // ✅ VERSIÓN 100% DINÁMICA DE PRODUCCIÓN INDUSTRIAL - Sin datos hardcodeados
+        // ✅ VERSIÓN MEJORADA - Usando FRED API (Federal Reserve Economic Data)
         const fetchProductionDynamic = async (countryCode) => {
             const cacheKey = `production_${countryCode}`;
             const cached = CacheManager.get(cacheKey);
             if (cached !== null) return cached;
 
-            // Estrategia 1: World Bank Industrial Production Value Added (crecimiento anual)
+            // Estrategia 1: FRED API - Industrial Production Index
+            const fredSeriesMap = {
+                USD: 'INDPRO',        // US Industrial Production Index
+                EUR: 'EA19PRINTO01IXOBM', // Euro Area
+                GBP: 'GBRPRINTO01IXOBM',  // UK
+                JPY: 'JPNPRINTO01IXOBM',  // Japan
+                CAD: 'CANPRINTO01IXOBM',  // Canada
+                AUD: 'AUSPROINDMISMEI',   // Australia
+                CHF: 'CHEPRINTO01IXOBM',  // Switzerland
+                NZD: 'NZLPROINDMISMEI'    // New Zealand
+            };
+
+            const seriesId = fredSeriesMap[countryCode];
+            if (seriesId) {
+                try {
+                    // FRED API key pública de demostración (limitada pero funcional)
+                    const apiKey = '5e0ae2ba29361b8ddb614fd5f92c0a51'; // Usar demo key
+                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json&limit=24&sort_order=desc`;
+                    
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.observations && data.observations.length >= 13) {
+                            // Calcular crecimiento año sobre año (últimos 12 meses)
+                            const observations = data.observations.reverse(); // Más antiguo a más reciente
+                            const latest = parseFloat(observations[observations.length - 1].value);
+                            const yearAgo = parseFloat(observations[observations.length - 13].value);
+                            
+                            if (!isNaN(latest) && !isNaN(yearAgo) && yearAgo !== 0) {
+                                const growth = ((latest - yearAgo) / yearAgo * 100);
+                                console.log(`✓ FRED production for ${countryCode}: ${growth.toFixed(1)}%`);
+                                CacheManager.set(cacheKey, parseFloat(growth.toFixed(1)), CACHE_CONFIG.ECONOMIC_DATA);
+                                return parseFloat(growth.toFixed(1));
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`FRED API failed for ${countryCode}:`, error.message);
+                }
+            }
+
+            // Estrategia 2: World Bank Industrial Production Value Added (crecimiento anual)
             try {
                 const isoCode = ISO_COUNTRY_CODES[countryCode];
                 const indicatorCode = 'NV.IND.TOTL.KD.ZG'; // Industrial production growth (annual %)
@@ -1188,7 +1229,7 @@
                 console.warn(`World Bank production failed for ${countryCode}:`, error.message);
             }
 
-            // Estrategia 2: Derivar de GDP growth con volatilidad amplificada
+            // Estrategia 3: Derivar de GDP growth con volatilidad amplificada
             try {
                 const gdpGrowth = await fetchWorldBankData(countryCode, WORLD_BANK_INDICATORS.gdpGrowth);
                 
