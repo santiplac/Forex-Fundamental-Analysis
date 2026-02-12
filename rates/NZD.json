@@ -1,1 +1,9 @@
-{"observations":[{"value":"4.33","date":"2026-02-12","source":"FRED"}]}
+{
+  "observations": [
+    {
+      "value": "4.33",
+      "date": "2026-02-12",
+      "source": "FRED"
+    }
+  ]
+}
