@@ -1,9 +1,9 @@
 {
   "observations": [
     {
-      "value": "4.33",
+      "value": "2.25",
       "date": "2026-02-12",
-      "source": "FRED"
+      "source": "GlobalRates"
     }
   ]
 }
