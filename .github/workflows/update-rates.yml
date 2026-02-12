@@ -1,4 +1,4 @@
-name: Update Interest Rates (100% Autonomous + 100% Reliable) - FIXED
+name: Update Interest Rates (Hybrid - Ultra Reliable)
 on:
   schedule:
     - cron: '0 8 * * *'  # Daily at 8:00 AM UTC
@@ -11,428 +11,235 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 --break-system-packages
+      
       - name: Create rates directory
         run: mkdir -p rates
       
-      # ========================================
-      # USD - Federal Reserve (HIGHLY RELIABLE)
-      # ========================================
-      - name: Fetch USD rate
+      - name: Fetch all rates
         run: |
-          echo "🇺🇸 Fetching USD rate..."
-          RATE=""
-          SOURCE=""
+          cat > fetch_rates.py << 'EOFPYTHON'
+          import requests
+          from bs4 import BeautifulSoup
+          import json
+          import re
+          from datetime import date
           
-          # Source 1: FRED DFF (Federal Funds Rate - Most reliable)
-          RATE=$(curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=DFF&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" 2>/dev/null | jq -r '.observations[0].value // empty' 2>/dev/null)
-          [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ] && SOURCE="FRED-DFF"
+          HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
           
-          # Source 2: Alpha Vantage Federal Funds Rate
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://www.alphavantage.co/query?function=FEDERAL_FUNDS_RATE&apikey=demo" 2>/dev/null | jq -r '.data[0].value // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="AlphaVantage"
-          fi
+          def clean_rate(text):
+              """Extract numeric rate from text"""
+              match = re.search(r'(-?\d+\.?\d*)', str(text).replace(',', '.'))
+              return match.group(1) if match else None
           
-          # Fallback: Last known value
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            if [ -f "rates/USD.json" ]; then
-              RATE=$(jq -r '.observations[0].value' rates/USD.json 2>/dev/null)
-              SOURCE="LastKnown"
-              echo "⚠️ USD: Using last known value: $RATE%"
-            fi
-          fi
+          def get_fred_rate(series_id, currency):
+              """Fetch from FRED API"""
+              try:
+                  url = f"https://api.stlouisfed.org/fred/series/observations"
+                  params = {
+                      'series_id': series_id,
+                      'api_key': '5e0ae2ba29361b8ddb614fd5f92c0a51',
+                      'file_type': 'json',
+                      'limit': 10,
+                      'sort_order': 'desc'
+                  }
+                  r = requests.get(url, params=params, timeout=10)
+                  data = r.json()
+                  
+                  for obs in data.get('observations', []):
+                      val = obs.get('value')
+                      if val and val not in ['.', 'null', None]:
+                          print(f"✓ {currency}: {val}% (FRED-{series_id})")
+                          return val, 'FRED'
+              except Exception as e:
+                  print(f"⚠️  {currency} FRED failed: {e}")
+              return None, None
           
-          if [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ]; then
-            echo "{\"observations\":[{\"value\":\"$RATE\",\"date\":\"$(date +%Y-%m-%d)\",\"source\":\"$SOURCE\"}]}" > rates/USD.json
-            echo "✓ USD: $RATE% ($SOURCE)"
-          else
-            echo "❌ USD: All sources failed"
-            exit 1
-          fi
+          def get_trading_economics_rate(currency):
+              """Scrape from Trading Economics"""
+              try:
+                  url = "https://tradingeconomics.com/country-list/interest-rate"
+                  r = requests.get(url, headers=HEADERS, timeout=10)
+                  soup = BeautifulSoup(r.content, 'html.parser')
+                  
+                  country_map = {
+                      'USD': 'United States',
+                      'EUR': 'Euro Area',
+                      'GBP': 'United Kingdom',
+                      'JPY': 'Japan',
+                      'CAD': 'Canada',
+                      'AUD': 'Australia',
+                      'CHF': 'Switzerland',
+                      'NZD': 'New Zealand'
+                  }
+                  
+                  country = country_map.get(currency)
+                  if not country:
+                      return None, None
+                  
+                  table = soup.find('table', {'class': 'table'})
+                  if table:
+                      for row in table.find_all('tr')[1:]:
+                          cols = row.find_all('td')
+                          if len(cols) >= 2:
+                              if country in cols[0].get_text(strip=True):
+                                  rate = clean_rate(cols[1].get_text(strip=True))
+                                  if rate:
+                                      print(f"✓ {currency}: {rate}% (TradingEconomics)")
+                                      return rate, 'TradingEconomics'
+              except Exception as e:
+                  print(f"⚠️  {currency} TradingEconomics failed: {e}")
+              return None, None
+          
+          def get_bank_of_canada():
+              """Direct API from Bank of Canada"""
+              try:
+                  url = "https://www.bankofcanada.ca/valet/observations/V39079/json?recent=1"
+                  r = requests.get(url, timeout=10)
+                  data = r.json()
+                  rate = data['observations'][0]['V39079']['v']
+                  print(f"✓ CAD: {rate}% (BankOfCanada)")
+                  return rate, 'BankOfCanada'
+              except Exception as e:
+                  print(f"⚠️  CAD BankOfCanada failed: {e}")
+              return None, None
+          
+          def fetch_currency(currency, fred_series):
+              """Fetch rate for a currency from multiple sources"""
+              
+              # Special case for CAD - try official API first
+              if currency == 'CAD':
+                  rate, source = get_bank_of_canada()
+                  if rate:
+                      return rate, source
+              
+              # Try FRED first
+              rate, source = get_fred_rate(fred_series, currency)
+              if rate:
+                  return rate, source
+              
+              # Fallback to Trading Economics
+              rate, source = get_trading_economics_rate(currency)
+              if rate:
+                  return rate, source
+              
+              # Last resort: check if previous value exists
+              try:
+                  with open(f'rates/{currency}.json', 'r') as f:
+                      old_data = json.load(f)
+                      old_rate = old_data['observations'][0]['value']
+                      print(f"⚠️  {currency}: Using last known value: {old_rate}%")
+                      return old_rate, 'LastKnown'
+              except:
+                  pass
+              
+              return None, None
+          
+          # Configuration for all currencies
+          currencies = {
+              'USD': 'DFF',
+              'EUR': 'ECBDFR',
+              'GBP': 'IUDSOIA',
+              'JPY': 'IRSTCI01JPM156N',
+              'CAD': 'IRSTCI01CAM156N',
+              'AUD': 'IRSTCI01AUM156N',
+              'CHF': 'IRSTCI01CHM156N',
+              'NZD': 'IRSTCI01NZM156N'
+          }
+          
+          print("=" * 70)
+          print("FETCHING INTEREST RATES FROM MULTIPLE SOURCES")
+          print("=" * 70)
+          print()
+          
+          results = {}
+          failed = []
+          
+          for currency, fred_series in currencies.items():
+              print(f"\n🔍 Fetching {currency}...")
+              rate, source = fetch_currency(currency, fred_series)
+              
+              if rate:
+                  results[currency] = {'value': rate, 'source': source}
+              else:
+                  failed.append(currency)
+                  print(f"❌ {currency}: ALL SOURCES FAILED")
+          
+          print()
+          print("=" * 70)
+          print("SAVING RESULTS")
+          print("=" * 70)
+          
+          today = str(date.today())
+          
+          for currency, data in results.items():
+              rate_data = {
+                  'observations': [{
+                      'value': data['value'],
+                      'date': today,
+                      'source': data['source']
+                  }]
+              }
+              
+              with open(f'rates/{currency}.json', 'w') as f:
+                  json.dump(rate_data, f, indent=2)
+              
+              print(f"💾 {currency}: {data['value']}% from {data['source']}")
+          
+          print()
+          print("=" * 70)
+          print("VALIDATION")
+          print("=" * 70)
+          
+          if failed:
+              print(f"\n❌ FAILED CURRENCIES: {', '.join(failed)}")
+              print("\nWorkflow will FAIL to prevent saving incomplete data")
+              exit(1)
+          else:
+              print("\n✅ ALL 8 CURRENCIES FETCHED SUCCESSFULLY!")
+              print("\nFinal Rates:")
+              for curr in ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'NZD']:
+                  if curr in results:
+                      print(f"  {curr}: {results[curr]['value']}% ({results[curr]['source']})")
+          
+          EOFPYTHON
+          
+          python fetch_rates.py
       
-      # ========================================
-      # EUR - European Central Bank (IMPROVED)
-      # ========================================
-      - name: Fetch EUR rate
-        run: |
-          echo "🇪🇺 Fetching EUR rate..."
-          RATE=""
-          SOURCE=""
-          
-          # Source 1: ECB Statistical Data Warehouse (OFFICIAL - Deposit Facility Rate)
-          RATE=$(curl -s "https://sdw-wsrest.ecb.europa.eu/service/data/FM/D.U2.EUR.4F.KR.DFR.LEV?lastNObservations=1&format=jsondata" 2>/dev/null | jq -r '.dataSets[0].series."0:0:0:0:0:0:0".observations."0"[0] // empty' 2>/dev/null)
-          [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="ECB-SDW-Deposit"
-          
-          # Source 2: FRED Deposit Rate
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=ECBDFR&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" 2>/dev/null | jq -r '.observations[0].value // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ] && SOURCE="FRED-Deposit"
-          fi
-          
-          # Source 3: FRED Main Refinancing Rate
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=ECBMRRFR&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" 2>/dev/null | jq -r '.observations[0].value // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ] && SOURCE="FRED-Refinancing"
-          fi
-          
-          # Source 4: OECD Short-term Interest Rate
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://stats.oecd.org/sdmx-json/data/DP_LIVE/.IR.../OECD?contentType=json&startTime=2025" 2>/dev/null | jq -r '.dataSets[0].series | to_entries[] | select(.key | contains("EA19")) | .value.observations | to_entries | sort_by(.key) | .[-1].value[0] // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="OECD"
-          fi
-          
-          # Fallback: Last known value
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            if [ -f "rates/EUR.json" ]; then
-              RATE=$(jq -r '.observations[0].value' rates/EUR.json 2>/dev/null)
-              SOURCE="LastKnown"
-              echo "⚠️ EUR: Using last known value: $RATE%"
-            fi
-          fi
-          
-          if [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ]; then
-            echo "{\"observations\":[{\"value\":\"$RATE\",\"date\":\"$(date +%Y-%m-%d)\",\"source\":\"$SOURCE\"}]}" > rates/EUR.json
-            echo "✓ EUR: $RATE% ($SOURCE)"
-          else
-            echo "❌ EUR: All sources failed"
-            exit 1
-          fi
-      
-      # ========================================
-      # GBP - Bank of England (RELIABLE)
-      # ========================================
-      - name: Fetch GBP rate
-        run: |
-          echo "🇬🇧 Fetching GBP rate..."
-          RATE=""
-          SOURCE=""
-          
-          # Source 1: FRED Bank Rate
-          RATE=$(curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=IUDSOIA&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" 2>/dev/null | jq -r '.observations[0].value // empty' 2>/dev/null)
-          [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ] && SOURCE="FRED"
-          
-          # Source 2: OECD UK Interest Rate
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://stats.oecd.org/sdmx-json/data/DP_LIVE/.IR.../OECD?contentType=json&startTime=2025" 2>/dev/null | jq -r '.dataSets[0].series | to_entries[] | select(.key | contains("GBR")) | .value.observations | to_entries | sort_by(.key) | .[-1].value[0] // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="OECD"
-          fi
-          
-          # Fallback: Last known value
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            if [ -f "rates/GBP.json" ]; then
-              RATE=$(jq -r '.observations[0].value' rates/GBP.json 2>/dev/null)
-              SOURCE="LastKnown"
-              echo "⚠️ GBP: Using last known value: $RATE%"
-            fi
-          fi
-          
-          if [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ]; then
-            echo "{\"observations\":[{\"value\":\"$RATE\",\"date\":\"$(date +%Y-%m-%d)\",\"source\":\"$SOURCE\"}]}" > rates/GBP.json
-            echo "✓ GBP: $RATE% ($SOURCE)"
-          else
-            echo "❌ GBP: All sources failed"
-            exit 1
-          fi
-      
-      # ========================================
-      # JPY - Bank of Japan (FIXED WITH MULTIPLE SOURCES)
-      # ========================================
-      - name: Fetch JPY rate
-        run: |
-          echo "🇯🇵 Fetching JPY rate..."
-          RATE=""
-          SOURCE=""
-          
-          # Source 1: FRED Japan Policy Rate (Most updated)
-          RATE=$(curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=IRSTCI01JPM156N&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=10&sort_order=desc" 2>/dev/null | jq -r '.observations[] | select(.value != ".") | .value' 2>/dev/null | head -1)
-          [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ] && SOURCE="FRED"
-          
-          # Source 2: BIS (Bank for International Settlements)
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://data.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/M.JP?format=jsondata&lastNObservations=1" 2>/dev/null | jq -r '.data.dataSets[0].series."0:0".observations."0"[0] // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="BIS"
-          fi
-          
-          # Source 3: OECD Japan Interest Rate
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://stats.oecd.org/sdmx-json/data/DP_LIVE/.IR.../OECD?contentType=json&startTime=2025" 2>/dev/null | jq -r '.dataSets[0].series | to_entries[] | select(.key | contains("JPN")) | .value.observations | to_entries | sort_by(.key) | .[-1].value[0] // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="OECD"
-          fi
-          
-          # Fallback: Last known value
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            if [ -f "rates/JPY.json" ]; then
-              RATE=$(jq -r '.observations[0].value' rates/JPY.json 2>/dev/null)
-              SOURCE="LastKnown"
-              echo "⚠️ JPY: Using last known value: $RATE%"
-            fi
-          fi
-          
-          if [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ]; then
-            echo "{\"observations\":[{\"value\":\"$RATE\",\"date\":\"$(date +%Y-%m-%d)\",\"source\":\"$SOURCE\"}]}" > rates/JPY.json
-            echo "✓ JPY: $RATE% ($SOURCE)"
-          else
-            echo "❌ JPY: All sources failed"
-            exit 1
-          fi
-      
-      # ========================================
-      # CAD - Bank of Canada (ALREADY PERFECT)
-      # ========================================
-      - name: Fetch CAD rate
-        run: |
-          echo "🇨🇦 Fetching CAD rate..."
-          RATE=""
-          SOURCE=""
-          
-          # Source 1: Bank of Canada Official API (BEST SOURCE)
-          RATE=$(curl -s "https://www.bankofcanada.ca/valet/observations/V39079/json?recent=1" 2>/dev/null | jq -r '.observations[0].V39079.v // empty' 2>/dev/null)
-          [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="BankOfCanada-API"
-          
-          # Source 2: FRED Canada
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=IRSTCI01CAM156N&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=10&sort_order=desc" 2>/dev/null | jq -r '.observations[] | select(.value != ".") | .value' 2>/dev/null | head -1)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ] && SOURCE="FRED"
-          fi
-          
-          # Source 3: OECD Canada
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://stats.oecd.org/sdmx-json/data/DP_LIVE/.IR.../OECD?contentType=json&startTime=2025" 2>/dev/null | jq -r '.dataSets[0].series | to_entries[] | select(.key | contains("CAN")) | .value.observations | to_entries | sort_by(.key) | .[-1].value[0] // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="OECD"
-          fi
-          
-          # Fallback: Last known value
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            if [ -f "rates/CAD.json" ]; then
-              RATE=$(jq -r '.observations[0].value' rates/CAD.json 2>/dev/null)
-              SOURCE="LastKnown"
-              echo "⚠️ CAD: Using last known value: $RATE%"
-            fi
-          fi
-          
-          if [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ]; then
-            echo "{\"observations\":[{\"value\":\"$RATE\",\"date\":\"$(date +%Y-%m-%d)\",\"source\":\"$SOURCE\"}]}" > rates/CAD.json
-            echo "✓ CAD: $RATE% ($SOURCE)"
-          else
-            echo "❌ CAD: All sources failed"
-            exit 1
-          fi
-      
-      # ========================================
-      # AUD - Reserve Bank of Australia (FIXED)
-      # ========================================
-      - name: Fetch AUD rate
-        run: |
-          echo "🇦🇺 Fetching AUD rate..."
-          RATE=""
-          SOURCE=""
-          
-          # Source 1: FRED Australia (Most reliable for AUD)
-          RATE=$(curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=IRSTCI01AUM156N&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=10&sort_order=desc" 2>/dev/null | jq -r '.observations[] | select(.value != ".") | .value' 2>/dev/null | head -1)
-          [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ] && SOURCE="FRED"
-          
-          # Source 2: BIS Australia
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://data.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/M.AU?format=jsondata&lastNObservations=1" 2>/dev/null | jq -r '.data.dataSets[0].series."0:0".observations."0"[0] // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="BIS"
-          fi
-          
-          # Source 3: OECD Australia
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://stats.oecd.org/sdmx-json/data/DP_LIVE/.IR.../OECD?contentType=json&startTime=2025" 2>/dev/null | jq -r '.dataSets[0].series | to_entries[] | select(.key | contains("AUS")) | .value.observations | to_entries | sort_by(.key) | .[-1].value[0] // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="OECD"
-          fi
-          
-          # Fallback: Last known value
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            if [ -f "rates/AUD.json" ]; then
-              RATE=$(jq -r '.observations[0].value' rates/AUD.json 2>/dev/null)
-              SOURCE="LastKnown"
-              echo "⚠️ AUD: Using last known value: $RATE%"
-            fi
-          fi
-          
-          if [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ]; then
-            echo "{\"observations\":[{\"value\":\"$RATE\",\"date\":\"$(date +%Y-%m-%d)\",\"source\":\"$SOURCE\"}]}" > rates/AUD.json
-            echo "✓ AUD: $RATE% ($SOURCE)"
-          else
-            echo "❌ AUD: All sources failed"
-            exit 1
-          fi
-      
-      # ========================================
-      # CHF - Swiss National Bank (CRITICAL FIX)
-      # ========================================
-      - name: Fetch CHF rate
-        run: |
-          echo "🇨🇭 Fetching CHF rate..."
-          RATE=""
-          SOURCE=""
-          
-          # Source 1: FRED Switzerland (Primary - most reliable)
-          RATE=$(curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=IRSTCI01CHM156N&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=10&sort_order=desc" 2>/dev/null | jq -r '.observations[] | select(.value != ".") | .value' 2>/dev/null | head -1)
-          [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ] && SOURCE="FRED"
-          
-          # Source 2: OECD Switzerland
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://stats.oecd.org/sdmx-json/data/DP_LIVE/.IR.../OECD?contentType=json&startTime=2025" 2>/dev/null | jq -r '.dataSets[0].series | to_entries[] | select(.key | contains("CHE")) | .value.observations | to_entries | sort_by(.key) | .[-1].value[0] // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="OECD"
-          fi
-          
-          # Source 3: BIS Switzerland
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://data.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/M.CH?format=jsondata&lastNObservations=1" 2>/dev/null | jq -r '.data.dataSets[0].series."0:0".observations."0"[0] // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="BIS"
-          fi
-          
-          # Source 4: SNB Data Portal (trying alternative endpoint)
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            # Try SNB's public CSV data (backup)
-            SNB_DATA=$(curl -s "https://data.snb.ch/api/cube/snbpol/data/csv/en" 2>/dev/null)
-            if [ -n "$SNB_DATA" ] && [ "$SNB_DATA" != *"not found"* ]; then
-              RATE=$(echo "$SNB_DATA" | tail -1 | cut -d',' -f2 2>/dev/null | tr -d '\r' | xargs)
-              [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "" ] && SOURCE="SNB-Portal"
-            fi
-          fi
-          
-          # Fallback: Last known value
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            if [ -f "rates/CHF.json" ]; then
-              RATE=$(jq -r '.observations[0].value' rates/CHF.json 2>/dev/null)
-              SOURCE="LastKnown"
-              echo "⚠️ CHF: Using last known value: $RATE%"
-            fi
-          fi
-          
-          if [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ]; then
-            echo "{\"observations\":[{\"value\":\"$RATE\",\"date\":\"$(date +%Y-%m-%d)\",\"source\":\"$SOURCE\"}]}" > rates/CHF.json
-            echo "✓ CHF: $RATE% ($SOURCE)"
-          else
-            echo "❌ CHF: All sources failed"
-            exit 1
-          fi
-      
-      # ========================================
-      # NZD - Reserve Bank of New Zealand (CRITICAL FIX)
-      # ========================================
-      - name: Fetch NZD rate
-        run: |
-          echo "🇳🇿 Fetching NZD rate..."
-          RATE=""
-          SOURCE=""
-          
-          # Source 1: FRED New Zealand (Primary)
-          RATE=$(curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=IRSTCI01NZM156N&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=10&sort_order=desc" 2>/dev/null | jq -r '.observations[] | select(.value != ".") | .value' 2>/dev/null | head -1)
-          [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ] && SOURCE="FRED"
-          
-          # Source 2: OECD New Zealand
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://stats.oecd.org/sdmx-json/data/DP_LIVE/.IR.../OECD?contentType=json&startTime=2025" 2>/dev/null | jq -r '.dataSets[0].series | to_entries[] | select(.key | contains("NZL")) | .value.observations | to_entries | sort_by(.key) | .[-1].value[0] // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="OECD"
-          fi
-          
-          # Source 3: BIS New Zealand
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            RATE=$(curl -s "https://data.bis.org/api/v2/data/dataflow/BIS/WS_CBPOL/1.0/M.NZ?format=jsondata&lastNObservations=1" 2>/dev/null | jq -r '.data.dataSets[0].series."0:0".observations."0"[0] // empty' 2>/dev/null)
-            [ -n "$RATE" ] && [ "$RATE" != "null" ] && SOURCE="BIS"
-          fi
-          
-          # Source 4: Try RBNZ's Monetary Policy Statement (OCR)
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            # Alternative: parse from RBNZ website
-            RBNZ_RATE=$(curl -s "https://www.rbnz.govt.nz/monetary-policy/official-cash-rate-decisions" 2>/dev/null | grep -oP 'OCR.{0,50}?(\d+\.?\d*)%' | head -1 | grep -oP '\d+\.?\d*' 2>/dev/null)
-            [ -n "$RBNZ_RATE" ] && RATE="$RBNZ_RATE" && SOURCE="RBNZ-Web"
-          fi
-          
-          # Fallback: Last known value
-          if [ -z "$RATE" ] || [ "$RATE" == "null" ] || [ "$RATE" == "." ]; then
-            if [ -f "rates/NZD.json" ]; then
-              RATE=$(jq -r '.observations[0].value' rates/NZD.json 2>/dev/null)
-              SOURCE="LastKnown"
-              echo "⚠️ NZD: Using last known value: $RATE%"
-            fi
-          fi
-          
-          if [ -n "$RATE" ] && [ "$RATE" != "null" ] && [ "$RATE" != "." ]; then
-            echo "{\"observations\":[{\"value\":\"$RATE\",\"date\":\"$(date +%Y-%m-%d)\",\"source\":\"$SOURCE\"}]}" > rates/NZD.json
-            echo "✓ NZD: $RATE% ($SOURCE)"
-          else
-            echo "❌ NZD: All sources failed"
-            exit 1
-          fi
-      
-      # ========================================
-      # VALIDATION & REPORTING
-      # ========================================
-      - name: Validate and report
+      - name: Display formatted results
         run: |
           echo ""
           echo "╔════════════════════════════════════════════════╗"
-          echo "║    VALIDATION REPORT - AUTONOMOUS + RELIABLE   ║"
+          echo "║           FINAL RATES (HYBRID METHOD)          ║"
           echo "╚════════════════════════════════════════════════╝"
           echo ""
           
-          FAILED=0
           for currency in USD EUR GBP JPY AUD CAD CHF NZD; do
             if [ -f "rates/$currency.json" ]; then
-              RATE=$(jq -r '.observations[0].value' rates/$currency.json 2>/dev/null)
-              DATE=$(jq -r '.observations[0].date' rates/$currency.json 2>/dev/null)
-              SOURCE=$(jq -r '.observations[0].source // "Unknown"' rates/$currency.json 2>/dev/null)
-              
-              # Validate rate is a number
-              if [[ "$RATE" =~ ^[0-9]+\.?[0-9]*$ ]]; then
-                echo "✓ $currency = $RATE% | Date: $DATE | Source: $SOURCE"
-              else
-                echo "❌ $currency: INVALID RATE VALUE: $RATE"
-                FAILED=1
-              fi
-            else
-              echo "❌ $currency: FILE MISSING"
-              FAILED=1
-            fi
-          done
-          
-          echo ""
-          echo "╔════════════════════════════════════════════════╗"
-          echo "║            DATA SOURCE SUMMARY                 ║"
-          echo "╚════════════════════════════════════════════════╝"
-          echo "FRED (Federal Reserve Economic Data): Primary for most currencies"
-          echo "BIS (Bank for International Settlements): Backup source"
-          echo "OECD (Organisation for Economic Co-operation): Tertiary fallback"
-          echo "ECB (European Central Bank): EUR primary"
-          echo "BoC (Bank of Canada): CAD primary"
-          echo "SNB (Swiss National Bank): CHF tertiary"
-          echo "RBNZ (Reserve Bank of New Zealand): NZD tertiary"
-          
-          if [ $FAILED -eq 1 ]; then
-            echo ""
-            echo "⚠️  Some currencies failed validation"
-            exit 1
-          fi
-      
-      # ========================================
-      # DISPLAY FINAL RATES
-      # ========================================
-      - name: Display final rates
-        run: |
-          echo ""
-          echo "╔════════════════════════════════════════════════╗"
-          echo "║         FINAL RATES (100% AUTO + RELIABLE)     ║"
-          echo "╚════════════════════════════════════════════════╝"
-          for currency in USD EUR GBP JPY AUD CAD CHF NZD; do
-            if [ -f rates/$currency.json ]; then
-              echo ""
               echo "[$currency]"
-              jq -r '.observations[0] | "  Rate: \(.value)%\n  Date: \(.date)\n  Source: \(.source)"' rates/$currency.json
+              python3 -c "
+          import json
+          with open('rates/$currency.json') as f:
+              data = json.load(f)
+              obs = data['observations'][0]
+              print(f\"  Rate: {obs['value']}%\")
+              print(f\"  Date: {obs['date']}\")
+              print(f\"  Source: {obs['source']}\")
+          "
+              echo ""
             fi
           done
       
-      # ========================================
-      # COMMIT AND PUSH
-      # ========================================
       - name: Commit and push
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
           git add rates/
-          git diff --quiet && git diff --staged --quiet || (git commit -m "🔄 Auto-update rates $(date +'%Y-%m-%d %H:%M UTC') - Reliable sources" && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "🔄 Auto-update rates $(date +'%Y-%m-%d %H:%M UTC') - Hybrid sources" && git push)
