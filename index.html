@@ -938,7 +938,7 @@
     <div id="root"></div>
 
 <script type="text/babel">
-        console.log('🚀 Dashboard Forex v3 FIXED - Cargando...');
+        console.log('🚀 Dashboard Forex v4 - Web Scraping Edition - Cargando...');
         
         const { useState, useEffect, useRef } = React;
 
@@ -953,12 +953,7 @@
             ALERTS: 3600000
         };
 
-    const CONCURRENT_CONFIG = {
-    maxConcurrent: 2,        // Máximo 2 países simultáneos
-    delayBetweenBatches: 300 // 300ms entre batches
-};
-
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
         const CacheManager = {
             set: (key, data, expirationMs) => {
@@ -995,14 +990,7 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
         // ========== CONFIGURACIÓN ==========
         
         const API_CONFIG = {
-            worldBank: { baseUrl: 'https://api.worldbank.org/v2', format: 'json', dateRange: '2020:2024' },
-            dbnomics: { baseUrl: 'https://api.db.nomics.world/v22' },
-            bis: { baseUrl: 'https://data.bis.org/api/v1' },
-            frankfurter: { baseUrl: 'https://api.frankfurter.app' },
-            imf: { baseUrl: 'https://www.imf.org/external/datamapper/api/v1' },
-            fallback: {
-    lastUpdate: '2026-02-11'
-}
+            frankfurter: { baseUrl: 'https://api.frankfurter.app' }
         };
 
         const WORLD_BANK_INDICATORS = {
@@ -1015,162 +1003,90 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
             tradeBalance: 'NE.RSB.GNFS.CD'
         };
 
-        const ISO_COUNTRY_CODES = {
-            USD: 'USA', EUR: 'EU', GBP: 'GBR', JPY: 'JPN',
-            AUD: 'AUS', CAD: 'CAN', CHF: 'CHE', NZD: 'NZL'
-        };
+        // ========== FALLBACK FUNCTIONS REMOVED ==========
+        // All data now comes from GitHub Pages scraped JSON files
+        // These functions are no longer needed as we use Trading Economics scraping
 
-        const ISO_FALLBACK_CODES = {
-            EUR: ['EMU', 'EA19', 'XC']
-        };
-
-// ✅ ELIMINADO: Ya no hay FALLBACK_DATA hardcoded
-
-const fetchOECDData = async (countryCode, indicator) => {
-    const cacheKey = `oecd_${countryCode}_${indicator}`;
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
-
-    const oecdCountryCodes = {
-        USD: 'USA', EUR: 'EA19', GBP: 'GBR', JPY: 'JPN',
-        AUD: 'AUS', CAD: 'CAN', CHF: 'CHE', NZD: 'NZL'
-    };
-
-    const oecdIndicators = {
-        currentAccount: 'CAB', // Current Account Balance as % of GDP
-        debt: 'GGFL', // General Government Gross Financial Liabilities as % of GDP
-        tradeBalance: 'XTIMGS' // Trade in goods and services
-    };
-
-    const country = oecdCountryCodes[countryCode];
-    const ind = oecdIndicators[indicator];
-    
-    if (!country || !ind) return null;
-
-    try {
-        // OECD SDMX-JSON API
-        const url = `https://stats.oecd.org/sdmx-json/data/DP_LIVE/.${ind}.../OECD?contentType=csv&startTime=2020&endTime=2024`;
-        const response = await fetch(url);
-        
-        if (!response.ok) return null;
-        
-        const text = await response.text();
-        const lines = text.split('\n').filter(line => line.includes(country));
-        
-        if (lines.length > 0) {
-            // Parsear CSV y extraer último valor disponible
-            const lastLine = lines[lines.length - 1];
-            const columns = lastLine.split(',');
-            const value = parseFloat(columns[columns.length - 1]);
-            
-            if (!isNaN(value)) {
-                console.log(`✓ OECD ${indicator} for ${countryCode}: ${value}`);
-                CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                return value;
-            }
-        }
-    } catch (error) {
-        console.warn(`OECD failed for ${countryCode} ${indicator}:`, error.message);
-    }
-    
-    return null;
-};
-
-    const fetchTradingEconomics = async (countryCode, indicator) => {
-    const cacheKey = `te_${countryCode}_${indicator}`;
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
-
-    const teCountryCodes = {
-        USD: 'united-states', EUR: 'euro-area', GBP: 'united-kingdom', JPY: 'japan',
-        AUD: 'australia', CAD: 'canada', CHF: 'switzerland', NZD: 'new-zealand'
-    };
-
-    const teIndicators = {
-        currentAccount: 'current-account-to-gdp',
-        debt: 'government-debt-to-gdp',
-        tradeBalance: 'balance-of-trade',
-        gdpGrowth: 'gdp-growth-annual',
-        inflation: 'inflation-rate'
-    };
-
-    const country = teCountryCodes[countryCode];
-    const ind = teIndicators[indicator];
-    
-    if (!country || !ind) return null;
-
-    try {
-        // Trading Economics API pública (sin autenticación para datos históricos)
-        const url = `https://api.tradingeconomics.com/historical/country/${country}/indicator/${ind}`;
-        const response = await fetch(url);
-        
-        if (!response.ok) return null;
-        
-        const data = await response.json();
-        
-        if (Array.isArray(data) && data.length > 0) {
-            // Obtener el valor más reciente
-            const latestData = data.sort((a, b) => new Date(b.DateTime) - new Date(a.DateTime))[0];
-            const value = parseFloat(latestData.Value);
-            
-            if (!isNaN(value)) {
-                console.log(`✓ Trading Economics ${indicator} for ${countryCode}: ${value}`);
-                CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                return value;
-            }
-        }
-    } catch (error) {
-        console.warn(`Trading Economics failed for ${countryCode} ${indicator}:`, error.message);
-    }
-    
-    return null;
-};
-
-
-        // ========== FUNCIONES DE API ==========
-
-        const tryFetchWorldBank = async (isoCode, indicator) => {
-            try {
-                const url = `${API_CONFIG.worldBank.baseUrl}/country/${isoCode}/indicator/${indicator}?format=${API_CONFIG.worldBank.format}&date=${API_CONFIG.worldBank.dateRange}&per_page=5`;
-                const response = await fetch(url);
-                if (!response.ok) return null;
-                const data = await response.json();
-                if (data?.[1]?.length > 0) {
-                    for (let item of data[1]) {
-                        if (item.value !== null) return item.value;
-                    }
-                }
-                return null;
-            } catch {
-                return null;
-            }
-        };
-
-        const fetchIMFWEO = async (countryCode, indicator) => {
-            const cacheKey = `imf_weo_${countryCode}_${indicator}`;
+        const fetchWorldBankData = async (countryCode, indicator) => {
+            const cacheKey = `scraped_${countryCode}_${indicator}`;
             const cached = CacheManager.get(cacheKey);
             if (cached !== null) return cached;
 
             try {
-                const imfCountryCodes = { USD: 'US', EUR: '163', GBP: 'GB', JPY: 'JP', AUD: 'AU', CAD: 'CA', CHF: 'CH', NZD: 'NZ' };
-                const country = imfCountryCodes[countryCode];
-                if (!country) return null;
+                // Fetch from GitHub Pages scraped data
+                const githubUrl = `https://globalinvesting.github.io/economic-data/${countryCode}.json`;
+                const response = await fetch(githubUrl, { 
+                    signal: AbortSignal.timeout(5000),
+                    cache: 'no-cache'
+                });
+                
+                if (response.ok) {
+                    const scrapedData = await response.json();
+                    
+                    if (scrapedData.data) {
+                        // Map World Bank indicators to our scraped data
+                        const indicatorMap = {
+                            [WORLD_BANK_INDICATORS.gdp]: 'gdp',
+                            [WORLD_BANK_INDICATORS.gdpGrowth]: 'gdpGrowth',
+                            [WORLD_BANK_INDICATORS.inflation]: 'inflation',
+                            [WORLD_BANK_INDICATORS.unemployment]: 'unemployment',
+                            [WORLD_BANK_INDICATORS.currentAccount]: 'currentAccount',
+                            [WORLD_BANK_INDICATORS.debt]: 'debt',
+                            [WORLD_BANK_INDICATORS.tradeBalance]: 'tradeBalance'
+                        };
+                        
+                        const scrapedKey = indicatorMap[indicator];
+                        if (scrapedKey && scrapedData.data[scrapedKey] !== undefined) {
+                            const value = scrapedData.data[scrapedKey];
+                            
+                            // Special handling for GDP (convert to trillions) and trade balance (convert to billions)
+                            let finalValue = value;
+                            if (scrapedKey === 'gdp') {
+                                finalValue = value / 1000; // Trading Economics shows billions, we want trillions
+                            } else if (scrapedKey === 'tradeBalance') {
+                                finalValue = value; // Already in billions
+                            }
+                            
+                            console.log(`✅ Scraped data for ${countryCode} ${scrapedKey}: ${finalValue}`);
+                            CacheManager.set(cacheKey, finalValue, CACHE_CONFIG.ECONOMIC_DATA);
+                            return finalValue;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn(`Scraped data fetch failed for ${countryCode}:`, error.message);
+            }
+            
+            // Fallback to null if scraping failed
+            console.warn(`❌ No scraped data available for ${countryCode} ${indicator}`);
+            return null;
+        };
 
-                const indicators = { gdpGrowth: 'NGDP_RPCH', inflation: 'PCPIPCH', currentAccount: 'BCA_NGDPD', debt: 'GGXWDG_NGDP' };
-                const ind = indicators[indicator];
-                if (!ind) return null;
+        const fetchInterestRate = async (country) => {
+            const cacheKey = `interest_rate_${country.code}`;
+            const cached = CacheManager.get(cacheKey);
+            if (cached !== null) return cached;
 
-                const url = `${API_CONFIG.imf.baseUrl}/${ind}/${country}`;
-                const response = await fetch(url);
+            console.log(`🔍 Fetching interest rate for ${country.code}...`);
+
+            // ========== ESTRATEGIA PRINCIPAL: GitHub Pages JSON ==========
+            try {
+                const githubUrl = `https://globalinvesting.github.io/rates/${country.code}.json`;
+                const response = await fetch(githubUrl, { 
+                    signal: AbortSignal.timeout(5000),
+                    cache: 'no-cache'
+                });
                 
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.values?.[ind]?.[country]) {
-                        const countryData = data.values[ind][country];
-                        const years = Object.keys(countryData).sort().reverse();
-                        for (const year of years) {
-                            const value = parseFloat(countryData[year]);
-                            if (!isNaN(value) && value !== null) {
+                    if (data.observations && data.observations.length > 0) {
+                        const latestObs = data.observations[0];
+                        
+                        if (latestObs.value && latestObs.value !== '.') {
+                            const value = parseFloat(latestObs.value);
+                            
+                            if (!isNaN(value) && value >= -1 && value < 25) {
+                                console.log(`✅ GitHub Pages rate for ${country.code}: ${value}%`);
                                 CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
                                 return value;
                             }
@@ -1178,768 +1094,70 @@ const fetchOECDData = async (countryCode, indicator) => {
                     }
                 }
             } catch (error) {
-                console.warn(`IMF WEO failed for ${countryCode} ${indicator}:`, error.message);
+                console.warn(`GitHub Pages failed for ${country.code}, trying fallback...`);
             }
-            return null;
-        };
 
-    const fetchWorldBankData = async (countryCode, indicator) => {
-    const cacheKey = `wb_${countryCode}_${indicator}`;
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
-
-    try {
-        const isoCode = ISO_COUNTRY_CODES[countryCode];
-        if (!isoCode) return getFallbackValue(countryCode, indicator);
-
-        let result = await tryFetchWorldBank(isoCode, indicator);
-        
-        if (result === null && ISO_FALLBACK_CODES[countryCode]) {
-            for (const altCode of ISO_FALLBACK_CODES[countryCode]) {
-                result = await tryFetchWorldBank(altCode, indicator);
-                if (result !== null) break;
-            }
-        }
-        
-        if (result === null) {
-            result = await getFallbackValue(countryCode, indicator);
-        }
-        
-        if (result !== null) {
-            CacheManager.set(cacheKey, result, CACHE_CONFIG.ECONOMIC_DATA);
-        }
-        
-        return result;
-    } catch (error) {
-        return getFallbackValue(countryCode, indicator);
-    }
-};
-
-// ========== NUEVAS FUENTES EUROSTAT Y ECB (PRIMERO) ==========
-
-const fetchEurostatData = async (indicator) => {
-    const cacheKey = `eurostat_${indicator}`;
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
-
-    const eurostatIndicators = {
-        currentAccount: 'nasa_10_f_bs',
-        tradeBalance: 'ext_lt_intratrd'
-    };
-
-    const datasetCode = eurostatIndicators[indicator];
-    if (!datasetCode) return null;
-
-    const endpoints = [
-        `https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/${datasetCode}?format=JSON&geo=EU27_2020&lastTimePeriod=5`,
-        `https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/${datasetCode}?format=JSON&geo=EA19&lastTimePeriod=5`
-    ];
-
-    for (const url of endpoints) {
-        try {
-            const response = await fetch(url, { 
-                signal: AbortSignal.timeout(8000),
-                headers: { 'Accept': 'application/json' }
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
+            // ========== FALLBACK: Alpha Vantage (solo USD) ==========
+            if (country.code === 'USD') {
+                const alphaKeys = ['2TW8Y8DDBPRQ2VTV', 'RIBXT3XYLI69O5WY'];
                 
-                if (data.value && Object.keys(data.value).length > 0) {
-                    const values = Object.values(data.value);
-                    const latestValue = values[values.length - 1];
-                    
-                    if (latestValue !== null && latestValue !== undefined) {
-                        const value = parseFloat(latestValue);
-                        if (!isNaN(value)) {
-                            console.log(`✓ Eurostat ${indicator} for EUR: ${value}`);
-                            CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                            return value;
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn(`Eurostat endpoint failed: ${url}`);
-        }
-    }
-    
-    return null;
-};
-
-const fetchECBCurrentAccount = async () => {
-    const cacheKey = 'ecb_current_account_EUR';
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
-
-    const endpoints = [
-        'https://data.ecb.europa.eu/data-service/data/BP6/M.N.I8.W1.S1.S1.T.B.CA._Z._Z._Z.EUR._T._X.N',
-        'https://sdw-wsrest.ecb.europa.eu/service/data/BP6/M.N.I8.W1.S1.S1.T.B.CA._Z._Z._Z.EUR._T._X.N?detail=dataonly&lastNObservations=12'
-    ];
-
-    for (const url of endpoints) {
-        try {
-            const response = await fetch(url, {
-                signal: AbortSignal.timeout(8000),
-                headers: { 'Accept': 'application/vnd.sdmx.data+json;version=1.0.0' }
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                
-                if (data.dataSets && data.dataSets[0] && data.dataSets[0].series) {
-                    const series = Object.values(data.dataSets[0].series)[0];
-                    if (series && series.observations) {
-                        const observations = Object.values(series.observations);
-                        const recentValues = observations.slice(-12);
+                for (const apiKey of alphaKeys) {
+                    try {
+                        const url = `https://www.alphavantage.co/query?function=FEDERAL_FUNDS_RATE&apikey=${apiKey}`;
+                        const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
                         
-                        const sum = recentValues.reduce((acc, obs) => acc + parseFloat(obs[0]), 0);
-                        const avg = sum / recentValues.length;
-                        
-                        if (!isNaN(avg)) {
-                            const euroGDP = 14000;
-                            const percentGDP = (avg / 1000) / euroGDP * 100;
-                            
-                            console.log(`✓ ECB Current Account for EUR: ${percentGDP.toFixed(1)}%`);
-                            CacheManager.set(cacheKey, parseFloat(percentGDP.toFixed(1)), CACHE_CONFIG.ECONOMIC_DATA);
-                            return parseFloat(percentGDP.toFixed(1));
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn(`ECB endpoint failed`);
-        }
-    }
-    
-    return null;
-};
-
-const fetchFREDIndicator = async (countryCode, indicator) => {
-    const cacheKey = `fred_${countryCode}_${indicator}`;
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
-
-    const fredApiKeys = [
-        '5e0ae2ba29361b8ddb614fd5f92c0a51',
-        'YOUR_FRED_KEY'
-    ];
-
-    const fredSeriesMap = {
-        USD: {
-            currentAccount: 'BOPBCA',
-            tradeBalance: 'BOPGTB'
-        },
-        EUR: {
-            currentAccount: 'EA19BPBPCAGDPPT',
-            tradeBalance: 'XTEXVA19'
-        },
-        GBP: {
-            currentAccount: 'GBRCAAA188A',
-            tradeBalance: 'XTEXVA01GBM664S'
-        },
-        JPY: {
-            currentAccount: 'JPNB6BLTT02STSAQ',
-            tradeBalance: 'JPNXTNTVA01STSAQ'
-        },
-        AUD: {
-            currentAccount: 'XTBALAUCORSA',
-            tradeBalance: 'AUSXTNTVA01STSAQ'
-        },
-        CAD: {
-            currentAccount: 'CXBACA',
-            tradeBalance: 'CANXTNTVA01STSAQ'
-        },
-        CHF: {
-            currentAccount: 'CHECAAA188A',
-            tradeBalance: 'CHEXTNTVA01STSAQ'
-        },
-        NZD: {
-            currentAccount: 'NZLB6BLTT02STSAQ',
-            tradeBalance: 'NZLXTNTVA01STSAQ'
-        }
-    };
-
-    const seriesId = fredSeriesMap[countryCode]?.[indicator];
-    if (!seriesId) return null;
-
-    for (const apiKey of fredApiKeys) {
-        try {
-            const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json&limit=12&sort_order=desc`;
-            
-            const proxies = [
-                '',
-                'https://api.allorigins.win/raw?url=',
-                'https://corsproxy.io/?'
-            ];
-
-            for (const proxy of proxies) {
-                try {
-                    const fetchUrl = proxy ? proxy + encodeURIComponent(url) : url;
-                    const response = await fetch(fetchUrl, { signal: AbortSignal.timeout(6000) });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        
-                        if (data.observations && data.observations.length > 0) {
-                            for (const obs of data.observations.reverse()) {
-                                const value = parseFloat(obs.value);
-                                if (!isNaN(value) && obs.value !== '.') {
-                                    console.log(`✓ FRED ${indicator} for ${countryCode}: ${value}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            if (data.data && data.data.length > 0) {
+                                const value = parseFloat(data.data[0].value);
+                                if (!isNaN(value) && value >= 0 && value < 25) {
+                                    console.log(`✅ Alpha Vantage fallback rate for USD: ${value}%`);
                                     CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
                                     return value;
                                 }
                             }
                         }
-                    }
-                } catch (proxyError) {
-                    continue;
-                }
-            }
-        } catch (error) {
-            console.warn(`FRED attempt ${apiKey} failed for ${countryCode} ${indicator}`);
-        }
-    }
-    
-    return null;
-};
-
-const fetchAlphaVantageEconomic = async (countryCode, indicator) => {
-    const cacheKey = `av_economic_${countryCode}_${indicator}`;
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
-
-    const alphaVantageKeys = [
-        '2TW8Y8DDBPRQ2VTV',
-        'RIBXT3XYLI69O5WY',
-        'YOUR_ALPHAVANTAGE_KEY'
-    ];
-
-    const avFunctions = {
-        currentAccount: 'CURRENT_ACCOUNT',
-        tradeBalance: 'TRADE_BALANCE'
-    };
-
-    const func = avFunctions[indicator];
-    if (!func) return null;
-
-    const countryMap = {
-        USD: 'USA', EUR: 'EMU', GBP: 'GBR', JPY: 'JPN',
-        AUD: 'AUS', CAD: 'CAN', CHF: 'CHE', NZD: 'NZL'
-    };
-
-    const country = countryMap[countryCode];
-    if (!country) return null;
-
-    for (const apiKey of alphaVantageKeys) {
-        try {
-            const url = `https://www.alphavantage.co/query?function=${func}&country=${country}&apikey=${apiKey}&datatype=json`;
-            const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-            
-            if (response.ok) {
-                const data = await response.json();
-                
-                if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-                    const latestData = data.data[0];
-                    const value = parseFloat(latestData.value);
-                    
-                    if (!isNaN(value)) {
-                        console.log(`✓ Alpha Vantage ${indicator} for ${countryCode}: ${value}`);
-                        CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                        return value;
+                    } catch (error) {
+                        continue;
                     }
                 }
             }
-        } catch (error) {
-            console.warn(`Alpha Vantage economic failed for ${countryCode}`);
-        }
-    }
-    
-    return null;
-};
 
-const fetchIMFWEOWithProxy = async (countryCode, indicator) => {
-    const cacheKey = `imf_weo_proxy_${countryCode}_${indicator}`;
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
+            console.error(`❌ All sources exhausted for ${country.code} - NO DATA AVAILABLE`);
+            return null;
+        };
 
-    const corsProxies = [
-        '',
-        'https://corsproxy.io/?',
-        'https://api.codetabs.com/v1/proxy?quest=',
-        'https://api.allorigins.win/raw?url='
-    ];
-
-    const imfCountryCodes = { 
-        USD: 'US', EUR: '163', GBP: 'GB', JPY: 'JP', 
-        AUD: 'AU', CAD: 'CA', CHF: 'CH', NZD: 'NZ' 
-    };
-    
-    const indicators = { 
-        gdpGrowth: 'NGDP_RPCH', 
-        inflation: 'PCPIPCH', 
-        currentAccount: 'BCA_NGDPD', 
-        debt: 'GGXWDG_NGDP' 
-    };
-
-    const country = imfCountryCodes[countryCode];
-    const ind = indicators[indicator];
-    if (!country || !ind) return null;
-
-    for (const proxy of corsProxies) {
-        try {
-            const imfUrl = `${API_CONFIG.imf.baseUrl}/${ind}/${country}`;
-            const fetchUrl = proxy ? proxy + encodeURIComponent(imfUrl) : imfUrl;
-            
-            const response = await fetch(fetchUrl, { 
-                signal: AbortSignal.timeout(8000),
-                headers: { 'Accept': 'application/json' }
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.values?.[ind]?.[country]) {
-                    const countryData = data.values[ind][country];
-                    const years = Object.keys(countryData).sort().reverse();
-                    for (const year of years) {
-                        const value = parseFloat(countryData[year]);
-                        if (!isNaN(value) && value !== null) {
-                            console.log(`✓ IMF WEO ${indicator} for ${countryCode}: ${value}`);
-                            CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                            return value;
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            continue;
-        }
-    }
-    return null;
-};
-
-const fetchTradingEconomicsPublic = async (countryCode, indicator) => {
-    const cacheKey = `te_public_${countryCode}_${indicator}`;
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
-
-    const teCountryCodes = {
-        USD: 'united-states', EUR: 'euro-area', GBP: 'united-kingdom', JPY: 'japan',
-        AUD: 'australia', CAD: 'canada', CHF: 'switzerland', NZD: 'new-zealand'
-    };
-
-    const teIndicators = {
-        currentAccount: 'current-account-to-gdp',
-        debt: 'government-debt-to-gdp',
-        tradeBalance: 'balance-of-trade',
-        gdpGrowth: 'gdp-growth-annual'
-    };
-
-    const country = teCountryCodes[countryCode];
-    const ind = teIndicators[indicator];
-    if (!country || !ind) return null;
-
-    try {
-        const url = `https://tradingeconomics.com/${country}/${ind}`;
-        const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
-        
-        if (response.ok) {
-            const data = await response.json();
-            const html = data.contents;
-            
-            const valueMatch = html.match(/id="actual">([^<]+)</);
-            if (valueMatch) {
-                const valueText = valueMatch[1].trim().replace(/[^\d.-]/g, '');
-                const value = parseFloat(valueText);
-                if (!isNaN(value)) {
-                    console.log(`✓ Trading Economics ${indicator} for ${countryCode}: ${value}`);
-                    CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                    return value;
-                }
-            }
-        }
-    } catch (error) {
-        console.warn(`Trading Economics public failed for ${countryCode} ${indicator}`);
-    }
-    return null;
-};
-
-const fetchOECDviaProxy = async (countryCode, indicator) => {
-    const cacheKey = `oecd_proxy_${countryCode}_${indicator}`;
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
-
-    const oecdCountryCodes = {
-        USD: 'USA', EUR: 'EA19', GBP: 'GBR', JPY: 'JPN',
-        AUD: 'AUS', CAD: 'CAN', CHF: 'CHE', NZD: 'NZL'
-    };
-
-    const oecdIndicators = {
-        currentAccount: 'CAB',
-        debt: 'GGFL',
-        tradeBalance: 'XTIMGS'
-    };
-
-    const country = oecdCountryCodes[countryCode];
-    const ind = oecdIndicators[indicator];
-    if (!country || !ind) return null;
-
-    try {
-        const oecdUrl = `https://stats.oecd.org/sdmx-json/data/DP_LIVE/${country}.${ind}/OECD?contentType=json&startTime=2020`;
-        const response = await fetch(`https://corsproxy.io/?${encodeURIComponent(oecdUrl)}`);
-        
-        if (response.ok) {
-            const data = await response.json();
-            if (data.dataSets?.[0]?.series) {
-                const series = Object.values(data.dataSets[0].series)[0];
-                if (series?.observations) {
-                    const observations = Object.values(series.observations);
-                    const latestValue = observations[observations.length - 1]?.[0];
-                    if (latestValue !== undefined) {
-                        const value = parseFloat(latestValue);
-                        if (!isNaN(value)) {
-                            console.log(`✓ OECD (proxy) ${indicator} for ${countryCode}: ${value}`);
-                            CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                            return value;
-                        }
-                    }
-                }
-            }
-        }
-    } catch (error) {
-        console.warn(`OECD proxy failed for ${countryCode} ${indicator}`);
-    }
-    return null;
-};
-
-const fetchRESTCountriesData = async (countryCode, indicator) => {
-    const cacheKey = `rest_countries_${countryCode}_${indicator}`;
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
-
-    const countryNames = {
-        USD: 'United States', EUR: 'Germany', GBP: 'United Kingdom', JPY: 'Japan',
-        AUD: 'Australia', CAD: 'Canada', CHF: 'Switzerland', NZD: 'New Zealand'
-    };
-
-    const countryName = countryNames[countryCode];
-    if (!countryName) return null;
-
-    try {
-        const response = await fetch(`https://restcountries.com/v3.1/name/${countryName}?fullText=true`);
-        if (response.ok) {
-            const data = await response.json();
-            if (data.length > 0) {
-                const country = data[0];
-                
-                if (indicator === 'debt' && country.gini) {
-                    const giniIndex = Object.values(country.gini)[0];
-                    const estimatedDebt = 40 + (giniIndex * 0.8);
-                    console.log(`✓ REST Countries debt estimate for ${countryCode}: ${estimatedDebt.toFixed(1)}`);
-                    CacheManager.set(cacheKey, parseFloat(estimatedDebt.toFixed(1)), CACHE_CONFIG.ECONOMIC_DATA);
-                    return parseFloat(estimatedDebt.toFixed(1));
-                }
-            }
-        }
-    } catch (error) {
-        console.warn(`REST Countries failed for ${countryCode}`);
-    }
-    return null;
-};
-
-const fetchUNComtradeBalance = async (countryCode) => {
-    const cacheKey = `un_comtrade_${countryCode}`;
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
-
-    const unCountryCodes = {
-        USD: '842', EUR: '276', GBP: '826', JPY: '392',
-        AUD: '036', CAD: '124', CHF: '756', NZD: '554'
-    };
-
-    const country = unCountryCodes[countryCode];
-    if (!country) return null;
-
-    const year = new Date().getFullYear() - 1;
-    const baseUrl = `https://comtradeapi.un.org/data/v1/get/C/A/${year}/total/${country}?freq=A&type=C`;
-    
-    const proxies = [
-        'https://corsproxy.io/?',
-        'https://api.codetabs.com/v1/proxy?quest='
-    ];
-    
-    for (const proxy of proxies) {
-        try {
-            const response = await fetch(proxy + encodeURIComponent(baseUrl), {
-                signal: AbortSignal.timeout(8000)
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.data?.length > 0) {
-                    const tradeData = data.data[0];
-                    const exports = tradeData.primaryValue || 0;
-                    const imports = tradeData.netWgt || 0;
-                    const balance = (exports - imports) / 1e9;
-                    
-                    console.log(`✓ UN Comtrade balance for ${countryCode}: ${balance.toFixed(1)}B`);
-                    CacheManager.set(cacheKey, parseFloat(balance.toFixed(1)), CACHE_CONFIG.ECONOMIC_DATA);
-                    return parseFloat(balance.toFixed(1));
-                }
-            }
-        } catch (error) {
-            console.warn(`UN Comtrade proxy ${proxy} failed for ${countryCode}`);
-            continue;
-        }
-    }
-    
-    console.warn(`UN Comtrade failed for ${countryCode}`);
-    return null;
-};
-
-// ========== FUNCIÓN PRINCIPAL DE FALLBACK ==========
-
-const getFallbackValue = async (countryCode, indicator) => {
-    const indicatorMap = {
-        [WORLD_BANK_INDICATORS.currentAccount]: 'currentAccount',
-        [WORLD_BANK_INDICATORS.debt]: 'debt',
-        [WORLD_BANK_INDICATORS.tradeBalance]: 'tradeBalance',
-        [WORLD_BANK_INDICATORS.gdpGrowth]: 'gdpGrowth'
-    };
-    
-    const indicatorName = indicatorMap[indicator];
-    if (!indicatorName) return null;
-
-    // ========== FUENTE 1: Eurostat (PRIORITARIO para EUR) ==========
-    if (countryCode === 'EUR' && ['currentAccount', 'tradeBalance'].includes(indicatorName)) {
-        const eurostatValue = await fetchEurostatData(indicatorName);
-        if (eurostatValue !== null) return eurostatValue;
-    }
-
-    // ========== FUENTE 2: ECB Statistical Data Warehouse (EUR específico) ==========
-    if (countryCode === 'EUR' && indicatorName === 'currentAccount') {
-        const ecbValue = await fetchECBCurrentAccount();
-        if (ecbValue !== null) return ecbValue;
-    }
-
-    // ========== FUENTE 3: FRED API mejorado (para todos los países) ==========
-    if (['currentAccount', 'tradeBalance'].includes(indicatorName)) {
-        const fredValue = await fetchFREDIndicator(countryCode, indicatorName);
-        if (fredValue !== null) return fredValue;
-    }
-
-    // ========== FUENTE 4: IMF WEO (mejorado con proxy) ==========
-    if (['currentAccount', 'debt', 'gdpGrowth', 'inflation'].includes(indicatorName)) {
-        const imfValue = await fetchIMFWEOWithProxy(countryCode, indicatorName);
-        if (imfValue !== null) return imfValue;
-    }
-    
-    // ========== FUENTE 5: Trading Economics API Pública ==========
-    if (['currentAccount', 'debt', 'tradeBalance', 'gdpGrowth'].includes(indicatorName)) {
-        const teValue = await fetchTradingEconomicsPublic(countryCode, indicatorName);
-        if (teValue !== null) return teValue;
-    }
-    
-    // ========== FUENTE 6: OECD via CORS Proxy ==========
-    if (['currentAccount', 'debt', 'tradeBalance'].includes(indicatorName)) {
-        const oecdValue = await fetchOECDviaProxy(countryCode, indicatorName);
-        if (oecdValue !== null) return oecdValue;
-    }
-
-    // ========== FUENTE 7: Alpha Vantage Economic Indicators ==========
-    if (['currentAccount', 'tradeBalance'].includes(indicatorName)) {
-        const avValue = await fetchAlphaVantageEconomic(countryCode, indicatorName);
-        if (avValue !== null) return avValue;
-    }
-
-    // ========== FUENTE 8: REST Countries + World Bank Complementario ==========
-    if (indicatorName === 'currentAccount' || indicatorName === 'debt') {
-        const restValue = await fetchRESTCountriesData(countryCode, indicatorName);
-        if (restValue !== null) return restValue;
-    }
-
-    // ========== FUENTE 9: UN Comtrade para Balanza Comercial (último recurso) ==========
-    if (indicatorName === 'tradeBalance') {
-        const unValue = await fetchUNComtradeBalance(countryCode);
-        if (unValue !== null) return unValue;
-    }
-    
-    console.warn(`❌ All fallback sources exhausted for ${countryCode} ${indicatorName}`);
-    return null;
-};
-        // ✅ VERSIÓN MEJORADA - Usando FRED API (Federal Reserve Economic Data)
         const fetchProductionDynamic = async (countryCode) => {
             const cacheKey = `production_${countryCode}`;
             const cached = CacheManager.get(cacheKey);
             if (cached !== null) return cached;
 
-            // Estrategia 1: FRED API - Industrial Production Index
-            const fredSeriesMap = {
-                USD: 'INDPRO',        // US Industrial Production Index
-                EUR: 'EA19PRINTO01IXOBM', // Euro Area
-                GBP: 'GBRPRINTO01IXOBM',  // UK
-                JPY: 'JPNPRINTO01IXOBM',  // Japan
-                CAD: 'CANPRINTO01IXOBM',  // Canada
-                AUD: 'AUSPROINDMISMEI',   // Australia
-                CHF: 'CHEPRINTO01IXOBM',  // Switzerland
-                NZD: 'NZLPROINDMISMEI'    // New Zealand
-            };
-
-            const seriesId = fredSeriesMap[countryCode];
-            if (seriesId) {
-                try {
-                    // FRED API key pública de demostración (limitada pero funcional)
-                    const apiKey = '5e0ae2ba29361b8ddb614fd5f92c0a51'; // Usar demo key
-                    const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json&limit=24&sort_order=desc`;
-                    
-                    const response = await fetch(url);
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.observations && data.observations.length >= 13) {
-                            // Calcular crecimiento año sobre año (últimos 12 meses)
-                            const observations = data.observations.reverse(); // Más antiguo a más reciente
-                            const latest = parseFloat(observations[observations.length - 1].value);
-                            const yearAgo = parseFloat(observations[observations.length - 13].value);
-                            
-                            if (!isNaN(latest) && !isNaN(yearAgo) && yearAgo !== 0) {
-                                const growth = ((latest - yearAgo) / yearAgo * 100);
-                                console.log(`✓ FRED production for ${countryCode}: ${growth.toFixed(1)}%`);
-                                CacheManager.set(cacheKey, parseFloat(growth.toFixed(1)), CACHE_CONFIG.ECONOMIC_DATA);
-                                return parseFloat(growth.toFixed(1));
-                            }
-                        }
-                    }
-                } catch (error) {
-                    console.warn(`FRED API failed for ${countryCode}:`, error.message);
-                }
-            }
-
-            // Estrategia 2: World Bank Industrial Production Value Added (crecimiento anual)
             try {
-                const isoCode = ISO_COUNTRY_CODES[countryCode];
-                const indicatorCode = 'NV.IND.TOTL.KD.ZG'; // Industrial production growth (annual %)
+                // Fetch from GitHub Pages scraped data
+                const githubUrl = `https://globalinvesting.github.io/economic-data/${countryCode}.json`;
+                const response = await fetch(githubUrl, { 
+                    signal: AbortSignal.timeout(5000),
+                    cache: 'no-cache'
+                });
                 
-                const tryFetch = async (code) => {
-                    const url = `${API_CONFIG.worldBank.baseUrl}/country/${code}/indicator/${indicatorCode}?format=json&date=2020:2024&per_page=5`;
-                    const response = await fetch(url);
-                    if (!response.ok) return null;
+                if (response.ok) {
+                    const scrapedData = await response.json();
                     
-                    const data = await response.json();
-                    if (data?.[1]?.length > 0) {
-                        for (let item of data[1]) {
-                            if (item.value !== null && item.value !== undefined) {
-                                return parseFloat(item.value);
-                            }
-                        }
-                    }
-                    return null;
-                };
-
-                let result = await tryFetch(isoCode);
-                
-                // Intentar con códigos alternativos para EUR
-                if (result === null && ISO_FALLBACK_CODES[countryCode]) {
-                    for (const altCode of ISO_FALLBACK_CODES[countryCode]) {
-                        result = await tryFetch(altCode);
-                        if (result !== null) break;
-                    }
-                }
-
-                if (result !== null) {
-                    console.log(`✓ World Bank production growth for ${countryCode}: ${result.toFixed(1)}%`);
-                    CacheManager.set(cacheKey, parseFloat(result.toFixed(1)), CACHE_CONFIG.ECONOMIC_DATA);
-                    return parseFloat(result.toFixed(1));
-                }
-            } catch (error) {
-                console.warn(`World Bank production failed for ${countryCode}:`, error.message);
-            }
-
-            // Estrategia 3: Derivar de GDP growth con volatilidad amplificada
-            try {
-                const gdpGrowth = await fetchWorldBankData(countryCode, WORLD_BANK_INDICATORS.gdpGrowth);
-                
-                if (gdpGrowth !== null && gdpGrowth !== undefined) {
-                    // La producción industrial típicamente varía 1.5x más que el GDP
-                    const industrialEstimate = gdpGrowth * 1.5;
-                    console.log(`✓ GDP-derived production for ${countryCode}: ${industrialEstimate.toFixed(1)}%`);
-                    CacheManager.set(cacheKey, parseFloat(industrialEstimate.toFixed(1)), CACHE_CONFIG.ECONOMIC_DATA);
-                    return parseFloat(industrialEstimate.toFixed(1));
-                }
-            } catch (error) {
-                console.warn(`GDP-derived production failed for ${countryCode}:`, error.message);
-            }
-
-            console.warn(`All production data sources failed for ${countryCode}, returning null`);
-            return null;
-        };
-
-// ========== SOLUCIÓN CON GitHub Actions + Archivos Estáticos ==========
-
-const fetchInterestRate = async (country) => {
-    const cacheKey = `interest_rate_${country.code}`;
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
-
-    console.log(`🔍 Fetching interest rate for ${country.code}...`);
-
-    // ========== ESTRATEGIA PRINCIPAL: GitHub Pages JSON ==========
-    try {
-        const githubUrl = `https://globalinvesting.github.io/rates/${country.code}.json`;
-        const response = await fetch(githubUrl, { 
-            signal: AbortSignal.timeout(5000),
-            cache: 'no-cache'
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            if (data.observations && data.observations.length > 0) {
-                const latestObs = data.observations[0];
-                
-                if (latestObs.value && latestObs.value !== '.') {
-                    const value = parseFloat(latestObs.value);
-                    
-                    if (!isNaN(value) && value >= -1 && value < 25) {
-                        console.log(`✅ GitHub Pages rate for ${country.code}: ${value}%`);
+                    if (scrapedData.data && scrapedData.data.production !== undefined) {
+                        const value = scrapedData.data.production;
+                        console.log(`✅ Scraped production for ${countryCode}: ${value}%`);
                         CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
                         return value;
                     }
                 }
-            }
-        }
-    } catch (error) {
-        console.warn(`GitHub Pages failed for ${country.code}, trying fallback...`);
-    }
-
-    // ========== FALLBACK: Alpha Vantage (solo USD) ==========
-    if (country.code === 'USD') {
-        const alphaKeys = ['2TW8Y8DDBPRQ2VTV', 'RIBXT3XYLI69O5WY'];
-        
-        for (const apiKey of alphaKeys) {
-            try {
-                const url = `https://www.alphavantage.co/query?function=FEDERAL_FUNDS_RATE&apikey=${apiKey}`;
-                const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.data && data.data.length > 0) {
-                        const value = parseFloat(data.data[0].value);
-                        if (!isNaN(value) && value >= 0 && value < 25) {
-                            console.log(`✅ Alpha Vantage fallback rate for USD: ${value}%`);
-                            CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                            return value;
-                        }
-                    }
-                }
             } catch (error) {
-                continue;
+                console.warn(`Scraped production fetch failed for ${countryCode}:`, error.message);
             }
-        }
-    }
 
-    console.error(`❌ All sources exhausted for ${country.code} - NO DATA AVAILABLE`);
-    return null;
-};
-    
+            console.warn(`❌ No production data available for ${countryCode}`);
+            return null;
+        };
+        
         // ✅ OUTLOOK 100% DINÁMICO (sin hardcoding)
         const determineCentralBankOutlook = async (countryCode, economicData) => {
             const cacheKey = `outlook_${countryCode}`;
@@ -1965,76 +1183,73 @@ const fetchInterestRate = async (country) => {
                 else if (data.interestRate < 2.0) score -= 1;
 
                 let outlook;
-if (score >= 2) outlook = 'Hawkish';      // ← Reducido de 4 a 2
-else if (score <= -2) outlook = 'Dovish';  // ← Reducido de -3 a -2
-else outlook = 'Neutral';
+                if (score >= 2) outlook = 'Hawkish';
+                else if (score <= -2) outlook = 'Dovish';
+                else outlook = 'Neutral';
 
-console.log(`✓ Dynamic outlook for ${countryCode}: ${outlook} (score: ${score})`);
-CacheManager.set(cacheKey, outlook, CACHE_CONFIG.CENTRAL_BANK_OUTLOOK);
-return outlook;
+                console.log(`✓ Dynamic outlook for ${countryCode}: ${outlook} (score: ${score})`);
+                CacheManager.set(cacheKey, outlook, CACHE_CONFIG.CENTRAL_BANK_OUTLOOK);
+                return outlook;
             } catch (error) {
                 return 'Neutral';
             }
         };
 
         const fetchForexRates = async () => {
-    const cacheKey = 'forex_rates';
-    const cached = CacheManager.get(cacheKey);
-    if (cached !== null) return cached;
+            const cacheKey = 'forex_rates';
+            const cached = CacheManager.get(cacheKey);
+            if (cached !== null) return cached;
 
-    const endpoints = [
-        { url: `${API_CONFIG.frankfurter.baseUrl}/latest?from=USD`, name: 'Frankfurter' },
-        { url: 'https://api.exchangerate-api.com/v4/latest/USD', name: 'ExchangeRate-API' },
-        { url: 'https://open.er-api.com/v6/latest/USD', name: 'Open Exchange' },
-        { url: 'https://api.exchangerate.host/latest?base=USD', name: 'Exchangerate.host' },
-        { url: 'https://api.fixer.io/latest?base=USD', name: 'Fixer.io' },
-        { url: 'https://api.currencyapi.com/v3/latest?base_currency=USD', name: 'CurrencyAPI' }
-    ];
+            const endpoints = [
+                { url: `${API_CONFIG.frankfurter.baseUrl}/latest?from=USD`, name: 'Frankfurter' },
+                { url: 'https://api.exchangerate-api.com/v4/latest/USD', name: 'ExchangeRate-API' },
+                { url: 'https://open.er-api.com/v6/latest/USD', name: 'Open Exchange' },
+                { url: 'https://api.exchangerate.host/latest?base=USD', name: 'Exchangerate.host' },
+                { url: 'https://api.fixer.io/latest?base=USD', name: 'Fixer.io' },
+                { url: 'https://api.currencyapi.com/v3/latest?base_currency=USD', name: 'CurrencyAPI' }
+            ];
 
-    // Intentar cada endpoint en orden
-    for (const endpoint of endpoints) {
-        try {
-            const response = await fetch(endpoint.url);
-            if (response.ok) {
-                const data = await response.json();
-                if (data.rates) {
-                    console.log(`✓ Forex rates from ${endpoint.name}`);
-                    CacheManager.set(cacheKey, data.rates, CACHE_CONFIG.FOREX_RATES);
-                    return data.rates;
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(endpoint.url);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.rates) {
+                            console.log(`✓ Forex rates from ${endpoint.name}`);
+                            CacheManager.set(cacheKey, data.rates, CACHE_CONFIG.FOREX_RATES);
+                            return data.rates;
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`${endpoint.name} failed`);
                 }
             }
-        } catch (error) {
-            console.warn(`${endpoint.name} failed`);
-        }
-    }
 
-    // Fallback final: ECB
-    try {
-        const ecbUrl = 'https://api.frankfurter.app/latest?from=EUR';
-        const response = await fetch(ecbUrl);
-        if (response.ok) {
-            const data = await response.json();
-            if (data.rates) {
-                // Convertir EUR base a USD base
-                const usdRate = 1 / data.rates.USD;
-                const rates = {};
-                Object.keys(data.rates).forEach(currency => {
-                    if (currency !== 'USD') {
-                        rates[currency] = data.rates[currency] * usdRate;
+            try {
+                const ecbUrl = 'https://api.frankfurter.app/latest?from=EUR';
+                const response = await fetch(ecbUrl);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.rates) {
+                        const usdRate = 1 / data.rates.USD;
+                        const rates = {};
+                        Object.keys(data.rates).forEach(currency => {
+                            if (currency !== 'USD') {
+                                rates[currency] = data.rates[currency] * usdRate;
+                            }
+                        });
+                        console.log('✓ Forex rates from ECB (Frankfurter EUR base)');
+                        CacheManager.set(cacheKey, rates, CACHE_CONFIG.FOREX_RATES);
+                        return rates;
                     }
-                });
-                console.log('✓ Forex rates from ECB (Frankfurter EUR base)');
-                CacheManager.set(cacheKey, rates, CACHE_CONFIG.FOREX_RATES);
-                return rates;
+                }
+            } catch (error) {
+                console.warn('ECB fallback failed');
             }
-        }
-    } catch (error) {
-        console.warn('ECB fallback failed');
-    }
 
-    console.warn('❌ All forex rate sources failed');
-    return null; // Ya no hay fallbackRates hardcoded
-};
+            console.warn('❌ All forex rate sources failed');
+            return null;
+        };
 
         const fetchCentralBankMeetings = async (countryCode) => {
             const cacheKey = `cb_meeting_${countryCode}`;
@@ -2215,7 +1430,6 @@ return outlook;
                     }
                 }
 
-                // Fallback
                 const seededRandom = (seed) => {
                     const x = Math.sin(seed) * 10000;
                     return x - Math.floor(x);
@@ -2298,51 +1512,75 @@ return outlook;
             const totalSteps = countries.length * 9;
             let currentStep = 0;
 
-// ========== PROCESAMIENTO EN BATCHES ==========
-for (let batchStart = 0; batchStart < countries.length; batchStart += CONCURRENT_CONFIG.maxConcurrent) {
-    const batch = countries.slice(batchStart, batchStart + CONCURRENT_CONFIG.maxConcurrent);
-    
-    // Procesar países del batch en paralelo
-    await Promise.all(batch.map(async (country, batchIndex) => {
-        const i = batchStart + batchIndex;
-        economicData[country.code] = {};
+            for (let i = 0; i < countries.length; i++) {
+                const country = countries[i];
+                economicData[country.code] = {};
 
-        setDataLoadingStatus({ status: `${country.name}: PIB...`, progress: Math.round((currentStep++ / totalSteps) * 100) });
-        const gdpValue = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.gdp);
-        economicData[country.code].gdp = gdpValue ? (gdpValue / 1e12) : null;
+                setDataLoadingStatus({ 
+                    status: `Cargando datos de ${country.name}...`, 
+                    progress: Math.round((currentStep++ / totalSteps) * 100) 
+                });
 
-        setDataLoadingStatus({ status: `${country.name}: Crecimiento PIB...`, progress: Math.round((currentStep++ / totalSteps) * 100) });
-        economicData[country.code].gdpGrowth = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.gdpGrowth);
-
-        setDataLoadingStatus({ status: `${country.name}: Inflación...`, progress: Math.round((currentStep++ / totalSteps) * 100) });
-        economicData[country.code].inflation = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.inflation);
-
-        setDataLoadingStatus({ status: `${country.name}: Desempleo...`, progress: Math.round((currentStep++ / totalSteps) * 100) });
-        economicData[country.code].unemployment = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.unemployment);
-
-        setDataLoadingStatus({ status: `${country.name}: Cuenta Corriente...`, progress: Math.round((currentStep++ / totalSteps) * 100) });
-        economicData[country.code].currentAccount = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.currentAccount);
-
-        setDataLoadingStatus({ status: `${country.name}: Deuda Pública...`, progress: Math.round((currentStep++ / totalSteps) * 100) });
-        economicData[country.code].debt = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.debt);
-
-        setDataLoadingStatus({ status: `${country.name}: Balanza Comercial...`, progress: Math.round((currentStep++ / totalSteps) * 100) });
-        const tradeBalance = await fetchWorldBankData(country.code, WORLD_BANK_INDICATORS.tradeBalance);
-        economicData[country.code].tradeBalance = tradeBalance ? (tradeBalance / 1e9) : null;
-
-        setDataLoadingStatus({ status: `${country.name}: Tasa de Interés...`, progress: Math.round((currentStep++ / totalSteps) * 100) });
-        economicData[country.code].interestRate = await fetchInterestRate(country);
-        
-        setDataLoadingStatus({ status: `${country.name}: Producción Industrial...`, progress: Math.round((currentStep++ / totalSteps) * 100) });
-        economicData[country.code].production = await fetchProductionDynamic(country.code);
-    }));
-    
-    // Delay entre batches (excepto en el último)
-    if (batchStart + CONCURRENT_CONFIG.maxConcurrent < countries.length) {
-        await delay(CONCURRENT_CONFIG.delayBetweenBatches);
-    }
-}
-// ========== FIN PROCESAMIENTO EN BATCHES ==========
+                try {
+                    const githubUrl = `https://globalinvesting.github.io/economic-data/${country.code}.json`;
+                    const response = await fetch(githubUrl, { 
+                        signal: AbortSignal.timeout(8000),
+                        cache: 'no-cache'
+                    });
+                    
+                    if (response.ok) {
+                        const scrapedData = await response.json();
+                        
+                        if (scrapedData.data) {
+                            const data = scrapedData.data;
+                            
+                            economicData[country.code].gdp = data.gdp ? data.gdp / 1000 : null;
+                            currentStep++;
+                            
+                            economicData[country.code].gdpGrowth = data.gdpGrowth || null;
+                            currentStep++;
+                            
+                            economicData[country.code].inflation = data.inflation || null;
+                            currentStep++;
+                            
+                            economicData[country.code].unemployment = data.unemployment || null;
+                            currentStep++;
+                            
+                            economicData[country.code].currentAccount = data.currentAccount || null;
+                            currentStep++;
+                            
+                            economicData[country.code].debt = data.debt || null;
+                            currentStep++;
+                            
+                            economicData[country.code].tradeBalance = data.tradeBalance || null;
+                            currentStep++;
+                            
+                            setDataLoadingStatus({ 
+                                status: `${country.name}: Tasa de Interés...`, 
+                                progress: Math.round((currentStep / totalSteps) * 100) 
+                            });
+                            economicData[country.code].interestRate = await fetchInterestRate(country);
+                            currentStep++;
+                            
+                            economicData[country.code].production = data.production || null;
+                            currentStep++;
+                            
+                            console.log(`✅ Loaded all data for ${country.code}`);
+                        } else {
+                            console.error(`❌ No data field in scraped file for ${country.code}`);
+                        }
+                    } else {
+                        console.error(`❌ Failed to fetch scraped data for ${country.code}`);
+                    }
+                } catch (error) {
+                    console.error(`❌ Error loading data for ${country.code}:`, error);
+                }
+                
+                setDataLoadingStatus({ 
+                    status: `${country.name} completado`, 
+                    progress: Math.round((currentStep / totalSteps) * 100) 
+                });
+            }
 
             setDataLoadingStatus({ status: 'Procesando outlook de bancos centrales...', progress: 95 });
             for (let country of countries) {
@@ -2357,64 +1595,64 @@ for (let batchStart = 0; batchStart < countries.length; batchStart += CONCURRENT
         };
 
         const calculateStrength = (currency, data = null) => {
-    if (!data) return 50;
-    let score = 0;
+            if (!data) return 50;
+            let score = 0;
 
-    if (data.interestRate !== null && data.interestRate !== undefined) {
-        const globalAvgRate = 3.3;
-        score += (data.interestRate - globalAvgRate) * 8;
-    }
+            if (data.interestRate !== null && data.interestRate !== undefined) {
+                const globalAvgRate = 3.3;
+                score += (data.interestRate - globalAvgRate) * 8;
+            }
 
-    if (data.gdpGrowth !== null && data.gdpGrowth !== undefined) {
-        if (data.gdpGrowth > 2.0) score += 20;
-        else if (data.gdpGrowth > 1.5) score += 15;
-        else if (data.gdpGrowth > 1.0) score += 10;
-        else score += 3;
-    }
+            if (data.gdpGrowth !== null && data.gdpGrowth !== undefined) {
+                if (data.gdpGrowth > 2.0) score += 20;
+                else if (data.gdpGrowth > 1.5) score += 15;
+                else if (data.gdpGrowth > 1.0) score += 10;
+                else score += 3;
+            }
 
-    if (data.inflation !== null && data.inflation !== undefined) {
-        const inflationDiff = Math.abs(data.inflation - 2.0);
-        if (inflationDiff < 0.5) score += 15;
-        else if (inflationDiff < 1.0) score += 10;
-        else if (inflationDiff < 1.5) score += 5;
-        else score -= 5;
-    }
+            if (data.inflation !== null && data.inflation !== undefined) {
+                const inflationDiff = Math.abs(data.inflation - 2.0);
+                if (inflationDiff < 0.5) score += 15;
+                else if (inflationDiff < 1.0) score += 10;
+                else if (inflationDiff < 1.5) score += 5;
+                else score -= 5;
+            }
 
-    if (data.currentAccount !== null && data.currentAccount !== undefined) {
-        if (data.currentAccount > 5) score += 20;
-        else if (data.currentAccount > 2) score += 15;
-        else if (data.currentAccount > 0) score += 10;
-        else if (data.currentAccount > -2) score += 3;
-        else score -= 10;
-    }
+            if (data.currentAccount !== null && data.currentAccount !== undefined) {
+                if (data.currentAccount > 5) score += 20;
+                else if (data.currentAccount > 2) score += 15;
+                else if (data.currentAccount > 0) score += 10;
+                else if (data.currentAccount > -2) score += 3;
+                else score -= 10;
+            }
 
-    if (data.tradeBalance !== null && data.tradeBalance !== undefined) {
-        if (data.tradeBalance > 30) score += 15;
-        else if (data.tradeBalance > 10) score += 12;
-        else if (data.tradeBalance > 0) score += 8;
-        else if (data.tradeBalance > -20) score += 2;
-        else score -= 8;
-    }
+            if (data.tradeBalance !== null && data.tradeBalance !== undefined) {
+                if (data.tradeBalance > 30) score += 15;
+                else if (data.tradeBalance > 10) score += 12;
+                else if (data.tradeBalance > 0) score += 8;
+                else if (data.tradeBalance > -20) score += 2;
+                else score -= 8;
+            }
 
-    if (data.unemployment !== null && data.unemployment !== undefined) {
-        if (data.unemployment < 3) score += 10;
-        else if (data.unemployment < 4.5) score += 8;
-        else if (data.unemployment < 6) score += 4;
-        else score -= 3;
-    }
+            if (data.unemployment !== null && data.unemployment !== undefined) {
+                if (data.unemployment < 3) score += 10;
+                else if (data.unemployment < 4.5) score += 8;
+                else if (data.unemployment < 6) score += 4;
+                else score -= 3;
+            }
 
-    if (data.debt !== null && data.debt !== undefined) {
-        if (data.debt < 60) score += 10;
-        else if (data.debt < 90) score += 7;
-        else if (data.debt < 120) score += 3;
-        else score -= 7;
-    }
+            if (data.debt !== null && data.debt !== undefined) {
+                if (data.debt < 60) score += 10;
+                else if (data.debt < 90) score += 7;
+                else if (data.debt < 120) score += 3;
+                else score -= 7;
+            }
 
-    if (currency === 'USD') score -= 15;
+            if (currency === 'USD') score -= 15;
 
-    const normalized = ((score + 40) / 140) * 100;
-    return Math.max(20, Math.min(100, normalized)).toFixed(1);
-};
+            const normalized = ((score + 40) / 140) * 100;
+            return Math.max(20, Math.min(100, normalized)).toFixed(1);
+        };
 
         const clearDashboardCache = () => {
             CacheManager.clearAll();
@@ -2462,131 +1700,130 @@ for (let batchStart = 0; batchStart < countries.length; batchStart += CONCURRENT
             const chartRefs = useRef({});
 
             const createCharts = () => {
-    // Limpiar gráficos existentes primero
-    Object.values(chartRefs.current).forEach(chart => {
-        if (chart) {
-            try {
-                chart.destroy();
-            } catch (e) {
-                console.warn('Error destroying chart:', e);
-            }
-        }
-    });
-    chartRefs.current = {};
-
-    setTimeout(() => {
-        countries.forEach(country => {
-            const canvas = document.getElementById(`chart-${country.code}`);
-            if (!canvas) {
-                console.warn(`Canvas not found for ${country.code}`);
-                return;
-            }
-
-            const ctx = canvas.getContext('2d');
-            const data = historicalData[country.code];
-
-            if (!data?.labels || !data?.rates || !data?.strength) {
-                console.warn(`No data for ${country.code}`);
-                return;
-            }
-
-            try {
-                chartRefs.current[country.code] = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: data.labels,
-                        datasets: [
-                            {
-                                label: 'Tasa de Interés (%)',
-                                data: data.rates,
-                                borderColor: '#1e88e5',
-                                backgroundColor: 'rgba(30, 136, 229, 0.1)',
-                                yAxisID: 'y',
-                                tension: 0.4,
-                                borderWidth: 2,
-                                pointRadius: 3,
-                                pointHoverRadius: 5
-                            },
-                            {
-                                label: 'Índice de Fortaleza',
-                                data: data.strength,
-                                borderColor: '#26a69a',
-                                backgroundColor: 'rgba(38, 166, 154, 0.1)',
-                                yAxisID: 'y1',
-                                tension: 0.4,
-                                borderWidth: 2,
-                                pointRadius: 3,
-                                pointHoverRadius: 5
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: {
-                            mode: 'index',
-                            intersect: false
-                        },
-                        plugins: {
-                            legend: { 
-                                labels: { 
-                                    color: '#e1e4e8', 
-                                    font: { size: 12 },
-                                    padding: 15
-                                } 
-                            },
-                            title: { 
-                                display: true, 
-                                text: `${country.code} - Tendencias 6 Meses`, 
-                                color: '#e1e4e8', 
-                                font: { size: 14, weight: 'bold' },
-                                padding: { bottom: 20 }
-                            },
-                            tooltip: {
-                                backgroundColor: 'rgba(26, 31, 46, 0.95)',
-                                titleColor: '#e1e4e8',
-                                bodyColor: '#8b949e',
-                                borderColor: '#30363d',
-                                borderWidth: 1
-                            }
-                        },
-                        scales: {
-                            y: { 
-                                type: 'linear', 
-                                position: 'left', 
-                                grid: { color: '#30363d' }, 
-                                ticks: { color: '#8b949e' }, 
-                                title: { 
-                                    display: true, 
-                                    text: 'Tasa %', 
-                                    color: '#8b949e' 
-                                } 
-                            },
-                            y1: { 
-                                type: 'linear', 
-                                position: 'right', 
-                                grid: { display: false }, 
-                                ticks: { color: '#8b949e' }, 
-                                title: { 
-                                    display: true, 
-                                    text: 'Fortaleza', 
-                                    color: '#8b949e' 
-                                } 
-                            },
-                            x: { 
-                                grid: { color: '#30363d' }, 
-                                ticks: { color: '#8b949e' } 
-                            }
+                Object.values(chartRefs.current).forEach(chart => {
+                    if (chart) {
+                        try {
+                            chart.destroy();
+                        } catch (e) {
+                            console.warn('Error destroying chart:', e);
                         }
                     }
                 });
-                console.log(`✅ Chart created for ${country.code}`);
-            } catch (error) {
-                console.error(`Error creating chart for ${country.code}:`, error);
-            }
-        });
-    }, 250);
-};
+                chartRefs.current = {};
+
+                setTimeout(() => {
+                    countries.forEach(country => {
+                        const canvas = document.getElementById(`chart-${country.code}`);
+                        if (!canvas) {
+                            console.warn(`Canvas not found for ${country.code}`);
+                            return;
+                        }
+
+                        const ctx = canvas.getContext('2d');
+                        const data = historicalData[country.code];
+
+                        if (!data?.labels || !data?.rates || !data?.strength) {
+                            console.warn(`No data for ${country.code}`);
+                            return;
+                        }
+
+                        try {
+                            chartRefs.current[country.code] = new Chart(ctx, {
+                                type: 'line',
+                                data: {
+                                    labels: data.labels,
+                                    datasets: [
+                                        {
+                                            label: 'Tasa de Interés (%)',
+                                            data: data.rates,
+                                            borderColor: '#1e88e5',
+                                            backgroundColor: 'rgba(30, 136, 229, 0.1)',
+                                            yAxisID: 'y',
+                                            tension: 0.4,
+                                            borderWidth: 2,
+                                            pointRadius: 3,
+                                            pointHoverRadius: 5
+                                        },
+                                        {
+                                            label: 'Índice de Fortaleza',
+                                            data: data.strength,
+                                            borderColor: '#26a69a',
+                                            backgroundColor: 'rgba(38, 166, 154, 0.1)',
+                                            yAxisID: 'y1',
+                                            tension: 0.4,
+                                            borderWidth: 2,
+                                            pointRadius: 3,
+                                            pointHoverRadius: 5
+                                        }
+                                    ]
+                                },
+                                options: {
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    interaction: {
+                                        mode: 'index',
+                                        intersect: false
+                                    },
+                                    plugins: {
+                                        legend: { 
+                                            labels: { 
+                                                color: '#e1e4e8', 
+                                                font: { size: 12 },
+                                                padding: 15
+                                            } 
+                                        },
+                                        title: { 
+                                            display: true, 
+                                            text: `${country.code} - Tendencias 6 Meses`, 
+                                            color: '#e1e4e8', 
+                                            font: { size: 14, weight: 'bold' },
+                                            padding: { bottom: 20 }
+                                        },
+                                        tooltip: {
+                                            backgroundColor: 'rgba(26, 31, 46, 0.95)',
+                                            titleColor: '#e1e4e8',
+                                            bodyColor: '#8b949e',
+                                            borderColor: '#30363d',
+                                            borderWidth: 1
+                                        }
+                                    },
+                                    scales: {
+                                        y: { 
+                                            type: 'linear', 
+                                            position: 'left', 
+                                            grid: { color: '#30363d' }, 
+                                            ticks: { color: '#8b949e' }, 
+                                            title: { 
+                                                display: true, 
+                                                text: 'Tasa %', 
+                                                color: '#8b949e' 
+                                            } 
+                                        },
+                                        y1: { 
+                                            type: 'linear', 
+                                            position: 'right', 
+                                            grid: { display: false }, 
+                                            ticks: { color: '#8b949e' }, 
+                                            title: { 
+                                                display: true, 
+                                                text: 'Fortaleza', 
+                                                color: '#8b949e' 
+                                            } 
+                                        },
+                                        x: { 
+                                            grid: { color: '#30363d' }, 
+                                            ticks: { color: '#8b949e' } 
+                                        }
+                                    }
+                                }
+                            });
+                            console.log(`✅ Chart created for ${country.code}`);
+                        } catch (error) {
+                            console.error(`Error creating chart for ${country.code}:`, error);
+                        }
+                    });
+                }, 250);
+            };
 
             const TooltipCell = ({ children, tooltip, title }) => {
                 const [showTooltip, setShowTooltip] = React.useState(false);
@@ -2675,35 +1912,35 @@ for (let batchStart = 0; batchStart < countries.length; batchStart += CONCURRENT
             };
 
             const generateAnalysis = (currency) => {
-    if (!economicData[currency]) return 'Cargando datos...';
-    const data = economicData[currency];
-    const country = countries.find(c => c.code === currency);
-    const strength = calculateStrength(currency, data);
-    const sentiment = getSentiment(strength);
+                if (!economicData[currency]) return 'Cargando datos...';
+                const data = economicData[currency];
+                const country = countries.find(c => c.code === currency);
+                const strength = calculateStrength(currency, data);
+                const sentiment = getSentiment(strength);
 
-    let analysis = [];
-    if (sentiment === 'alcista') analysis.push(`${currency} muestra fortaleza fundamental respaldada por datos sólidos.`);
-    else if (sentiment === 'bajista') analysis.push(`${currency} enfrenta vientos en contra con fundamentos débiles.`);
-    else analysis.push(`${currency} presenta panorama mixto con factores balanceados.`);
+                let analysis = [];
+                if (sentiment === 'alcista') analysis.push(`${currency} muestra fortaleza fundamental respaldada por datos sólidos.`);
+                else if (sentiment === 'bajista') analysis.push(`${currency} enfrenta vientos en contra con fundamentos débiles.`);
+                else analysis.push(`${currency} presenta panorama mixto con factores balanceados.`);
 
-    if (currency === 'USD' && data.interestRate && data.tradeBalance) {
-        analysis.push(`Fed mantiene política restrictiva (${data.interestRate.toFixed(2)}%) pero DXY muestra debilidad estructural.`);
-    } else if (country && data.interestRate) {
-        analysis.push(`${country.centralBank} en modo ${country.outlook.toLowerCase()} con tasa en ${data.interestRate.toFixed(2)}%.`);
-    }
+                if (currency === 'USD' && data.interestRate && data.tradeBalance) {
+                    analysis.push(`Fed mantiene política restrictiva (${data.interestRate.toFixed(2)}%) pero DXY muestra debilidad estructural.`);
+                } else if (country && data.interestRate) {
+                    analysis.push(`${country.centralBank} en modo ${country.outlook.toLowerCase()} con tasa en ${data.interestRate.toFixed(2)}%.`);
+                }
 
-    return analysis.join(' ');
-};
+                return analysis.join(' ');
+            };
 
             const getSortedCountries = () => {
-    return [...countries].sort((a, b) => {
-        const dataA = economicData[a.code] || {};
-        const dataB = economicData[b.code] || {};
-        const strengthA = parseFloat(calculateStrength(a.code, dataA));
-        const strengthB = parseFloat(calculateStrength(b.code, dataB));
-        return strengthB - strengthA;
-    });
-};
+                return [...countries].sort((a, b) => {
+                    const dataA = economicData[a.code] || {};
+                    const dataB = economicData[b.code] || {};
+                    const strengthA = parseFloat(calculateStrength(a.code, dataA));
+                    const strengthB = parseFloat(calculateStrength(b.code, dataB));
+                    return strengthB - strengthA;
+                });
+            };
 
             const formatValue = (value, decimals = 1) => {
                 if (value === null || value === undefined) return 'N/D';
@@ -2751,21 +1988,20 @@ for (let batchStart = 0; batchStart < countries.length; batchStart += CONCURRENT
                 return () => clearInterval(ratesInterval);
             }, []);
 
-useEffect(() => {
-    if (activeTab === 'trends' && Object.keys(historicalData).length > 0) {
-        // Dar tiempo al DOM para renderizar los canvas
-        const timer = setTimeout(() => {
-            createCharts();
-        }, 200);
-        return () => clearTimeout(timer);
-    }
-    return () => {
-        Object.values(chartRefs.current).forEach(chart => {
-            if (chart) chart.destroy();
-        });
-        chartRefs.current = {};
-    };
-}, [activeTab, historicalData]);
+            useEffect(() => {
+                if (activeTab === 'trends' && Object.keys(historicalData).length > 0) {
+                    const timer = setTimeout(() => {
+                        createCharts();
+                    }, 200);
+                    return () => clearTimeout(timer);
+                }
+                return () => {
+                    Object.values(chartRefs.current).forEach(chart => {
+                        if (chart) chart.destroy();
+                    });
+                    chartRefs.current = {};
+                };
+            }, [activeTab, historicalData]);
 
             if (isLoading) {
                 return (
@@ -2834,242 +2070,242 @@ useEffect(() => {
 
                     <div className="content">
                         {activeTab === 'overview' && (
-    <div>
-        <div className="section-header">
-            <div className="section-title">Resumen de Divisas y Análisis Fundamental</div>
-            <div className="section-meta">Ordenadas por fortaleza fundamental • Actualizado {lastUpdate ? lastUpdate.toLocaleDateString('es-ES') : ''}</div>
-        </div>
-        <div className="currency-grid">
-            {getSortedCountries().map(country => {
-                const data = economicData[country.code] || {};
-                const strength = calculateStrength(country.code, data);
-                const sentiment = getSentiment(strength);
-                const rate = country.code === 'USD' ? 1 : (forexRates[country.code] || 1);
+                            <div>
+                                <div className="section-header">
+                                    <div className="section-title">Resumen de Divisas y Análisis Fundamental</div>
+                                    <div className="section-meta">Ordenadas por fortaleza fundamental • Actualizado {lastUpdate ? lastUpdate.toLocaleDateString('es-ES') : ''}</div>
+                                </div>
+                                <div className="currency-grid">
+                                    {getSortedCountries().map(country => {
+                                        const data = economicData[country.code] || {};
+                                        const strength = calculateStrength(country.code, data);
+                                        const sentiment = getSentiment(strength);
+                                        const rate = country.code === 'USD' ? 1 : (forexRates[country.code] || 1);
 
-                return (
-                    <div key={country.code} className="currency-card">
-                        <div className="card-header">
-                            <div className="card-title-section">
-                                <span className="card-flag flag-emoji">{country.flag}</span>
-                                <div>
-                                    <div className="card-currency-code">{country.code}</div>
-                                    <div className="card-currency-name">{country.currency}</div>
+                                        return (
+                                            <div key={country.code} className="currency-card">
+                                                <div className="card-header">
+                                                    <div className="card-title-section">
+                                                        <span className="card-flag flag-emoji">{country.flag}</span>
+                                                        <div>
+                                                            <div className="card-currency-code">{country.code}</div>
+                                                            <div className="card-currency-name">{country.currency}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="card-strength">
+                                                        <div className="strength-score" style={{ 
+                                                            color: sentiment === 'alcista' ? 'var(--green-strong)' : 
+                                                                   sentiment === 'bajista' ? 'var(--red-strong)' : 
+                                                                   'var(--neutral)' 
+                                                        }}>
+                                                            {strength}
+                                                        </div>
+                                                        <div className="strength-label">Fortaleza</div>
+                                                    </div>
+                                                </div>
+                                                <div className="card-body">
+                                                    <div className="central-bank">
+                                                        <div className="bank-label">Banco Central</div>
+                                                        <div className="bank-name">{country.centralBank}</div>
+                                                        <div className="bank-info">
+                                                            <div className="bank-info-item">
+                                                                <div className="bank-info-label">Tasa</div>
+                                                                <div className="bank-info-value">{data.interestRate?.toFixed(2)}%</div>
+                                                            </div>
+                                                            <div className="bank-info-item">
+                                                                <div className="bank-info-label">Próxima Reunión</div>
+                                                                <div className="bank-info-value">{country.nextMeeting}</div>
+                                                            </div>
+                                                            <div className="bank-info-item">
+                                                                <div className="bank-info-label">Perspectiva</div>
+                                                                <div className="bank-info-value">{country.outlook}</div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="metrics-grid">
+                                                        <div className="metric">
+                                                            <div className="metric-label">Crecimiento PIB</div>
+                                                            <div className="metric-value" style={{ 
+                                                                color: data.gdpGrowth !== null && data.gdpGrowth > 1.8 ? 'var(--green-strong)' : 
+                                                                       data.gdpGrowth !== null && data.gdpGrowth < 1.0 ? 'var(--red-strong)' : 
+                                                                       'var(--text-primary)' 
+                                                            }}>
+                                                                {formatValue(data.gdpGrowth)}%
+                                                            </div>
+                                                        </div>
+                                                        <div className="metric">
+                                                            <div className="metric-label">Inflación</div>
+                                                            <div className="metric-value" style={{ 
+                                                                color: data.inflation !== null && data.inflation >= 1.8 && data.inflation <= 2.5 ? 'var(--green-strong)' : 
+                                                                       data.inflation !== null && data.inflation > 3.5 ? 'var(--red-strong)' : 
+                                                                       'var(--text-primary)' 
+                                                            }}>
+                                                                {formatValue(data.inflation)}%
+                                                            </div>
+                                                        </div>
+                                                        <div className="metric">
+                                                            <div className="metric-label">Desempleo</div>
+                                                            <div className="metric-value" style={{ 
+                                                                color: data.unemployment !== null && data.unemployment < 3.5 ? 'var(--green-strong)' : 
+                                                                       data.unemployment !== null && data.unemployment > 6 ? 'var(--red-strong)' : 
+                                                                       'var(--text-primary)' 
+                                                            }}>
+                                                                {formatValue(data.unemployment)}%
+                                                            </div>
+                                                        </div>
+                                                        <div className="metric">
+                                                            <div className="metric-label">Cuenta Corriente</div>
+                                                            <div className="metric-value metric-value-small" style={{ 
+                                                                color: data.currentAccount !== null && data.currentAccount > 2 ? 'var(--green-strong)' : 
+                                                                       data.currentAccount !== null && data.currentAccount < -3 ? 'var(--red-strong)' : 
+                                                                       'var(--text-primary)' 
+                                                            }}>
+                                                                {data.currentAccount !== null && data.currentAccount !== undefined 
+                                                                    ? `${data.currentAccount > 0 ? '+' : ''}${formatValue(data.currentAccount)}%`
+                                                                    : 'N/D'}
+                                                            </div>
+                                                        </div>
+                                                        <div className="metric">
+                                                            <div className="metric-label">Balanza Comercial</div>
+                                                            <div className="metric-value metric-value-small" style={{ 
+                                                                color: data.tradeBalance !== null && data.tradeBalance > 10 ? 'var(--green-strong)' : 
+                                                                       data.tradeBalance !== null && data.tradeBalance < -20 ? 'var(--red-strong)' : 
+                                                                       'var(--text-primary)' 
+                                                            }}>
+                                                                {data.tradeBalance !== null && data.tradeBalance !== undefined 
+                                                                    ? `${data.tradeBalance > 0 ? '+' : ''}${formatValue(data.tradeBalance)}B`
+                                                                    : 'N/D'}
+                                                            </div>
+                                                        </div>
+                                                        <div className="metric">
+                                                            <div className="metric-label">Tasa vs USD</div>
+                                                            <div className="metric-value metric-value-small">
+                                                                {country.code === 'USD' ? '1.0000' : rate.toFixed(4)}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="analysis-section">
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                                                            <div className="analysis-title">Análisis Fundamental</div>
+                                                            <div className={`sentiment-badge sentiment-${sentiment}`}>
+                                                                <div className="sentiment-indicator" style={{ background: sentiment === 'alcista' ? 'var(--green-strong)' : sentiment === 'bajista' ? 'var(--red-strong)' : 'var(--neutral)' }}></div>
+                                                                {sentiment}
+                                                            </div>
+                                                        </div>
+                                                        <div className="analysis-text">{generateAnalysis(country.code)}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
-                            <div className="card-strength">
-                                <div className="strength-score" style={{ 
-                                    color: sentiment === 'alcista' ? 'var(--green-strong)' : 
-                                           sentiment === 'bajista' ? 'var(--red-strong)' : 
-                                           'var(--neutral)' 
-                                }}>
-                                    {strength}
-                                </div>
-                                <div className="strength-label">Fortaleza</div>
-                            </div>
-                        </div>
-                        <div className="card-body">
-                            <div className="central-bank">
-                                <div className="bank-label">Banco Central</div>
-                                <div className="bank-name">{country.centralBank}</div>
-                                <div className="bank-info">
-                                    <div className="bank-info-item">
-                                        <div className="bank-info-label">Tasa</div>
-                                        <div className="bank-info-value">{data.interestRate?.toFixed(2)}%</div>
-                                    </div>
-                                    <div className="bank-info-item">
-                                        <div className="bank-info-label">Próxima Reunión</div>
-                                        <div className="bank-info-value">{country.nextMeeting}</div>
-                                    </div>
-                                    <div className="bank-info-item">
-                                        <div className="bank-info-label">Perspectiva</div>
-                                        <div className="bank-info-value">{country.outlook}</div>
-                                    </div>
-                                </div>
-                            </div>
+                        )}
 
-                            <div className="metrics-grid">
-    <div className="metric">
-        <div className="metric-label">Crecimiento PIB</div>
-        <div className="metric-value" style={{ 
-            color: data.gdpGrowth !== null && data.gdpGrowth > 1.8 ? 'var(--green-strong)' : 
-                   data.gdpGrowth !== null && data.gdpGrowth < 1.0 ? 'var(--red-strong)' : 
-                   'var(--text-primary)' 
-        }}>
-            {formatValue(data.gdpGrowth)}%
-        </div>
-    </div>
-    <div className="metric">
-        <div className="metric-label">Inflación</div>
-        <div className="metric-value" style={{ 
-            color: data.inflation !== null && data.inflation >= 1.8 && data.inflation <= 2.5 ? 'var(--green-strong)' : 
-                   data.inflation !== null && data.inflation > 3.5 ? 'var(--red-strong)' : 
-                   'var(--text-primary)' 
-        }}>
-            {formatValue(data.inflation)}%
-        </div>
-    </div>
-    <div className="metric">
-        <div className="metric-label">Desempleo</div>
-        <div className="metric-value" style={{ 
-            color: data.unemployment !== null && data.unemployment < 3.5 ? 'var(--green-strong)' : 
-                   data.unemployment !== null && data.unemployment > 6 ? 'var(--red-strong)' : 
-                   'var(--text-primary)' 
-        }}>
-            {formatValue(data.unemployment)}%
-        </div>
-    </div>
-    <div className="metric">
-        <div className="metric-label">Cuenta Corriente</div>
-        <div className="metric-value metric-value-small" style={{ 
-            color: data.currentAccount !== null && data.currentAccount > 2 ? 'var(--green-strong)' : 
-                   data.currentAccount !== null && data.currentAccount < -3 ? 'var(--red-strong)' : 
-                   'var(--text-primary)' 
-        }}>
-            {data.currentAccount !== null && data.currentAccount !== undefined 
-                ? `${data.currentAccount > 0 ? '+' : ''}${formatValue(data.currentAccount)}%`
-                : 'N/D'}
-        </div>
-    </div>
-    <div className="metric">
-        <div className="metric-label">Balanza Comercial</div>
-        <div className="metric-value metric-value-small" style={{ 
-            color: data.tradeBalance !== null && data.tradeBalance > 10 ? 'var(--green-strong)' : 
-                   data.tradeBalance !== null && data.tradeBalance < -20 ? 'var(--red-strong)' : 
-                   'var(--text-primary)' 
-        }}>
-            {data.tradeBalance !== null && data.tradeBalance !== undefined 
-                ? `${data.tradeBalance > 0 ? '+' : ''}${formatValue(data.tradeBalance)}B`
-                : 'N/D'}
-        </div>
-    </div>
-    <div className="metric">
-        <div className="metric-label">Tasa vs USD</div>
-        <div className="metric-value metric-value-small">
-            {country.code === 'USD' ? '1.0000' : rate.toFixed(4)}
-        </div>
-    </div>
-</div>
-
-                            <div className="analysis-section">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                                    <div className="analysis-title">Análisis Fundamental</div>
-                                    <div className={`sentiment-badge sentiment-${sentiment}`}>
-                                        <div className="sentiment-indicator" style={{ background: sentiment === 'alcista' ? 'var(--green-strong)' : sentiment === 'bajista' ? 'var(--red-strong)' : 'var(--neutral)' }}></div>
-                                        {sentiment}
-                                    </div>
+                        {activeTab === 'heatmap' && (
+                            <div>
+                                <div className="section-header">
+                                    <div className="section-title">Mapa de Calor de Indicadores Económicos</div>
                                 </div>
-                                <div className="analysis-text">{generateAnalysis(country.code)}</div>
+                                <div className="heatmap-container">
+                                    <table className="heatmap-table">
+                                        <thead>
+                                            <tr>
+                                                <th></th>
+                                                <TooltipCell title="Síntesis General" tooltip="Evaluación global de la fortaleza fundamental de la divisa.">
+                                                    General<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>Síntesis</span>
+                                                </TooltipCell>
+                                                <TooltipCell title="PIB Total" tooltip={indicatorTooltips.gdp}>
+                                                    PIB<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>Trillones USD</span>
+                                                </TooltipCell>
+                                                <TooltipCell title="Crecimiento PIB" tooltip={indicatorTooltips.gdpGrowth}>
+                                                    Crecimiento PIB<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>% Anual</span>
+                                                </TooltipCell>
+                                                <TooltipCell title="Tasa de Interés" tooltip={indicatorTooltips.interestRate}>
+                                                    Tasa de Interés<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>%</span>
+                                                </TooltipCell>
+                                                <TooltipCell title="Inflación" tooltip={indicatorTooltips.inflation}>
+                                                    Inflación<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>IPC %</span>
+                                                </TooltipCell>
+                                                <TooltipCell title="Desempleo" tooltip={indicatorTooltips.unemployment}>
+                                                    Desempleo<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>%</span>
+                                                </TooltipCell>
+                                                <TooltipCell title="Cuenta Corriente" tooltip={indicatorTooltips.currentAccount}>
+                                                    Cuenta Corriente<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>% del PIB</span>
+                                                </TooltipCell>
+                                                <TooltipCell title="Deuda Pública" tooltip={indicatorTooltips.debt}>
+                                                    Deuda Pública<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>% del PIB</span>
+                                                </TooltipCell>
+                                                <TooltipCell title="Balanza Comercial" tooltip={indicatorTooltips.tradeBalance}>
+                                                    Balanza Comercial<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>Miles Millones USD</span>
+                                                </TooltipCell>
+                                                <TooltipCell title="Producción Industrial" tooltip={indicatorTooltips.production}>
+                                                    Prod. Industrial<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>% Anual</span>
+                                                </TooltipCell>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {getSortedCountries().map(country => {
+                                                const data = economicData[country.code] || {};
+                                                const strength = calculateStrength(country.code, data);
+                                                const sentiment = getSentiment(strength);
+                                                const overallColor = sentiment === 'alcista' ? 'var(--green-strong)' : sentiment === 'bajista' ? 'var(--red-strong)' : 'var(--neutral)';
+                                                
+                                                return (
+                                                    <tr key={country.code}>
+                                                        <td>
+                                                            <div className="country-cell">
+                                                                <span className="country-flag flag-emoji">{country.flag}</span>
+                                                                <div className="country-info">
+                                                                    <div className="country-name">{country.name}</div>
+                                                                    <div className="country-currency">{country.code}</div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td style={{ background: 'var(--bg-card)' }}>
+                                                            <div className="overall-cell">
+                                                                <div className="overall-indicator" style={{ background: overallColor }}></div>
+                                                                <span className="overall-label" style={{ color: overallColor }}>{sentiment}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td style={{ background: getHeatmapColor(data.gdp, 'gdp') }}>
+                                                            <span className="cell-value">{formatValue(data.gdp, 2)}</span>
+                                                            <span className="cell-suffix">T USD</span>
+                                                        </td>
+                                                        <td style={{ background: getHeatmapColor(data.gdpGrowth, 'gdpGrowth') }}>
+                                                            <span className="cell-value">{formatValue(data.gdpGrowth)}%</span>
+                                                        </td>
+                                                        <td style={{ background: getHeatmapColor(data.interestRate, 'interestRate') }}>
+                                                            <span className="cell-value">{formatValue(data.interestRate, 2)}%</span>
+                                                        </td>
+                                                        <td style={{ background: getHeatmapColor(data.inflation, 'inflation') }}>
+                                                            <span className="cell-value">{formatValue(data.inflation)}%</span>
+                                                        </td>
+                                                        <td style={{ background: getHeatmapColor(data.unemployment, 'unemployment') }}>
+                                                            <span className="cell-value">{formatValue(data.unemployment)}%</span>
+                                                        </td>
+                                                        <td style={{ background: getHeatmapColor(data.currentAccount, 'currentAccount') }}>
+                                                            <span className="cell-value">{data.currentAccount > 0 ? '+' : ''}{formatValue(data.currentAccount)}%</span>
+                                                        </td>
+                                                        <td style={{ background: getHeatmapColor(data.debt, 'debt') }}>
+                                                            <span className="cell-value">{formatValue(data.debt)}%</span>
+                                                        </td>
+                                                        <td style={{ background: getHeatmapColor(data.tradeBalance, 'tradeBalance') }}>
+                                                            <span className="cell-value">{data.tradeBalance > 0 ? '+' : ''}{formatValue(data.tradeBalance)}B</span>
+                                                        </td>
+                                                        <td style={{ background: getHeatmapColor(data.production, 'production') }}>
+                                                            <span className="cell-value">{data.production > 0 ? '+' : ''}{formatValue(data.production)}%</span>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                );
-            })}
-        </div>
-    </div>
-)}
-
-{activeTab === 'heatmap' && (
-    <div>
-        <div className="section-header">
-            <div className="section-title">Mapa de Calor de Indicadores Económicos</div>
-        </div>
-        <div className="heatmap-container">
-            <table className="heatmap-table">
-                <thead>
-                    <tr>
-                        <th></th>
-                        <TooltipCell title="Síntesis General" tooltip="Evaluación global de la fortaleza fundamental de la divisa.">
-                            General<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>Síntesis</span>
-                        </TooltipCell>
-                        <TooltipCell title="PIB Total" tooltip={indicatorTooltips.gdp}>
-                            PIB<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>Trillones USD</span>
-                        </TooltipCell>
-                        <TooltipCell title="Crecimiento PIB" tooltip={indicatorTooltips.gdpGrowth}>
-                            Crecimiento PIB<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>% Anual</span>
-                        </TooltipCell>
-                        <TooltipCell title="Tasa de Interés" tooltip={indicatorTooltips.interestRate}>
-                            Tasa de Interés<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>%</span>
-                        </TooltipCell>
-                        <TooltipCell title="Inflación" tooltip={indicatorTooltips.inflation}>
-                            Inflación<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>IPC %</span>
-                        </TooltipCell>
-                        <TooltipCell title="Desempleo" tooltip={indicatorTooltips.unemployment}>
-                            Desempleo<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>%</span>
-                        </TooltipCell>
-                        <TooltipCell title="Cuenta Corriente" tooltip={indicatorTooltips.currentAccount}>
-                            Cuenta Corriente<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>% del PIB</span>
-                        </TooltipCell>
-                        <TooltipCell title="Deuda Pública" tooltip={indicatorTooltips.debt}>
-                            Deuda Pública<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>% del PIB</span>
-                        </TooltipCell>
-                        <TooltipCell title="Balanza Comercial" tooltip={indicatorTooltips.tradeBalance}>
-                            Balanza Comercial<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>Miles Millones USD</span>
-                        </TooltipCell>
-                        <TooltipCell title="Producción Industrial" tooltip={indicatorTooltips.production}>
-                            Prod. Industrial<br/><span style={{fontSize: '0.6rem', fontWeight: 400, color: 'var(--text-tertiary)'}}>% Anual</span>
-                        </TooltipCell>
-                    </tr>
-                </thead>
-                <tbody>
-                    {getSortedCountries().map(country => {
-                        const data = economicData[country.code] || {};
-                        const strength = calculateStrength(country.code, data);
-                        const sentiment = getSentiment(strength);
-                        const overallColor = sentiment === 'alcista' ? 'var(--green-strong)' : sentiment === 'bajista' ? 'var(--red-strong)' : 'var(--neutral)';
-                        
-                        return (
-                            <tr key={country.code}>
-                                <td>
-                                    <div className="country-cell">
-                                        <span className="country-flag flag-emoji">{country.flag}</span>
-                                        <div className="country-info">
-                                            <div className="country-name">{country.name}</div>
-                                            <div className="country-currency">{country.code}</div>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td style={{ background: 'var(--bg-card)' }}>
-                                    <div className="overall-cell">
-                                        <div className="overall-indicator" style={{ background: overallColor }}></div>
-                                        <span className="overall-label" style={{ color: overallColor }}>{sentiment}</span>
-                                    </div>
-                                </td>
-                                <td style={{ background: getHeatmapColor(data.gdp, 'gdp') }}>
-                                    <span className="cell-value">{formatValue(data.gdp, 2)}</span>
-                                    <span className="cell-suffix">T USD</span>
-                                </td>
-                                <td style={{ background: getHeatmapColor(data.gdpGrowth, 'gdpGrowth') }}>
-                                    <span className="cell-value">{formatValue(data.gdpGrowth)}%</span>
-                                </td>
-                                <td style={{ background: getHeatmapColor(data.interestRate, 'interestRate') }}>
-                                    <span className="cell-value">{formatValue(data.interestRate, 2)}%</span>
-                                </td>
-                                <td style={{ background: getHeatmapColor(data.inflation, 'inflation') }}>
-                                    <span className="cell-value">{formatValue(data.inflation)}%</span>
-                                </td>
-                                <td style={{ background: getHeatmapColor(data.unemployment, 'unemployment') }}>
-                                    <span className="cell-value">{formatValue(data.unemployment)}%</span>
-                                </td>
-                                <td style={{ background: getHeatmapColor(data.currentAccount, 'currentAccount') }}>
-                                    <span className="cell-value">{data.currentAccount > 0 ? '+' : ''}{formatValue(data.currentAccount)}%</span>
-                                </td>
-                                <td style={{ background: getHeatmapColor(data.debt, 'debt') }}>
-                                    <span className="cell-value">{formatValue(data.debt)}%</span>
-                                </td>
-                                <td style={{ background: getHeatmapColor(data.tradeBalance, 'tradeBalance') }}>
-                                    <span className="cell-value">{data.tradeBalance > 0 ? '+' : ''}{formatValue(data.tradeBalance)}B</span>
-                                </td>
-                                <td style={{ background: getHeatmapColor(data.production, 'production') }}>
-                                    <span className="cell-value">{data.production > 0 ? '+' : ''}{formatValue(data.production)}%</span>
-                                </td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
-        </div>
-    </div>
-)}
+                        )}
 
                         {activeTab === 'trends' && (
                             <div>
@@ -3141,7 +2377,7 @@ useEffect(() => {
 
                         <div className="footer">
                             <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>DASHBOARD DE ANÁLISIS FUNDAMENTAL FOREX</div>
-                            <div style={{ marginBottom: '1rem' }}>Análisis fundamental de grado profesional • Datos actualizados con APIs oficiales</div>
+                            <div style={{ marginBottom: '1rem' }}>Datos actualizados diariamente desde Trading Economics vía GitHub Actions</div>
                             <div style={{ textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
                                 <button onClick={() => window.clearForexCache && window.clearForexCache()} style={{
                                     padding: '10px 20px', background: 'var(--blue)', color: 'white', border: 'none',
