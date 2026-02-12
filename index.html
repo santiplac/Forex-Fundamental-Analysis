@@ -1873,9 +1873,7 @@ const getFallbackValue = async (countryCode, indicator) => {
             return null;
         };
 
-// ========================================================================
-// TASAS DE INTERÉS - 100% DINÁMICO SIN HARDCODING
-// ========================================================================
+// ========== SOLUCIÓN CON ALLORIGINS (MÁS CONFIABLE) ==========
 
 const fetchInterestRate = async (country) => {
     const cacheKey = `interest_rate_${country.code}`;
@@ -1884,64 +1882,55 @@ const fetchInterestRate = async (country) => {
 
     console.log(`🔍 Fetching interest rate for ${country.code}...`);
 
-    // ========== FUENTE 1: FRED API (Más confiable, datos directos de bancos centrales) ==========
-    const fredApiKeys = [
-        '5e0ae2ba29361b8ddb614fd5f92c0a51',
-        'RIBXT3XYLI69O5WY',
-        '2TW8Y8DDBPRQ2VTV',
-        'a8b6c9d2e4f7a1b3c5d8e9f0a2b4c6d8'  // Backup key
-    ];
-
+    // ========== ESTRATEGIA 1: FRED vía AllOrigins (proxy CORS más estable) ==========
     const fredSeriesMap = {
-        USD: 'DFF',                    // Federal Funds Effective Rate
-        EUR: 'ECBDFR',                 // ECB Deposit Facility Rate  
-        GBP: 'IUDSOIA',                // Bank of England Official Bank Rate
-        JPY: 'INTDSRJPM193N',          // Japan Policy Rate
-        AUD: 'IRSTCB01AUM156N',        // Australia Cash Rate Target
-        CAD: 'IRSTCB01CAM156N',        // Canada Overnight Rate Target
-        CHF: 'IRSTCI01CHM156N',        // Switzerland 3-Month LIBOR Target Rate
-        NZD: 'IRSTCI01NZM156N'         // New Zealand Official Cash Rate
+        USD: 'DFF',
+        EUR: 'ECBDFR',
+        GBP: 'IUDSOIA',
+        JPY: 'INTDSRJPM193N',
+        AUD: 'IRSTCB01AUM156N',
+        CAD: 'IRSTCB01CAM156N',
+        CHF: 'IRSTCI01CHM156N',
+        NZD: 'IRSTCI01NZM156N'
     };
 
     const seriesId = fredSeriesMap[country.code];
     
     if (seriesId) {
-        for (const apiKey of fredApiKeys) {
-            try {
-                const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json&limit=1&sort_order=desc`;
+        const apiKey = '5e0ae2ba29361b8ddb614fd5f92c0a51';
+        const fredUrl = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json&limit=1&sort_order=desc`;
+        
+        try {
+            // AllOrigins es más confiable que corsproxy.io
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(fredUrl)}`;
+            const response = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
+            
+            if (response.ok) {
+                const proxyData = await response.json();
+                const data = JSON.parse(proxyData.contents);
                 
-                const response = await fetch(url, { 
-                    signal: AbortSignal.timeout(8000),
-                    headers: { 'Accept': 'application/json' }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
+                if (data.observations && data.observations.length > 0) {
+                    const latestObs = data.observations[0];
                     
-                    if (data.observations && data.observations.length > 0) {
-                        const latestObs = data.observations[0];
+                    if (latestObs.value && latestObs.value !== '.') {
+                        const value = parseFloat(latestObs.value);
                         
-                        if (latestObs.value && latestObs.value !== '.') {
-                            const value = parseFloat(latestObs.value);
-                            
-                            if (!isNaN(value) && value >= -1 && value < 25) {
-                                console.log(`✅ FRED rate for ${country.code}: ${value}% (${latestObs.date})`);
-                                CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                                return value;
-                            }
+                        if (!isNaN(value) && value >= -1 && value < 25) {
+                            console.log(`✅ FRED (via AllOrigins) rate for ${country.code}: ${value}%`);
+                            CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
+                            return value;
                         }
                     }
                 }
-            } catch (error) {
-                console.warn(`FRED API key ${apiKey} failed for ${country.code}`);
-                continue;
             }
+        } catch (error) {
+            console.warn(`AllOrigins FRED failed for ${country.code}`);
         }
     }
 
-    // ========== FUENTE 2: Alpha Vantage (Para USD) ==========
+    // ========== ESTRATEGIA 2: Alpha Vantage (Para USD funciona bien) ==========
     if (country.code === 'USD') {
-        const alphaKeys = ['2TW8Y8DDBPRQ2VTV', 'RIBXT3XYLI69O5WY', 'demo'];
+        const alphaKeys = ['2TW8Y8DDBPRQ2VTV', 'RIBXT3XYLI69O5WY'];
         
         for (const apiKey of alphaKeys) {
             try {
@@ -1965,199 +1954,50 @@ const fetchInterestRate = async (country) => {
         }
     }
 
-    // ========== FUENTE 3: BIS (Bank for International Settlements) ==========
-    const bisCountryCodes = {
-        USD: 'US',
-        EUR: 'XM',
-        GBP: 'GB',
-        JPY: 'JP',
-        AUD: 'AU',
-        CAD: 'CA',
-        CHF: 'CH',
-        NZD: 'NZ'
+    // ========== ESTRATEGIA 3: Scraping Trading Economics via AllOrigins ==========
+    const teCountries = {
+        USD: 'united-states', EUR: 'euro-area', GBP: 'united-kingdom', JPY: 'japan',
+        AUD: 'australia', CAD: 'canada', CHF: 'switzerland', NZD: 'new-zealand'
     };
 
-    const bisCode = bisCountryCodes[country.code];
-    if (bisCode) {
-        try {
-            const url = `https://stats.bis.org/api/v1/data/WEBSTATS_CBPOL_D_DATAFLOW/${bisCode}..?format=json&detail=dataonly&lastNObservations=1`;
-            const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.dataSets && data.dataSets[0] && data.dataSets[0].series) {
-                    const series = Object.values(data.dataSets[0].series)[0];
-                    if (series && series.observations) {
-                        const latestObs = Object.values(series.observations)[0];
-                        if (latestObs && latestObs[0] !== undefined) {
-                            const value = parseFloat(latestObs[0]);
-                            if (!isNaN(value) && value >= -1 && value < 25) {
-                                console.log(`✅ BIS rate for ${country.code}: ${value}%`);
-                                CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                                return value;
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn(`BIS API failed for ${country.code}`);
-        }
-    }
-
-    // ========== FUENTE 4: IMF Data Mapper (International Monetary Fund) ==========
-    const imfCountryCodes = {
-        USD: 'US',
-        EUR: '163',  // Euro Area code
-        GBP: 'GB',
-        JPY: 'JP',
-        AUD: 'AU',
-        CAD: 'CA',
-        CHF: 'CH',
-        NZD: 'NZ'
-    };
-
-    const imfCode = imfCountryCodes[country.code];
-    if (imfCode) {
-        try {
-            // IMF Financial Soundness Indicators - Interest rates
-            const url = `https://www.imf.org/external/datamapper/api/v1/GGXWDG_NGDP/${imfCode}`;
-            const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-            
-            if (response.ok) {
-                const data = await response.json();
-                // IMF tiene estructura compleja, intentar extraer valor
-                console.log(`IMF response for ${country.code}:`, data);
-            }
-        } catch (error) {
-            console.warn(`IMF API failed for ${country.code}`);
-        }
-    }
-
-    // ========== FUENTE 5: OECD Main Economic Indicators ==========
-    const oecdCountryCodes = {
-        USD: 'USA',
-        EUR: 'EA19',
-        GBP: 'GBR',
-        JPY: 'JPN',
-        AUD: 'AUS',
-        CAD: 'CAN',
-        CHF: 'CHE',
-        NZD: 'NZL'
-    };
-
-    const oecdCode = oecdCountryCodes[country.code];
-    if (oecdCode) {
-        try {
-            // OECD SDMX-JSON API - Short-term interest rates
-            const url = `https://stats.oecd.org/sdmx-json/data/DP_LIVE/.IR3TIB.../OECD?contentType=json&detail=code&separator=comma&csv-lang=en&startTime=2024`;
-            const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.dataSets && data.dataSets[0] && data.dataSets[0].series) {
-                    // Buscar serie del país específico
-                    const seriesKeys = Object.keys(data.dataSets[0].series);
-                    for (const key of seriesKeys) {
-                        const series = data.dataSets[0].series[key];
-                        if (series && series.observations) {
-                            const observations = Object.values(series.observations);
-                            if (observations.length > 0) {
-                                const latestValue = observations[observations.length - 1][0];
-                                const value = parseFloat(latestValue);
-                                if (!isNaN(value) && value >= -1 && value < 25) {
-                                    console.log(`✅ OECD rate for ${country.code}: ${value}%`);
-                                    CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                                    return value;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn(`OECD API failed for ${country.code}`);
-        }
-    }
-
-    // ========== FUENTE 6: Trading Economics API (Free tier) ==========
-    const teCountryCodes = {
-        USD: 'united-states',
-        EUR: 'euro-area',
-        GBP: 'united-kingdom',
-        JPY: 'japan',
-        AUD: 'australia',
-        CAD: 'canada',
-        CHF: 'switzerland',
-        NZD: 'new-zealand'
-    };
-
-    const teCountry = teCountryCodes[country.code];
+    const teCountry = teCountries[country.code];
     if (teCountry) {
         try {
-            // Trading Economics historical data endpoint (público)
-            const url = `https://api.tradingeconomics.com/historical/country/${teCountry}/indicator/interest-rate`;
-            const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+            const teUrl = `https://tradingeconomics.com/${teCountry}/interest-rate`;
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(teUrl)}`;
+            
+            const response = await fetch(proxyUrl, { signal: AbortSignal.timeout(12000) });
             
             if (response.ok) {
-                const data = await response.json();
-                if (Array.isArray(data) && data.length > 0) {
-                    // Ordenar por fecha más reciente
-                    const sorted = data.sort((a, b) => new Date(b.DateTime) - new Date(a.DateTime));
-                    const latestValue = parseFloat(sorted[0].Value);
-                    
-                    if (!isNaN(latestValue) && latestValue >= -1 && latestValue < 25) {
-                        console.log(`✅ Trading Economics rate for ${country.code}: ${latestValue}%`);
-                        CacheManager.set(cacheKey, latestValue, CACHE_CONFIG.ECONOMIC_DATA);
-                        return latestValue;
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn(`Trading Economics API failed for ${country.code}`);
-        }
-    }
-
-    // ========== FUENTE 7: World Bank API ==========
-    const wbCountryCodes = {
-        USD: 'USA',
-        EUR: 'EMU',
-        GBP: 'GBR',
-        JPY: 'JPN',
-        AUD: 'AUS',
-        CAD: 'CAN',
-        CHF: 'CHE',
-        NZD: 'NZL'
-    };
-
-    const wbCode = wbCountryCodes[country.code];
-    if (wbCode) {
-        try {
-            // World Bank - Real interest rate indicator
-            const url = `https://api.worldbank.org/v2/country/${wbCode}/indicator/FR.INR.RINR?format=json&date=2020:2024&per_page=5`;
-            const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data && data[1] && data[1].length > 0) {
-                    for (const item of data[1]) {
-                        if (item.value !== null && item.value !== undefined) {
-                            const value = parseFloat(item.value);
-                            if (!isNaN(value) && value >= -10 && value < 25) {
-                                console.log(`✅ World Bank interest rate for ${country.code}: ${value}%`);
-                                CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                                return value;
-                            }
+                const proxyData = await response.json();
+                const html = proxyData.contents;
+                
+                // Múltiples patrones de extracción
+                const patterns = [
+                    /<div[^>]*id="p"[^>]*>([0-9.]+)%?<\/div>/i,
+                    /<span[^>]*class="[^"]*actual[^"]*"[^>]*>([0-9.]+)/i,
+                    /Actual<\/[^>]+>\s*<[^>]+>([0-9.]+)/i,
+                    /"actual":"?([0-9.]+)"?/i
+                ];
+                
+                for (const pattern of patterns) {
+                    const match = html.match(pattern);
+                    if (match) {
+                        const value = parseFloat(match[1]);
+                        if (!isNaN(value) && value >= -1 && value < 25) {
+                            console.log(`✅ Trading Economics (scraped) rate for ${country.code}: ${value}%`);
+                            CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
+                            return value;
                         }
                     }
                 }
             }
         } catch (error) {
-            console.warn(`World Bank API failed for ${country.code}`);
+            console.warn(`Trading Economics scraping failed for ${country.code}`);
         }
     }
 
-    console.error(`❌ All API sources exhausted for ${country.code} - NO DATA AVAILABLE`);
+    console.error(`❌ All sources exhausted for ${country.code} - NO DATA AVAILABLE`);
     return null;
 };
     
