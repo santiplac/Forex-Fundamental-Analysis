@@ -1,4 +1,4 @@
-name: Update All Economic Data (100% Dynamic - Monthly Only)
+name: Update All Economic Data (100% Dynamic - Monthly Data WITHOUT Annualization)
 on:
   schedule:
     - cron: '0 6 * * *'  # Daily at 6:00 AM UTC
@@ -23,7 +23,7 @@ jobs:
       - name: Create data directory
         run: mkdir -p economic-data
       
-      - name: Scrape all economic indicators (100% Dynamic Monthly)
+      - name: Scrape all economic indicators (100% Dynamic Monthly - NO Annualization)
         run: |
           cat > scrape_economics.py << 'EOFPYTHON'
           import requests
@@ -291,7 +291,7 @@ jobs:
                                   
                                   if value_usd_billions is not None:
                                       data[currency_code] = round(value_usd_billions, 2)
-                                      print(f"  ✓ {currency_code}: {value} {currency_in_data} {unit_text} → ${value_usd_billions:.2f}B USD")
+                                      print(f"  ✓ {currency_code}: {value} {currency_in_data} {unit_text} → ${value_usd_billions:.2f}B USD (monthly)")
                               
                               break
                   
@@ -308,10 +308,10 @@ jobs:
           def scrape_all_indicators():
               """
               Scrape all indicators from Trading Economics
-              100% dynamic - monthly data, annualized, converted to USD
+              100% dynamic - monthly data converted to USD, NO annualization
               """
               print("="*70)
-              print("100% DYNAMIC SCRAPING - MONTHLY DATA → ANNUALIZED → USD")
+              print("100% DYNAMIC SCRAPING - MONTHLY DATA → USD (NO ANNUALIZATION)")
               print("="*70)
               
               all_data = {}
@@ -325,14 +325,9 @@ jobs:
                   indicator_data = scrape_trading_economics_table(url, indicator_key)
                   
                   for currency_code, value in indicator_data.items():
-                      # CRITICAL: Annualize flow variables (monthly × 12)
-                      # Stock variables (GDP, Debt) don't need annualization
-                      if indicator_key in ['tradeBalance', 'production']:
-                          annualized_value = value * 12
-                          print(f"  → {currency_code} {indicator_key}: ${value:.2f}B/month × 12 = ${annualized_value:.2f}B/year")
-                          all_data[currency_code][indicator_key] = round(annualized_value, 2)
-                      else:
-                          all_data[currency_code][indicator_key] = value
+                      # Store the value directly - NO ANNUALIZATION
+                      # All values are stored as monthly USD billions
+                      all_data[currency_code][indicator_key] = value
                   
                   time.sleep(2)  # Be polite to the server
               
@@ -377,8 +372,9 @@ jobs:
                   if currency in all_data:
                       data_package = {
                           'lastUpdate': today,
-                          'source': 'TradingEconomics (100% Dynamic, Monthly Annualized)',
-                          'methodology': 'Monthly data × 12 for flow variables, converted to USD billions',
+                          'source': 'TradingEconomics (100% Dynamic, Monthly Data)',
+                          'methodology': 'Monthly data from Trading Economics, converted to USD billions (NO annualization)',
+                          'note': 'All values are MONTHLY (not annualized). Trade balance and production are monthly flows.',
                           'data': all_data[currency]
                       }
                       
@@ -390,7 +386,7 @@ jobs:
           def print_summary(all_data):
               """Print summary"""
               print(f"\n{'='*70}")
-              print("TRADE BALANCE SUMMARY (Annualized, USD Billions)")
+              print("TRADE BALANCE SUMMARY (Monthly, USD Billions)")
               print(f"{'='*70}")
               
               # Sort by trade balance
@@ -404,13 +400,13 @@ jobs:
                   tb = all_data.get(currency, {}).get('tradeBalance')
                   if tb is not None:
                       status = "Surplus" if tb > 0 else "Deficit"
-                      print(f"{currency}: {tb:+10.2f}B USD ({status})")
+                      print(f"{currency}: {tb:+10.2f}B USD/month ({status})")
               
               print(f"\n{'='*70}")
               print("✅ 100% DYNAMIC SCRAPING COMPLETED")
               print("   • Monthly data from Trading Economics")
-              print("   • Flow variables annualized (×12)")
-              print("   • All values in USD Billions")
+              print("   • NO annualization applied")
+              print("   • All values in USD Billions (monthly)")
               print("   • Live FX rates used for conversion")
               print(f"{'='*70}")
           
@@ -448,7 +444,7 @@ jobs:
           if git diff --quiet && git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "🔄 100% Dynamic update - Monthly data annualized to USD $(date +'%Y-%m-%d %H:%M UTC')"
+            git commit -m "🔄 100% Dynamic update - Monthly data in USD (NO annualization) $(date +'%Y-%m-%d %H:%M UTC')"
             git pull --rebase origin main || true
             git push
           fi
