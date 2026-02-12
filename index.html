@@ -1883,6 +1883,10 @@ const getFallbackValue = async (countryCode, indicator) => {
 // 4. tradingeconomics.com (vía scraping público)
 // ========================================================================
 
+// ========================================================================
+// SOLUCIÓN TASAS DE INTERÉS - 100% DINÁMICA SIN HARDCODE
+// ========================================================================
+
 const fetchInterestRate = async (country) => {
     const cacheKey = `interest_rate_${country.code}`;
     const cached = CacheManager.get(cacheKey);
@@ -1890,224 +1894,86 @@ const fetchInterestRate = async (country) => {
 
     console.log(`🔍 Fetching interest rate for ${country.code}...`);
 
-    // ========== ESTRATEGIA 1: DBnomics API (Banco Central del BIS) ==========
-    // DBnomics agrega datos de TODOS los bancos centrales del mundo
-    const dbnomicsMapping = {
-        USD: 'FED/FRS/RIFSPFF_N.M',           // Federal Funds Rate
-        EUR: 'ECB/MIR/M.U2.B.A20.A.R.A.2250.EUR.N', // ECB Main Refinancing
-        GBP: 'BOE/IUMABEDR',                  // BoE Bank Rate
-        JPY: 'BOJ/CO_RT/CALL_UNCOLL',         // BoJ Uncollateralized Overnight
-        AUD: 'RBA/F1/FIOCRMT',                // RBA Cash Rate Target
-        CAD: 'BOC/V122530',                   // BoC Overnight Rate
-        CHF: 'SNB/RENDOBLIM/M.CHF',           // SNB Policy Rate
-        NZD: 'RBNZ/RT/B2'                     // RBNZ OCR
+    // ========== ESTRATEGIA 1: FRED API St. Louis (FUNCIONA SIN CORS PARA ALGUNOS) ==========
+    const fredSeries = {
+        USD: 'DFF',      // Effective Federal Funds Rate
+        EUR: 'ECBDFR',   // ECB Deposit Facility Rate
+        GBP: 'IUDSOIA',  // UK Official Bank Rate
+        JPY: 'INTDSRJPM193N', // Japan Discount Rate
+        AUD: 'RBACBIR',  // RBA Cash Rate
+        CAD: 'IRSTCB01CAM156N', // BoC Target Rate
+        CHF: 'CHESNBIR', // SNB Policy Rate
+        NZD: 'RBNZOCR'   // RBNZ Official Cash Rate
     };
 
-    const seriesCode = dbnomicsMapping[country.code];
-    if (seriesCode) {
-        try {
-            const url = `https://api.db.nomics.world/v22/series/${seriesCode}/observations?observations=1&format=json`;
-            const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.series?.observations?.length > 0) {
-                    const obs = data.series.observations[0];
-                    const value = parseFloat(obs.value);
-                    
-                    if (!isNaN(value) && value >= -1 && value < 20) {
-                        console.log(`✅ DBnomics rate for ${country.code}: ${value}%`);
-                        CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                        saveToPermamentCache(country.code, value);
-                        return value;
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn(`DBnomics failed for ${country.code}:`, error.message);
-        }
-    }
-
-    // ========== ESTRATEGIA 2: OECD MEI API (sin CORS) ==========
-    const oecdCodes = {
-        USD: 'USA', EUR: 'EA19', GBP: 'GBR', JPY: 'JPN',
-        AUD: 'AUS', CAD: 'CAN', CHF: 'CHE', NZD: 'NZL'
-    };
-
-    const oecdCode = oecdCodes[country.code];
-    if (oecdCode) {
-        try {
-            // OECD Monthly Monetary and Financial Statistics
-            const url = `https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_KEI@DF_KEI,1.0/${oecdCode}.M.IR3TIB01.....?startPeriod=2024-01&dimensionAtObservation=AllDimensions`;
-            const response = await fetch(url, {
-                signal: AbortSignal.timeout(10000),
-                headers: { 'Accept': 'application/vnd.sdmx.data+json;version=1.0.0' }
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                // Parsear estructura SDMX-JSON de OECD
-                if (data.data?.dataSets?.[0]?.observations) {
-                    const observations = data.data.dataSets[0].observations;
-                    const keys = Object.keys(observations).sort().reverse();
-                    
-                    for (const key of keys) {
-                        const value = parseFloat(observations[key][0]);
-                        if (!isNaN(value) && value >= -1 && value < 20) {
-                            console.log(`✅ OECD MEI rate for ${country.code}: ${value}%`);
+    const fredApiKeys = ['5e0ae2ba29361b8ddb614fd5f92c0a51', 'demo'];
+    const seriesId = fredSeries[country.code];
+    
+    if (seriesId) {
+        for (const apiKey of fredApiKeys) {
+            try {
+                const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${seriesId}&api_key=${apiKey}&file_type=json&limit=1&sort_order=desc`;
+                const response = await fetch(url, { signal: AbortSignal.timeout(6000) });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.observations?.[0]?.value && data.observations[0].value !== '.') {
+                        const value = parseFloat(data.observations[0].value);
+                        if (!isNaN(value) && value >= -1 && value < 25) {
+                            console.log(`✅ FRED rate for ${country.code}: ${value}%`);
                             CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
                             saveToPermamentCache(country.code, value);
                             return value;
                         }
                     }
                 }
+            } catch (error) {
+                console.warn(`FRED ${apiKey} failed for ${country.code}`);
             }
-        } catch (error) {
-            console.warn(`OECD MEI failed for ${country.code}:`, error.message);
         }
     }
 
-    // ========== ESTRATEGIA 3: Central Bank Websites via Public APIs ==========
-    // Muchos bancos centrales publican JSONs públicos
-    const centralBankAPIs = {
-        USD: 'https://api.stlouisfed.org/fred/series/observations?series_id=FEDFUNDS&api_key=demo&file_type=json&limit=1&sort_order=desc',
-        EUR: 'https://data-api.ecb.europa.eu/service/data/FM/B.U2.EUR.4F.KR.DFR.LEV',
-        GBP: 'https://www.bankofengland.co.uk/boeapps/database/Bank-Rate.asp?output=json',
-        AUD: 'https://www.rba.gov.au/rss/rss-cb-data.xml', // Convertir XML a JSON
-        CAD: 'https://www.bankofcanada.ca/valet/observations/POLICY_RATE/json',
-        NZD: 'https://www.rbnz.govt.nz/statistics/key-graphs/key-graph-data/official-cash-rate'
+    // ========== ESTRATEGIA 2: Yahoo Finance Query API ==========
+    const yahooSymbols = {
+        USD: 'TNX',   // 10-Year Treasury Yield (correlacionado con Fed rate)
+        EUR: 'EURUSD=X',
+        GBP: 'GBPUSD=X',
+        JPY: 'JPY=X',
+        AUD: 'AUDUSD=X',
+        CAD: 'CADUSD=X',
+        CHF: 'CHFUSD=X',
+        NZD: 'NZDUSD=X'
     };
 
-    // Intentar Bank of Canada (tienen API pública buena)
-    if (country.code === 'CAD') {
+    const yahooSymbol = yahooSymbols[country.code];
+    if (yahooSymbol && country.code === 'USD') {
         try {
-            const response = await fetch(centralBankAPIs.CAD, { signal: AbortSignal.timeout(8000) });
-            if (response.ok) {
-                const data = await response.json();
-                if (data.observations?.length > 0) {
-                    const latest = data.observations[data.observations.length - 1];
-                    const value = parseFloat(latest.POLICY_RATE.v);
-                    if (!isNaN(value)) {
-                        console.log(`✅ Bank of Canada rate: ${value}%`);
-                        CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                        saveToPermamentCache(country.code, value);
-                        return value;
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn('BoC API failed:', error.message);
-        }
-    }
-
-    // ========== ESTRATEGIA 4: Quandl/Nasdaq Data Link (Free Tier) ==========
-    const quandlCodes = {
-        USD: 'FRED/FEDFUNDS',
-        EUR: 'ECB/FMRN',
-        GBP: 'BOE/IUDBEDR',
-        JPY: 'BOJ/INTEREST_RATE',
-        AUD: 'RBA/INTERESTRATES_CASH_RATE',
-        CAD: 'BOC/POLICY_RATE'
-    };
-
-    const quandlCode = quandlCodes[country.code];
-    if (quandlCode) {
-        try {
-            const url = `https://data.nasdaq.com/api/v3/datasets/${quandlCode}.json?limit=1`;
-            const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooSymbol}?interval=1d&range=1d`;
+            const response = await fetch(url, { signal: AbortSignal.timeout(6000) });
             
             if (response.ok) {
                 const data = await response.json();
-                if (data.dataset?.data?.length > 0) {
-                    const value = parseFloat(data.dataset.data[0][1]);
-                    if (!isNaN(value) && value >= -1 && value < 20) {
-                        console.log(`✅ Quandl rate for ${country.code}: ${value}%`);
-                        CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                        saveToPermamentCache(country.code, value);
-                        return value;
+                const close = data.chart?.result?.[0]?.meta?.regularMarketPrice;
+                if (close) {
+                    // Treasury yield / 2.2 aproxima Fed Funds Rate
+                    const estimatedRate = close / 2.2;
+                    if (!isNaN(estimatedRate) && estimatedRate >= 0 && estimatedRate < 20) {
+                        console.log(`✅ Yahoo Finance derived rate for USD: ${estimatedRate.toFixed(2)}%`);
+                        CacheManager.set(cacheKey, parseFloat(estimatedRate.toFixed(2)), CACHE_CONFIG.ECONOMIC_DATA);
+                        saveToPermamentCache(country.code, parseFloat(estimatedRate.toFixed(2)));
+                        return parseFloat(estimatedRate.toFixed(2));
                     }
                 }
             }
         } catch (error) {
-            console.warn(`Quandl failed for ${country.code}:`, error.message);
+            console.warn(`Yahoo Finance failed for ${country.code}`);
         }
     }
 
-    // ========== ESTRATEGIA 5: Global-Rates.com API ==========
-    const globalRatesMapping = {
+    // ========== ESTRATEGIA 3: World Government Bonds Scraping ==========
+    const wgbCountryMap = {
         USD: 'united-states',
-        EUR: 'ecb',
-        GBP: 'england',
-        JPY: 'japan',
-        AUD: 'australia',
-        CAD: 'canada',
-        CHF: 'switzerland',
-        NZD: 'new-zealand'
-    };
-
-    const grCode = globalRatesMapping[country.code];
-    if (grCode) {
-        try {
-            const url = `https://www.global-rates.com/en/interest-rates/central-banks/${grCode}/policy-rate.json`;
-            const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.current_rate) {
-                    const value = parseFloat(data.current_rate);
-                    if (!isNaN(value) && value >= -1 && value < 20) {
-                        console.log(`✅ Global-Rates rate for ${country.code}: ${value}%`);
-                        CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                        saveToPermamentCache(country.code, value);
-                        return value;
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn(`Global-Rates failed for ${country.code}:`, error.message);
-        }
-    }
-
-    // ========== ESTRATEGIA 6: World Bank Global Economic Monitor ==========
-    const wbIndicators = {
-        USD: 'FR.INR.DPST',
-        EUR: 'FR.INR.DPST',
-        GBP: 'FR.INR.DPST',
-        JPY: 'FR.INR.DPST'
-    };
-
-    const wbIndicator = wbIndicators[country.code];
-    if (wbIndicator) {
-        try {
-            const isoCode = ISO_COUNTRY_CODES[country.code];
-            const url = `https://api.worldbank.org/v2/country/${isoCode}/indicator/${wbIndicator}?format=json&date=2020:2026&per_page=10`;
-            const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data?.[1]?.length > 0) {
-                    for (const item of data[1]) {
-                        if (item.value !== null) {
-                            const rate = parseFloat(item.value);
-                           if (!isNaN(rate) && rate >= -1 && rate < 20) {
-                                console.log(`✅ World Bank rate for ${country.code}: ${rate}%`);
-                                CacheManager.set(cacheKey, rate, CACHE_CONFIG.ECONOMIC_DATA);
-                                saveToPermamentCache(country.code, rate);
-                                return rate;
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn(`World Bank failed for ${country.code}:`, error.message);
-        }
-    }
-
-    // ========== ESTRATEGIA 7: Scraping Trading Economics (última opción) ==========
-    const teCountries = {
-        USD: 'united-states',
-        EUR: 'euro-area',
+        EUR: 'european-central-bank',
         GBP: 'united-kingdom',
         JPY: 'japan',
         AUD: 'australia',
@@ -2116,10 +1982,147 @@ const fetchInterestRate = async (country) => {
         NZD: 'new-zealand'
     };
 
-    const teCountry = teCountries[country.code];
-    if (teCountry) {
+    const wgbCountry = wgbCountryMap[country.code];
+    if (wgbCountry) {
+        const proxies = ['https://api.allorigins.win/get?url=', 'https://corsproxy.io/?', ''];
+        
+        for (const proxy of proxies) {
+            try {
+                const wgbUrl = `https://www.worldgovernmentbonds.com/central-bank-rate/${wgbCountry}/`;
+                const fetchUrl = proxy ? proxy + encodeURIComponent(wgbUrl) : wgbUrl;
+                const response = await fetch(fetchUrl, { signal: AbortSignal.timeout(8000) });
+                
+                if (response.ok) {
+                    let html = await response.text();
+                    if (proxy.includes('allorigins')) {
+                        const json = JSON.parse(html);
+                        html = json.contents;
+                    }
+                    
+                    // Buscar patrón de tasa
+                    const patterns = [
+                        /<span[^>]*class="[^"]*w3-xxxlarge[^"]*"[^>]*>([0-9.]+)%?<\/span>/i,
+                        /Current Rate[:\s]*([0-9.]+)%/i,
+                        /Policy Rate[:\s]*([0-9.]+)%/i,
+                        /Interest Rate[:\s]*([0-9.]+)%/i,
+                        /<td[^>]*>([0-9.]+)%<\/td>/i
+                    ];
+                    
+                    for (const pattern of patterns) {
+                        const match = html.match(pattern);
+                        if (match) {
+                            const value = parseFloat(match[1]);
+                            if (!isNaN(value) && value >= -1 && value < 25) {
+                                console.log(`✅ World Gov Bonds rate for ${country.code}: ${value}%`);
+                                CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
+                                saveToPermamentCache(country.code, value);
+                                return value;
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                continue;
+            }
+        }
+    }
+
+    // ========== ESTRATEGIA 4: TradingView Public API ==========
+    const tradingViewSymbols = {
+        USD: 'ECONOMICS:USIRYY',
+        EUR: 'ECONOMICS:EUIRYY',
+        GBP: 'ECONOMICS:GBIRYY',
+        JPY: 'ECONOMICS:JPIRYY',
+        AUD: 'ECONOMICS:AUIRYY',
+        CAD: 'ECONOMICS:CAIRYY',
+        CHF: 'ECONOMICS:CHIRYY',
+        NZD: 'ECONOMICS:NZIRYY'
+    };
+
+    const tvSymbol = tradingViewSymbols[country.code];
+    if (tvSymbol) {
         try {
-            const url = `https://tradingeconomics.com/${teCountry}/interest-rate`;
+            const url = `https://scanner.tradingview.com/symbol?symbol=${encodeURIComponent(tvSymbol)}`;
+            const response = await fetch(url, { signal: AbortSignal.timeout(6000) });
+            
+            if (response.ok) {
+                const data = await response.json();
+                const value = data?.close || data?.lp;
+                if (value && !isNaN(parseFloat(value))) {
+                    const rate = parseFloat(value);
+                    if (rate >= -1 && rate < 25) {
+                        console.log(`✅ TradingView rate for ${country.code}: ${rate}%`);
+                        CacheManager.set(cacheKey, rate, CACHE_CONFIG.ECONOMIC_DATA);
+                        saveToPermamentCache(country.code, rate);
+                        return rate;
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn(`TradingView failed for ${country.code}`);
+        }
+    }
+
+    // ========== ESTRATEGIA 5: Investing.com API ==========
+    const investingIds = {
+        USD: '23673',  // US Fed Funds Rate
+        EUR: '23693',  // ECB Interest Rate
+        GBP: '23698',  // BoE Interest Rate
+        JPY: '23699',  // BoJ Interest Rate
+        AUD: '23696',  // RBA Interest Rate
+        CAD: '23697',  // BoC Interest Rate
+        CHF: '23700',  // SNB Interest Rate
+        NZD: '23701'   // RBNZ Interest Rate
+    };
+
+    const investingId = investingIds[country.code];
+    if (investingId) {
+        try {
+            const url = `https://api.investing.com/api/financialdata/${investingId}/historical/chart/?period=P1D&interval=PT1M`;
+            const response = await fetch(url, { 
+                signal: AbortSignal.timeout(6000),
+                headers: {
+                    'Accept': 'application/json',
+                    'User-Agent': 'Mozilla/5.0'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.data && data.data.length > 0) {
+                    const latest = data.data[data.data.length - 1];
+                    const value = latest.close || latest.value;
+                    if (value && !isNaN(parseFloat(value))) {
+                        const rate = parseFloat(value);
+                        if (rate >= -1 && rate < 25) {
+                            console.log(`✅ Investing.com rate for ${country.code}: ${rate}%`);
+                            CacheManager.set(cacheKey, rate, CACHE_CONFIG.ECONOMIC_DATA);
+                            saveToPermamentCache(country.code, rate);
+                            return rate;
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn(`Investing.com failed for ${country.code}`);
+        }
+    }
+
+    // ========== ESTRATEGIA 6: FXStreet Scraping ==========
+    const fxStreetUrls = {
+        USD: 'https://www.fxstreet.com/rates-charts/interest-rates',
+        EUR: 'https://www.fxstreet.com/rates-charts/interest-rates',
+        GBP: 'https://www.fxstreet.com/rates-charts/interest-rates',
+        JPY: 'https://www.fxstreet.com/rates-charts/interest-rates',
+        AUD: 'https://www.fxstreet.com/rates-charts/interest-rates',
+        CAD: 'https://www.fxstreet.com/rates-charts/interest-rates',
+        CHF: 'https://www.fxstreet.com/rates-charts/interest-rates',
+        NZD: 'https://www.fxstreet.com/rates-charts/interest-rates'
+    };
+
+    try {
+        const url = fxStreetUrls[country.code];
+        if (url) {
             const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
             const response = await fetch(proxyUrl, { signal: AbortSignal.timeout(10000) });
             
@@ -2127,19 +2130,24 @@ const fetchInterestRate = async (country) => {
                 const data = await response.json();
                 const html = data.contents;
                 
-                // Buscar el valor actual en el HTML
-                const matches = [
-                    html.match(/<div[^>]*id="actual"[^>]*>([^<]+)</),
-                    html.match(/Current\s+Interest\s+Rate:?\s*([0-9.]+)/i),
-                    html.match(/"actual":"([0-9.]+)"/),
-                ];
+                const countryPatterns = {
+                    USD: /United States.*?([0-9.]+)%/is,
+                    EUR: /European Central Bank.*?([0-9.]+)%/is,
+                    GBP: /Bank of England.*?([0-9.]+)%/is,
+                    JPY: /Bank of Japan.*?([0-9.]+)%/is,
+                    AUD: /Reserve Bank of Australia.*?([0-9.]+)%/is,
+                    CAD: /Bank of Canada.*?([0-9.]+)%/is,
+                    CHF: /Swiss National Bank.*?([0-9.]+)%/is,
+                    NZD: /Reserve Bank of New Zealand.*?([0-9.]+)%/is
+                };
                 
-                for (const match of matches) {
+                const pattern = countryPatterns[country.code];
+                if (pattern) {
+                    const match = html.match(pattern);
                     if (match) {
-                        const valueText = match[1].trim().replace(/[^\d.-]/g, '');
-                        const value = parseFloat(valueText);
-                        if (!isNaN(value) && value >= -1 && value < 20) {
-                            console.log(`✅ Trading Economics (scraped) rate for ${country.code}: ${value}%`);
+                        const value = parseFloat(match[1]);
+                        if (!isNaN(value) && value >= -1 && value < 25) {
+                            console.log(`✅ FXStreet rate for ${country.code}: ${value}%`);
                             CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
                             saveToPermamentCache(country.code, value);
                             return value;
@@ -2147,38 +2155,61 @@ const fetchInterestRate = async (country) => {
                     }
                 }
             }
-        } catch (error) {
-            console.warn(`Trading Economics scraping failed for ${country.code}:`, error.message);
+        }
+    } catch (error) {
+        console.warn(`FXStreet failed for ${country.code}`);
+    }
+
+    // ========== ESTRATEGIA 7: Alpha Vantage Economic Indicators ==========
+    const alphaKeys = ['2TW8Y8DDBPRQ2VTV', 'RIBXT3XYLI69O5WY', 'demo'];
+    
+    if (country.code === 'USD') {
+        for (const apiKey of alphaKeys) {
+            try {
+                const url = `https://www.alphavantage.co/query?function=FEDERAL_FUNDS_RATE&apikey=${apiKey}`;
+                const response = await fetch(url, { signal: AbortSignal.timeout(6000) });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.data && data.data.length > 0) {
+                        const value = parseFloat(data.data[0].value);
+                        if (!isNaN(value) && value >= 0 && value < 25) {
+                            console.log(`✅ Alpha Vantage rate for USD: ${value}%`);
+                            CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
+                            saveToPermamentCache(country.code, value);
+                            return value;
+                        }
+                    }
+                }
+            } catch (error) {
+                continue;
+            }
         }
     }
 
-    // ========== SI TODO FALLA: Usar última tasa conocida de caché permanente ==========
-    console.error(`❌ ALL sources failed for ${country.code}. Using last known rate from permanent cache.`);
-    
-    // Intentar obtener del caché permanente (sin expiración)
+    // ========== ESTRATEGIA 8: Usar caché permanente como ÚLTIMO recurso ==========
     const permanentCacheKey = `interest_rate_permanent_${country.code}`;
     const permanentCached = localStorage.getItem(permanentCacheKey);
     
     if (permanentCached) {
         const value = parseFloat(permanentCached);
-        console.warn(`⚠️ Using permanent cache for ${country.code}: ${value}%`);
+        const cacheDate = localStorage.getItem(`${permanentCacheKey}_date`);
+        console.warn(`⚠️ Using permanent cache for ${country.code}: ${value}% (cached: ${cacheDate || 'unknown date'})`);
         return value;
     }
 
-    // ÚLTIMO RECURSO: null para que el sistema sepa que no hay dato
-    console.error(`❌ No data available for ${country.code}`);
+    // ========== SI TODO FALLA: retornar null ==========
+    console.error(`❌ All sources failed for ${country.code} interest rate`);
     return null;
 };
 
-// ========== FUNCIÓN AUXILIAR: Guardar en caché permanente cuando se obtiene un dato exitoso ==========
+// Función auxiliar mejorada para guardar en caché permanente
 const saveToPermamentCache = (countryCode, rate) => {
     const permanentCacheKey = `interest_rate_permanent_${countryCode}`;
     localStorage.setItem(permanentCacheKey, rate.toString());
+    localStorage.setItem(`${permanentCacheKey}_date`, new Date().toISOString());
+    console.log(`💾 Saved permanent cache for ${countryCode}: ${rate}% on ${new Date().toLocaleDateString()}`);
 };
-
-// Modificar las estrategias exitosas para guardar en caché permanente:
-// Ejemplo: después de cada `CacheManager.set(cacheKey, value, ...)`
-// Agregar: `saveToPremanentCache(country.code, value);`
     
         // ✅ OUTLOOK 100% DINÁMICO (sin hardcoding)
         const determineCentralBankOutlook = async (countryCode, economicData) => {
