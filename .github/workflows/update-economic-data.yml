@@ -122,7 +122,7 @@ jobs:
           indicators = {
               'gdp': 'https://tradingeconomics.com/country-list/gdp?continent=world',
               'gdpGrowth': 'https://tradingeconomics.com/country-list/gdp-growth-rate?continent=world',
-              'inflation': 'https://tradingeconomics.com/country-list/inflation-rate',
+              'inflation': 'https://tradingeconomics.com/country-list/inflation-rate?continent=world',
               'unemployment': 'https://tradingeconomics.com/country-list/unemployment-rate?continent=world',
               'debt': 'https://tradingeconomics.com/country-list/government-debt-to-gdp',
               'tradeBalance': 'https://tradingeconomics.com/country-list/balance-of-trade',
