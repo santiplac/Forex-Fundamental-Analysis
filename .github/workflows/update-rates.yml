@@ -11,102 +11,137 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
       
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xmlstarlet
+      
       - name: Create rates directory
         run: mkdir -p rates
       
-      # USD - Federal Funds Rate
+      # USD - Federal Reserve
       - name: Fetch USD rate
         run: |
-          curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=FEDFUNDS&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" > rates/USD.json
-          if ! jq -e '.observations[0].value' rates/USD.json > /dev/null 2>&1; then
-            echo '{"observations":[{"value":"4.50","date":"2026-02-12"}]}' > rates/USD.json
+          RATE=$(curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=DFF&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" | jq -r '.observations[0].value // empty')
+          DATE=$(date +%Y-%m-%d)
+          
+          if [ -n "$RATE" ] && [ "$RATE" != "null" ]; then
+            echo "{\"observations\":[{\"value\":\"$RATE\",\"date\":\"$DATE\"}]}" > rates/USD.json
+          else
+            echo "USD fetch failed, keeping existing file"
           fi
       
-      # EUR - ECB Main Refinancing Rate
+      # EUR - ECB
       - name: Fetch EUR rate
         run: |
-          curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=ECBMRRFR&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" > rates/EUR.json
-          if ! jq -e '.observations[0].value' rates/EUR.json > /dev/null 2>&1; then
-            echo '{"observations":[{"value":"2.15","date":"2026-02-12"}]}' > rates/EUR.json
+          RATE=$(curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=ECBMRRFR&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" | jq -r '.observations[0].value // empty')
+          DATE=$(date +%Y-%m-%d)
+          
+          if [ -n "$RATE" ] && [ "$RATE" != "null" ]; then
+            echo "{\"observations\":[{\"value\":\"$RATE\",\"date\":\"$DATE\"}]}" > rates/EUR.json
+          else
+            echo "EUR fetch failed, keeping existing file"
           fi
       
-      # GBP - FALLBACK to current rate (FRED series outdated)
+      # GBP - Bank of England (scraping oficial)
       - name: Fetch GBP rate
         run: |
           # Try FRED first
-          curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=IUDSOIA&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" > rates/GBP.json
+          RATE=$(curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=IUDSOIA&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" | jq -r '.observations[0].value // empty')
           
-          # Check if date is older than 2024
-          DATE=$(jq -r '.observations[0].date // "2000-01-01"' rates/GBP.json)
-          YEAR=$(echo $DATE | cut -d'-' -f1)
-          
-          if [ "$YEAR" -lt 2024 ]; then
-            echo "GBP data too old ($DATE), using fallback"
-            echo '{"observations":[{"value":"4.75","date":"2026-02-12"}]}' > rates/GBP.json
+          # Validate date is recent
+          if [ -n "$RATE" ] && [ "$RATE" != "null" ]; then
+            RATE_DATE=$(curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=IUDSOIA&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" | jq -r '.observations[0].date // "2000-01-01"')
+            YEAR=$(echo $RATE_DATE | cut -d'-' -f1)
+            
+            if [ "$YEAR" -ge 2025 ]; then
+              echo "{\"observations\":[{\"value\":\"$RATE\",\"date\":\"$RATE_DATE\"}]}" > rates/GBP.json
+              echo "GBP: $RATE% from $RATE_DATE"
+            else
+              echo "GBP data too old, trying Bank of England scrape..."
+              # Try scraping BoE website
+              BoE_RATE=$(curl -s "https://www.bankofengland.co.uk/boeapps/database/Bank-Rate.asp" | grep -oP 'Rate is \K[\d.]+' | head -1 || echo "")
+              
+              if [ -n "$BoE_RATE" ]; then
+                echo "{\"observations\":[{\"value\":\"$BoE_RATE\",\"date\":\"$(date +%Y-%m-%d)\"}]}" > rates/GBP.json
+                echo "GBP from BoE scrape: $BoE_RATE%"
+              else
+                echo "GBP all sources failed, keeping existing file"
+              fi
+            fi
+          else
+            echo "GBP fetch failed, keeping existing file"
           fi
       
-      # JPY - FALLBACK (FRED series outdated)
+      # JPY - Bank of Japan (multi-source)
       - name: Fetch JPY rate
         run: |
-          curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=BOJPOLTGT&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" > rates/JPY.json
+          # Try Trading Economics scrape
+          JPY_RATE=$(curl -s "https://tradingeconomics.com/japan/interest-rate" | grep -oP 'actual">\K[\d.]+' | head -1 || echo "")
           
-          DATE=$(jq -r '.observations[0].date // "2000-01-01"' rates/JPY.json)
-          YEAR=$(echo $DATE | cut -d'-' -f1)
-          
-          if [ "$YEAR" -lt 2024 ]; then
-            echo "JPY data too old ($DATE), using fallback"
-            echo '{"observations":[{"value":"0.50","date":"2026-02-12"}]}' > rates/JPY.json
+          if [ -n "$JPY_RATE" ]; then
+            echo "{\"observations\":[{\"value\":\"$JPY_RATE\",\"date\":\"$(date +%Y-%m-%d)\"}]}" > rates/JPY.json
+            echo "JPY from Trading Economics: $JPY_RATE%"
+          else
+            echo "JPY fetch failed, keeping existing file"
           fi
       
-      # AUD - FALLBACK
+      # AUD - Reserve Bank of Australia RSS
       - name: Fetch AUD rate
         run: |
-          curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=RBATCTR&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" > rates/AUD.json
+          AUD_RATE=$(curl -s "https://www.rba.gov.au/statistics/cash-rate/" | grep -oP 'Current cash rate target: \K[\d.]+' || echo "")
           
-          if ! jq -e '.observations[0].value' rates/AUD.json > /dev/null 2>&1; then
-            echo "AUD data missing, using fallback"
-            echo '{"observations":[{"value":"4.35","date":"2026-02-12"}]}' > rates/AUD.json
+          if [ -n "$AUD_RATE" ]; then
+            echo "{\"observations\":[{\"value\":\"$AUD_RATE\",\"date\":\"$(date +%Y-%m-%d)\"}]}" > rates/AUD.json
+            echo "AUD from RBA: $AUD_RATE%"
+          else
+            echo "AUD fetch failed, keeping existing file"
           fi
       
-      # CAD - FALLBACK (series outdated)
+      # CAD - Bank of Canada Valet API
       - name: Fetch CAD rate
         run: |
-          curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=IRSTCB01CAM156N&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" > rates/CAD.json
+          CAD_RATE=$(curl -s "https://www.bankofcanada.ca/valet/observations/V39079/json?recent=1" | jq -r '.observations[0].V39079.v // empty')
           
-          DATE=$(jq -r '.observations[0].date // "2000-01-01"' rates/CAD.json)
-          YEAR=$(echo $DATE | cut -d'-' -f1)
-          
-          if [ "$YEAR" -lt 2024 ]; then
-            echo "CAD data too old ($DATE), using fallback"
-            echo '{"observations":[{"value":"3.25","date":"2026-02-12"}]}' > rates/CAD.json
+          if [ -n "$CAD_RATE" ] && [ "$CAD_RATE" != "null" ]; then
+            echo "{\"observations\":[{\"value\":\"$CAD_RATE\",\"date\":\"$(date +%Y-%m-%d)\"}]}" > rates/CAD.json
+            echo "CAD from BoC: $CAD_RATE%"
+          else
+            echo "CAD fetch failed, keeping existing file"
           fi
       
-      # CHF - FALLBACK
+      # CHF - Swiss National Bank
       - name: Fetch CHF rate
         run: |
-          curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=SNBLR3M&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" > rates/CHF.json
+          CHF_RATE=$(curl -s "https://data.snb.ch/en/topics/zirepo#!/cube/zirepo?fromDate=2024-01-01&toDate=$(date +%Y-%m-%d)" | grep -oP '"value":\K[\d.]+' | tail -1 || echo "")
           
-          if ! jq -e '.observations[0].value' rates/CHF.json > /dev/null 2>&1; then
-            echo "CHF data missing, using fallback"
-            echo '{"observations":[{"value":"0.50","date":"2026-02-12"}]}' > rates/CHF.json
+          if [ -n "$CHF_RATE" ]; then
+            echo "{\"observations\":[{\"value\":\"$CHF_RATE\",\"date\":\"$(date +%Y-%m-%d)\"}]}" > rates/CHF.json
+            echo "CHF from SNB: $CHF_RATE%"
+          else
+            echo "CHF fetch failed, keeping existing file"
           fi
       
-      # NZD - FALLBACK
+      # NZD - Reserve Bank of New Zealand
       - name: Fetch NZD rate
         run: |
-          curl -s "https://api.stlouisfed.org/fred/series/observations?series_id=NZOCRS&api_key=5e0ae2ba29361b8ddb614fd5f92c0a51&file_type=json&limit=1&sort_order=desc" > rates/NZD.json
+          NZD_RATE=$(curl -s "https://www.rbnz.govt.nz/hub/news?type=ocr" | grep -oP 'OCR.*?(\d+\.\d+)%' | grep -oP '\d+\.\d+' | head -1 || echo "")
           
-          if ! jq -e '.observations[0].value' rates/NZD.json > /dev/null 2>&1; then
-            echo "NZD data missing, using fallback"
-            echo '{"observations":[{"value":"4.25","date":"2026-02-12"}]}' > rates/NZD.json
+          if [ -n "$NZD_RATE" ]; then
+            echo "{\"observations\":[{\"value\":\"$NZD_RATE\",\"date\":\"$(date +%Y-%m-%d)\"}]}" > rates/NZD.json
+            echo "NZD from RBNZ: $NZD_RATE%"
+          else
+            echo "NZD fetch failed, keeping existing file"
           fi
       
       - name: Display final rates
         run: |
           echo "=== FINAL RATES ==="
           for currency in USD EUR GBP JPY AUD CAD CHF NZD; do
-            echo "=== $currency ==="
-            jq -r '.observations[0] | "Value: \(.value)% | Date: \(.date)"' rates/$currency.json
+            if [ -f rates/$currency.json ]; then
+              echo "=== $currency ==="
+              jq -r '.observations[0] | "Value: \(.value)% | Date: \(.date)"' rates/$currency.json
+            fi
           done
       
       - name: Commit and push
