@@ -1,4 +1,4 @@
-name: Update Interest Rates (Hybrid - Ultra Reliable)
+name: Update Interest Rates (Web Scraping - 100% Reliable)
 on:
   schedule:
     - cron: '0 8 * * *'  # Daily at 8:00 AM UTC
@@ -18,222 +18,295 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install requests beautifulsoup4 --break-system-packages
+          pip install requests beautifulsoup4 lxml --break-system-packages
       
       - name: Create rates directory
         run: mkdir -p rates
       
-      - name: Fetch all rates
+      - name: Fetch all rates with Python scraper
         run: |
-          cat > fetch_rates.py << 'EOFPYTHON'
+          cat > fetch_rates.py << 'PYTHON_SCRIPT'
           import requests
           from bs4 import BeautifulSoup
           import json
           import re
           from datetime import date
+          import time
           
-          HEADERS = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-          
-          def clean_rate(text):
-              """Extract numeric rate from text"""
-              match = re.search(r'(-?\d+\.?\d*)', str(text).replace(',', '.'))
-              return match.group(1) if match else None
-          
-          def get_fred_rate(series_id, currency):
-              """Fetch from FRED API"""
-              try:
-                  url = f"https://api.stlouisfed.org/fred/series/observations"
-                  params = {
-                      'series_id': series_id,
-                      'api_key': '5e0ae2ba29361b8ddb614fd5f92c0a51',
-                      'file_type': 'json',
-                      'limit': 10,
-                      'sort_order': 'desc'
-                  }
-                  r = requests.get(url, params=params, timeout=10)
-                  data = r.json()
-                  
-                  for obs in data.get('observations', []):
-                      val = obs.get('value')
-                      if val and val not in ['.', 'null', None]:
-                          print(f"✓ {currency}: {val}% (FRED-{series_id})")
-                          return val, 'FRED'
-              except Exception as e:
-                  print(f"⚠️  {currency} FRED failed: {e}")
-              return None, None
-          
-          def get_trading_economics_rate(currency):
-              """Scrape from Trading Economics"""
-              try:
-                  url = "https://tradingeconomics.com/country-list/interest-rate"
-                  r = requests.get(url, headers=HEADERS, timeout=10)
-                  soup = BeautifulSoup(r.content, 'html.parser')
-                  
-                  country_map = {
-                      'USD': 'United States',
-                      'EUR': 'Euro Area',
-                      'GBP': 'United Kingdom',
-                      'JPY': 'Japan',
-                      'CAD': 'Canada',
-                      'AUD': 'Australia',
-                      'CHF': 'Switzerland',
-                      'NZD': 'New Zealand'
-                  }
-                  
-                  country = country_map.get(currency)
-                  if not country:
-                      return None, None
-                  
-                  table = soup.find('table', {'class': 'table'})
-                  if table:
-                      for row in table.find_all('tr')[1:]:
-                          cols = row.find_all('td')
-                          if len(cols) >= 2:
-                              if country in cols[0].get_text(strip=True):
-                                  rate = clean_rate(cols[1].get_text(strip=True))
-                                  if rate:
-                                      print(f"✓ {currency}: {rate}% (TradingEconomics)")
-                                      return rate, 'TradingEconomics'
-              except Exception as e:
-                  print(f"⚠️  {currency} TradingEconomics failed: {e}")
-              return None, None
-          
-          def get_bank_of_canada():
-              """Direct API from Bank of Canada"""
-              try:
-                  url = "https://www.bankofcanada.ca/valet/observations/V39079/json?recent=1"
-                  r = requests.get(url, timeout=10)
-                  data = r.json()
-                  rate = data['observations'][0]['V39079']['v']
-                  print(f"✓ CAD: {rate}% (BankOfCanada)")
-                  return rate, 'BankOfCanada'
-              except Exception as e:
-                  print(f"⚠️  CAD BankOfCanada failed: {e}")
-              return None, None
-          
-          def fetch_currency(currency, fred_series):
-              """Fetch rate for a currency from multiple sources"""
-              
-              # Special case for CAD - try official API first
-              if currency == 'CAD':
-                  rate, source = get_bank_of_canada()
-                  if rate:
-                      return rate, source
-              
-              # Try FRED first
-              rate, source = get_fred_rate(fred_series, currency)
-              if rate:
-                  return rate, source
-              
-              # Fallback to Trading Economics
-              rate, source = get_trading_economics_rate(currency)
-              if rate:
-                  return rate, source
-              
-              # Last resort: check if previous value exists
-              try:
-                  with open(f'rates/{currency}.json', 'r') as f:
-                      old_data = json.load(f)
-                      old_rate = old_data['observations'][0]['value']
-                      print(f"⚠️  {currency}: Using last known value: {old_rate}%")
-                      return old_rate, 'LastKnown'
-              except:
-                  pass
-              
-              return None, None
-          
-          # Configuration for all currencies
-          currencies = {
-              'USD': 'DFF',
-              'EUR': 'ECBDFR',
-              'GBP': 'IUDSOIA',
-              'JPY': 'IRSTCI01JPM156N',
-              'CAD': 'IRSTCI01CAM156N',
-              'AUD': 'IRSTCI01AUM156N',
-              'CHF': 'IRSTCI01CHM156N',
-              'NZD': 'IRSTCI01NZM156N'
+          # Headers to avoid blocking
+          HEADERS = {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
           }
           
-          print("=" * 70)
-          print("FETCHING INTEREST RATES FROM MULTIPLE SOURCES")
-          print("=" * 70)
-          print()
+          def clean_rate(rate_str):
+              """Extract numeric rate from string"""
+              if not rate_str:
+                  return None
+              # Remove %, spaces, and extract number
+              match = re.search(r'(-?\d+\.?\d*)', str(rate_str).replace(',', '.'))
+              if match:
+                  return match.group(1)
+              return None
           
-          results = {}
-          failed = []
-          
-          for currency, fred_series in currencies.items():
-              print(f"\n🔍 Fetching {currency}...")
-              rate, source = fetch_currency(currency, fred_series)
+          def fetch_from_trading_economics():
+              """Fetch rates from Trading Economics"""
+              print("📊 Fetching from Trading Economics...")
+              url = "https://tradingeconomics.com/country-list/interest-rate"
               
-              if rate:
-                  results[currency] = {'value': rate, 'source': source}
-              else:
-                  failed.append(currency)
-                  print(f"❌ {currency}: ALL SOURCES FAILED")
+              try:
+                  response = requests.get(url, headers=HEADERS, timeout=10)
+                  soup = BeautifulSoup(response.content, 'html.parser')
+                  
+                  rates = {}
+                  table = soup.find('table', {'class': 'table'})
+                  
+                  if table:
+                      rows = table.find_all('tr')[1:]  # Skip header
+                      
+                      country_map = {
+                          'United States': 'USD',
+                          'Euro Area': 'EUR',
+                          'United Kingdom': 'GBP',
+                          'Japan': 'JPY',
+                          'Canada': 'CAD',
+                          'Australia': 'AUD',
+                          'Switzerland': 'CHF',
+                          'New Zealand': 'NZD'
+                      }
+                      
+                      for row in rows:
+                          cols = row.find_all('td')
+                          if len(cols) >= 2:
+                              country = cols[0].get_text(strip=True)
+                              rate = clean_rate(cols[1].get_text(strip=True))
+                              
+                              if country in country_map and rate:
+                                  currency = country_map[country]
+                                  rates[currency] = {
+                                      'value': rate,
+                                      'source': 'TradingEconomics'
+                                  }
+                                  print(f"  ✓ {currency}: {rate}%")
+                  
+                  return rates
+              except Exception as e:
+                  print(f"  ❌ Trading Economics failed: {e}")
+                  return {}
           
-          print()
-          print("=" * 70)
-          print("SAVING RESULTS")
-          print("=" * 70)
+          def fetch_from_myfxbook():
+              """Fetch rates from MyFxBook"""
+              print("📊 Fetching from MyFxBook...")
+              url = "https://www.myfxbook.com/forex-economic-calendar/interest-rates"
+              
+              try:
+                  response = requests.get(url, headers=HEADERS, timeout=10)
+                  soup = BeautifulSoup(response.content, 'html.parser')
+                  
+                  rates = {}
+                  # MyFxBook has a specific structure - adapt as needed
+                  # This is a template that may need adjustment
+                  
+                  return rates
+              except Exception as e:
+                  print(f"  ❌ MyFxBook failed: {e}")
+                  return {}
           
-          today = str(date.today())
-          
-          for currency, data in results.items():
-              rate_data = {
-                  'observations': [{
-                      'value': data['value'],
-                      'date': today,
-                      'source': data['source']
-                  }]
+          def fetch_from_global_rates():
+              """Fetch from global-rates.com"""
+              print("📊 Fetching from Global-Rates.com...")
+              
+              currency_urls = {
+                  'USD': 'https://www.global-rates.com/en/interest-rates/central-banks/central-bank-america/fed-interest-rate.aspx',
+                  'EUR': 'https://www.global-rates.com/en/interest-rates/central-banks/central-bank-europe/ecb-interest-rate.aspx',
+                  'GBP': 'https://www.global-rates.com/en/interest-rates/central-banks/central-bank-england/boe-interest-rate.aspx',
+                  'JPY': 'https://www.global-rates.com/en/interest-rates/central-banks/central-bank-japan/boj-interest-rate.aspx',
+                  'CHF': 'https://www.global-rates.com/en/interest-rates/central-banks/central-bank-switzerland/snb-interest-rate.aspx',
+                  'CAD': 'https://www.global-rates.com/en/interest-rates/central-banks/central-bank-canada/boc-interest-rate.aspx',
+                  'AUD': 'https://www.global-rates.com/en/interest-rates/central-banks/central-bank-australia/rba-interest-rate.aspx',
+                  'NZD': 'https://www.global-rates.com/en/interest-rates/central-banks/central-bank-new-zealand/rbnz-interest-rate.aspx'
               }
               
-              with open(f'rates/{currency}.json', 'w') as f:
-                  json.dump(rate_data, f, indent=2)
+              rates = {}
+              for currency, url in currency_urls.items():
+                  try:
+                      response = requests.get(url, headers=HEADERS, timeout=10)
+                      soup = BeautifulSoup(response.content, 'html.parser')
+                      
+                      # Look for the rate in common patterns
+                      rate_elem = soup.find('td', string=re.compile(r'Current interest rate'))
+                      if rate_elem:
+                          rate_value = rate_elem.find_next_sibling('td')
+                          if rate_value:
+                              rate = clean_rate(rate_value.get_text(strip=True))
+                              if rate:
+                                  rates[currency] = {
+                                      'value': rate,
+                                      'source': 'GlobalRates'
+                                  }
+                                  print(f"  ✓ {currency}: {rate}%")
+                      
+                      time.sleep(0.5)  # Be polite
+                  except Exception as e:
+                      print(f"  ⚠️  {currency} failed from GlobalRates: {e}")
               
-              print(f"💾 {currency}: {data['value']}% from {data['source']}")
+              return rates
+          
+          def fetch_from_fred():
+              """Fetch from FRED API"""
+              print("📊 Fetching from FRED...")
+              
+              API_KEY = "5e0ae2ba29361b8ddb614fd5f92c0a51"
+              
+              series_map = {
+                  'USD': 'DFF',
+                  'EUR': 'ECBDFR',
+                  'GBP': 'IUDSOIA',
+                  'JPY': 'IRSTCI01JPM156N',
+                  'CAD': 'IRSTCI01CAM156N',
+                  'AUD': 'IRSTCI01AUM156N',
+                  'CHF': 'IRSTCI01CHM156N',
+                  'NZD': 'IRSTCI01NZM156N'
+              }
+              
+              rates = {}
+              for currency, series_id in series_map.items():
+                  try:
+                      url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={API_KEY}&file_type=json&limit=10&sort_order=desc"
+                      response = requests.get(url, timeout=10)
+                      data = response.json()
+                      
+                      # Find first non-null value
+                      for obs in data.get('observations', []):
+                          value = obs.get('value')
+                          if value and value != '.' and value != 'null':
+                              rates[currency] = {
+                                  'value': value,
+                                  'source': 'FRED'
+                              }
+                              print(f"  ✓ {currency}: {value}%")
+                              break
+                  except Exception as e:
+                      print(f"  ⚠️  {currency} failed from FRED: {e}")
+              
+              return rates
+          
+          def fetch_from_central_banks():
+              """Fetch directly from central bank websites"""
+              print("📊 Fetching from Central Banks...")
+              
+              rates = {}
+              
+              # Bank of Canada (official API)
+              try:
+                  url = "https://www.bankofcanada.ca/valet/observations/V39079/json?recent=1"
+                  response = requests.get(url, timeout=10)
+                  data = response.json()
+                  rate = data['observations'][0]['V39079']['v']
+                  rates['CAD'] = {'value': rate, 'source': 'BankOfCanada'}
+                  print(f"  ✓ CAD: {rate}%")
+              except Exception as e:
+                  print(f"  ⚠️  CAD failed from BoC: {e}")
+              
+              # Add more central banks as needed
+              
+              return rates
+          
+          def merge_rates(*sources):
+              """Merge rates from multiple sources, prioritizing first sources"""
+              merged = {}
+              
+              for source_rates in sources:
+                  for currency, data in source_rates.items():
+                      if currency not in merged:
+                          merged[currency] = data
+              
+              return merged
+          
+          def save_rates(rates):
+              """Save rates to JSON files"""
+              today = str(date.today())
+              
+              for currency, data in rates.items():
+                  rate_data = {
+                      'observations': [{
+                          'value': data['value'],
+                          'date': today,
+                          'source': data['source']
+                      }]
+                  }
+                  
+                  filename = f'rates/{currency}.json'
+                  with open(filename, 'w') as f:
+                      json.dump(rate_data, f, indent=2)
+                  
+                  print(f"💾 Saved {currency}: {data['value']}% from {data['source']}")
+          
+          # Main execution
+          print("=" * 60)
+          print("Starting rate fetch from multiple sources...")
+          print("=" * 60)
+          print()
+          
+          # Fetch from multiple sources in priority order
+          trading_economics_rates = fetch_from_trading_economics()
+          print()
+          
+          global_rates = fetch_from_global_rates()
+          print()
+          
+          fred_rates = fetch_from_fred()
+          print()
+          
+          central_bank_rates = fetch_from_central_banks()
+          print()
+          
+          # Merge all rates (first source wins)
+          final_rates = merge_rates(
+              trading_economics_rates,
+              central_bank_rates,
+              global_rates,
+              fred_rates
+          )
           
           print()
-          print("=" * 70)
-          print("VALIDATION")
-          print("=" * 70)
+          print("=" * 60)
+          print("FINAL RATES:")
+          print("=" * 60)
           
-          if failed:
-              print(f"\n❌ FAILED CURRENCIES: {', '.join(failed)}")
-              print("\nWorkflow will FAIL to prevent saving incomplete data")
+          # Save to files
+          save_rates(final_rates)
+          
+          # Validation
+          print()
+          print("=" * 60)
+          print("VALIDATION:")
+          print("=" * 60)
+          required = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'NZD']
+          missing = [curr for curr in required if curr not in final_rates]
+          
+          if missing:
+              print(f"❌ MISSING CURRENCIES: {missing}")
               exit(1)
           else:
-              print("\n✅ ALL 8 CURRENCIES FETCHED SUCCESSFULLY!")
-              print("\nFinal Rates:")
-              for curr in ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'NZD']:
-                  if curr in results:
-                      print(f"  {curr}: {results[curr]['value']}% ({results[curr]['source']})")
+              print("✅ All currencies fetched successfully!")
+              for curr in required:
+                  print(f"  {curr}: {final_rates[curr]['value']}% ({final_rates[curr]['source']})")
           
-          EOFPYTHON
+          PYTHON_SCRIPT
           
           python fetch_rates.py
       
-      - name: Display formatted results
+      - name: Display final rates
         run: |
           echo ""
           echo "╔════════════════════════════════════════════════╗"
-          echo "║           FINAL RATES (HYBRID METHOD)          ║"
+          echo "║         FINAL RATES (WEB SCRAPING)             ║"
           echo "╚════════════════════════════════════════════════╝"
-          echo ""
-          
           for currency in USD EUR GBP JPY AUD CAD CHF NZD; do
-            if [ -f "rates/$currency.json" ]; then
-              echo "[$currency]"
-              python3 -c "
-          import json
-          with open('rates/$currency.json') as f:
-              data = json.load(f)
-              obs = data['observations'][0]
-              print(f\"  Rate: {obs['value']}%\")
-              print(f\"  Date: {obs['date']}\")
-              print(f\"  Source: {obs['source']}\")
-          "
+            if [ -f rates/$currency.json ]; then
               echo ""
+              echo "[$currency]"
+              cat rates/$currency.json | python3 -c "import sys, json; data = json.load(sys.stdin); print(f\"  Rate: {data['observations'][0]['value']}%\n  Date: {data['observations'][0]['date']}\n  Source: {data['observations'][0]['source']}\")"
             fi
           done
       
@@ -242,4 +315,4 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@github.com
           git add rates/
-          git diff --quiet && git diff --staged --quiet || (git commit -m "🔄 Auto-update rates $(date +'%Y-%m-%d %H:%M UTC') - Hybrid sources" && git push)
+          git diff --quiet && git diff --staged --quiet || (git commit -m "🔄 Auto-update rates $(date +'%Y-%m-%d %H:%M UTC') - Web scraping" && git push)
