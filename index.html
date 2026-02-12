@@ -1639,64 +1639,64 @@
         };
 
         const calculateStrength = (currency, data = null) => {
-            if (!data) return 50;
-            let score = 0;
+    if (!data) return 50;
+    let score = 0;
 
-            if (data.interestRate !== null && data.interestRate !== undefined) {
-                const globalAvgRate = 3.3;
-                score += (data.interestRate - globalAvgRate) * 8;
-            }
+    if (data.interestRate !== null && data.interestRate !== undefined) {
+        const globalAvgRate = 3.3;
+        score += (data.interestRate - globalAvgRate) * 8;
+    }
 
-            if (data.gdpGrowth !== null && data.gdpGrowth !== undefined) {
-                if (data.gdpGrowth > 2.0) score += 20;
-                else if (data.gdpGrowth > 1.5) score += 15;
-                else if (data.gdpGrowth > 1.0) score += 10;
-                else score += 3;
-            }
+    if (data.gdpGrowth !== null && data.gdpGrowth !== undefined) {
+        if (data.gdpGrowth > 2.0) score += 20;
+        else if (data.gdpGrowth > 1.5) score += 15;
+        else if (data.gdpGrowth > 1.0) score += 10;
+        else score += 3;
+    }
 
-            if (data.inflation !== null && data.inflation !== undefined) {
-                const inflationDiff = Math.abs(data.inflation - 2.0);
-                if (inflationDiff < 0.5) score += 15;
-                else if (inflationDiff < 1.0) score += 10;
-                else if (inflationDiff < 1.5) score += 5;
-                else score -= 5;
-            }
+    if (data.inflation !== null && data.inflation !== undefined) {
+        const inflationDiff = Math.abs(data.inflation - 2.0);
+        if (inflationDiff < 0.5) score += 15;
+        else if (inflationDiff < 1.0) score += 10;
+        else if (inflationDiff < 1.5) score += 5;
+        else score -= 5;
+    }
 
-            if (data.currentAccount !== null && data.currentAccount !== undefined) {
-                if (data.currentAccount > 5) score += 20;
-                else if (data.currentAccount > 2) score += 15;
-                else if (data.currentAccount > 0) score += 10;
-                else if (data.currentAccount > -2) score += 3;
-                else score -= 10;
-            }
+    if (data.currentAccount !== null && data.currentAccount !== undefined) {
+        if (data.currentAccount > 5) score += 20;
+        else if (data.currentAccount > 2) score += 15;
+        else if (data.currentAccount > 0) score += 10;
+        else if (data.currentAccount > -2) score += 3;
+        else score -= 10;
+    }
 
-            if (data.tradeBalance !== null && data.tradeBalance !== undefined) {
-                if (data.tradeBalance > 30) score += 15;
-                else if (data.tradeBalance > 10) score += 12;
-                else if (data.tradeBalance > 0) score += 8;
-                else if (data.tradeBalance > -20) score += 2;
-                else score -= 8;
-            }
+    if (data.tradeBalance !== null && data.tradeBalance !== undefined) {
+        if (data.tradeBalance > 30) score += 15;
+        else if (data.tradeBalance > 10) score += 12;
+        else if (data.tradeBalance > 0) score += 8;
+        else if (data.tradeBalance > -20) score += 2;
+        else score -= 8;
+    }
 
-            if (data.unemployment !== null && data.unemployment !== undefined) {
-                if (data.unemployment < 3) score += 10;
-                else if (data.unemployment < 4.5) score += 8;
-                else if (data.unemployment < 6) score += 4;
-                else score -= 3;
-            }
+    if (data.unemployment !== null && data.unemployment !== undefined) {
+        if (data.unemployment < 3) score += 10;
+        else if (data.unemployment < 4.5) score += 8;
+        else if (data.unemployment < 6) score += 4;
+        else score -= 3;
+    }
 
-            if (data.debt !== null && data.debt !== undefined) {
-                if (data.debt < 60) score += 10;
-                else if (data.debt < 90) score += 7;
-                else if (data.debt < 120) score += 3;
-                else score -= 7;
-            }
+    if (data.debt !== null && data.debt !== undefined) {
+        if (data.debt < 60) score += 10;
+        else if (data.debt < 90) score += 7;
+        else if (data.debt < 120) score += 3;
+        else score -= 7;
+    }
 
-            if (currency === 'USD') score -= 15;
+    if (currency === 'USD') score -= 15;
 
-            const normalized = ((score + 40) / 140) * 100;
-            return Math.max(20, Math.min(100, normalized)).toFixed(1);
-        };
+    const normalized = ((score + 40) / 140) * 100;
+    return Math.max(20, Math.min(100, normalized)).toFixed(1);
+};
 
         const clearDashboardCache = () => {
             CacheManager.clearAll();
@@ -1957,33 +1957,35 @@
             };
 
             const generateAnalysis = (currency) => {
-                if (!economicData[currency]) return 'Cargando datos...';
-                const data = economicData[currency];
-                const country = countries.find(c => c.code === currency);
-                const strength = calculateStrength(currency);
-                const sentiment = getSentiment(strength);
+    if (!economicData[currency]) return 'Cargando datos...';
+    const data = economicData[currency];
+    const country = countries.find(c => c.code === currency);
+    const strength = calculateStrength(currency, data);
+    const sentiment = getSentiment(strength);
 
-                let analysis = [];
-                if (sentiment === 'alcista') analysis.push(`${currency} muestra fortaleza fundamental respaldada por datos sólidos.`);
-                else if (sentiment === 'bajista') analysis.push(`${currency} enfrenta vientos en contra con fundamentos débiles.`);
-                else analysis.push(`${currency} presenta panorama mixto con factores balanceados.`);
+    let analysis = [];
+    if (sentiment === 'alcista') analysis.push(`${currency} muestra fortaleza fundamental respaldada por datos sólidos.`);
+    else if (sentiment === 'bajista') analysis.push(`${currency} enfrenta vientos en contra con fundamentos débiles.`);
+    else analysis.push(`${currency} presenta panorama mixto con factores balanceados.`);
 
-                if (currency === 'USD' && data.interestRate && data.tradeBalance) {
-                    analysis.push(`Fed mantiene política restrictiva (${data.interestRate.toFixed(2)}%) pero DXY muestra debilidad estructural.`);
-                } else if (country && data.interestRate) {
-                    analysis.push(`${country.centralBank} en modo ${country.outlook.toLowerCase()} con tasa en ${data.interestRate.toFixed(2)}%.`);
-                }
+    if (currency === 'USD' && data.interestRate && data.tradeBalance) {
+        analysis.push(`Fed mantiene política restrictiva (${data.interestRate.toFixed(2)}%) pero DXY muestra debilidad estructural.`);
+    } else if (country && data.interestRate) {
+        analysis.push(`${country.centralBank} en modo ${country.outlook.toLowerCase()} con tasa en ${data.interestRate.toFixed(2)}%.`);
+    }
 
-                return analysis.join(' ');
-            };
+    return analysis.join(' ');
+};
 
             const getSortedCountries = () => {
-                return [...countries].sort((a, b) => {
-                    const strengthA = parseFloat(calculateStrength(a.code));
-                    const strengthB = parseFloat(calculateStrength(b.code));
-                    return strengthB - strengthA;
-                });
-            };
+    return [...countries].sort((a, b) => {
+        const dataA = economicData[a.code] || {};
+        const dataB = economicData[b.code] || {};
+        const strengthA = parseFloat(calculateStrength(a.code, dataA));
+        const strengthB = parseFloat(calculateStrength(b.code, dataB));
+        return strengthB - strengthA;
+    });
+};
 
             const formatValue = (value, decimals = 1) => {
                 if (value === null || value === undefined) return 'N/D';
@@ -2114,98 +2116,103 @@ useEffect(() => {
 
                     <div className="content">
                         {activeTab === 'overview' && (
-                            <div>
-                                <div className="section-header">
-                                    <div className="section-title">Resumen de Divisas</div>
-                                </div>
-                                <div className="currency-grid">
-                                    {getSortedCountries().map(country => {
-                                        const data = economicData[country.code] || {};
-                                        const strength = calculateStrength(country.code);
-                                        const sentiment = getSentiment(strength);
-                                        const rate = country.code === 'USD' ? 1 : (forexRates[country.code] || 1);
+    <div>
+        <div className="section-header">
+            <div className="section-title">Resumen de Divisas y Análisis Fundamental</div>
+            <div className="section-meta">Ordenadas por fortaleza fundamental • Actualizado {lastUpdate ? lastUpdate.toLocaleDateString('es-ES') : ''}</div>
+        </div>
+        <div className="currency-grid">
+            {getSortedCountries().map(country => {
+                const data = economicData[country.code] || {};
+                const strength = calculateStrength(country.code, data);
+                const sentiment = getSentiment(strength);
+                const rate = country.code === 'USD' ? 1 : (forexRates[country.code] || 1);
 
-                                        return (
-                                            <div key={country.code} className="currency-card">
-                                                <div className="card-header">
-                                                    <div className="card-title-section">
-                                                        <span className="card-flag flag-emoji">{country.flag}</span>
-                                                        <div>
-                                                            <div className="card-currency-code">{country.code}</div>
-                                                            <div className="card-currency-name">{country.currency}</div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="card-strength">
-                                                        <div className="strength-score" style={{ color: sentiment === 'alcista' ? 'var(--green-strong)' : sentiment === 'bajista' ? 'var(--red-strong)' : 'var(--neutral)' }}>
-                                                            {strength}
-                                                        </div>
-                                                        <div className="strength-label">Fortaleza</div>
-                                                    </div>
-                                                </div>
-                                                <div className="card-body">
-                                                    <div className="central-bank">
-                                                        <div className="bank-label">Banco Central</div>
-                                                        <div className="bank-name">{country.centralBank}</div>
-                                                        <div className="bank-info">
-                                                            <div className="bank-info-item">
-                                                                <div className="bank-info-label">Tasa</div>
-                                                                <div className="bank-info-value">{data.interestRate?.toFixed(2)}%</div>
-                                                            </div>
-                                                            <div className="bank-info-item">
-                                                                <div className="bank-info-label">Próxima Reunión</div>
-                                                                <div className="bank-info-value">{country.nextMeeting}</div>
-                                                            </div>
-                                                            <div className="bank-info-item">
-                                                                <div className="bank-info-label">Perspectiva</div>
-                                                                <div className="bank-info-value">{country.outlook}</div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="metrics-grid">
-                                                        <div className="metric">
-                                                            <div className="metric-label">Crecimiento PIB</div>
-                                                            <div className="metric-value">{formatValue(data.gdpGrowth)}%</div>
-                                                        </div>
-                                                        <div className="metric">
-                                                            <div className="metric-label">Inflación</div>
-                                                            <div className="metric-value">{formatValue(data.inflation)}%</div>
-                                                        </div>
-                                                        <div className="metric">
-                                                            <div className="metric-label">Desempleo</div>
-                                                            <div className="metric-value">{formatValue(data.unemployment)}%</div>
-                                                        </div>
-                                                        <div className="metric">
-                                                            <div className="metric-label">Cuenta Corriente</div>
-                                                            <div className="metric-value metric-value-small">{data.currentAccount > 0 ? '+' : ''}{formatValue(data.currentAccount)}%</div>
-                                                        </div>
-                                                        <div className="metric">
-                                                            <div className="metric-label">Balanza Comercial</div>
-                                                            <div className="metric-value metric-value-small">{data.tradeBalance > 0 ? '+' : ''}{formatValue(data.tradeBalance)}B</div>
-                                                        </div>
-                                                        <div className="metric">
-                                                            <div className="metric-label">Tasa vs USD</div>
-                                                            <div className="metric-value metric-value-small">{country.code === 'USD' ? '1.0000' : rate.toFixed(4)}</div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="analysis-section">
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                                                            <div className="analysis-title">Análisis Fundamental</div>
-                                                            <div className={`sentiment-badge sentiment-${sentiment}`}>
-                                                                <div className="sentiment-indicator" style={{ background: sentiment === 'alcista' ? 'var(--green-strong)' : sentiment === 'bajista' ? 'var(--red-strong)' : 'var(--neutral)' }}></div>
-                                                                {sentiment}
-                                                            </div>
-                                                        </div>
-                                                        <div className="analysis-text">{generateAnalysis(country.code)}</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                return (
+                    <div key={country.code} className="currency-card">
+                        <div className="card-header">
+                            <div className="card-title-section">
+                                <span className="card-flag flag-emoji">{country.flag}</span>
+                                <div>
+                                    <div className="card-currency-code">{country.code}</div>
+                                    <div className="card-currency-name">{country.currency}</div>
                                 </div>
                             </div>
-                        )}
+                            <div className="card-strength">
+                                <div className="strength-score" style={{ 
+                                    color: sentiment === 'alcista' ? 'var(--green-strong)' : 
+                                           sentiment === 'bajista' ? 'var(--red-strong)' : 
+                                           'var(--neutral)' 
+                                }}>
+                                    {strength}
+                                </div>
+                                <div className="strength-label">Fortaleza</div>
+                            </div>
+                        </div>
+                        <div className="card-body">
+                            <div className="central-bank">
+                                <div className="bank-label">Banco Central</div>
+                                <div className="bank-name">{country.centralBank}</div>
+                                <div className="bank-info">
+                                    <div className="bank-info-item">
+                                        <div className="bank-info-label">Tasa</div>
+                                        <div className="bank-info-value">{data.interestRate?.toFixed(2)}%</div>
+                                    </div>
+                                    <div className="bank-info-item">
+                                        <div className="bank-info-label">Próxima Reunión</div>
+                                        <div className="bank-info-value">{country.nextMeeting}</div>
+                                    </div>
+                                    <div className="bank-info-item">
+                                        <div className="bank-info-label">Perspectiva</div>
+                                        <div className="bank-info-value">{country.outlook}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="metrics-grid">
+                                <div className="metric">
+                                    <div className="metric-label">Crecimiento PIB</div>
+                                    <div className="metric-value">{formatValue(data.gdpGrowth)}%</div>
+                                </div>
+                                <div className="metric">
+                                    <div className="metric-label">Inflación</div>
+                                    <div className="metric-value">{formatValue(data.inflation)}%</div>
+                                </div>
+                                <div className="metric">
+                                    <div className="metric-label">Desempleo</div>
+                                    <div className="metric-value">{formatValue(data.unemployment)}%</div>
+                                </div>
+                                <div className="metric">
+                                    <div className="metric-label">Cuenta Corriente</div>
+                                    <div className="metric-value metric-value-small">{data.currentAccount > 0 ? '+' : ''}{formatValue(data.currentAccount)}%</div>
+                                </div>
+                                <div className="metric">
+                                    <div className="metric-label">Balanza Comercial</div>
+                                    <div className="metric-value metric-value-small">{data.tradeBalance > 0 ? '+' : ''}{formatValue(data.tradeBalance)}B</div>
+                                </div>
+                                <div className="metric">
+                                    <div className="metric-label">Tasa vs USD</div>
+                                    <div className="metric-value metric-value-small">{country.code === 'USD' ? '1.0000' : rate.toFixed(4)}</div>
+                                </div>
+                            </div>
+
+                            <div className="analysis-section">
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                                    <div className="analysis-title">Análisis Fundamental</div>
+                                    <div className={`sentiment-badge sentiment-${sentiment}`}>
+                                        <div className="sentiment-indicator" style={{ background: sentiment === 'alcista' ? 'var(--green-strong)' : sentiment === 'bajista' ? 'var(--red-strong)' : 'var(--neutral)' }}></div>
+                                        {sentiment}
+                                    </div>
+                                </div>
+                                <div className="analysis-text">{generateAnalysis(country.code)}</div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    </div>
+)}
 
 {activeTab === 'heatmap' && (
     <div>
