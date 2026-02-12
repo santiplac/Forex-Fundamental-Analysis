@@ -1,6 +1,6 @@
 {
   "lastUpdate": "2026-02-12",
-  "source": "TradingEconomics + WorldBank",
+  "source": "TradingEconomics + WorldBank (EUR corrected)",
   "data": {
     "gdp": 16406.0,
     "gdpGrowth": 0.3,
@@ -9,6 +9,6 @@
     "debt": 87.1,
     "currentAccount": 2.7,
     "production": 2.5,
-    "tradeBalance": 81.47
+    "tradeBalance": 210.0
   }
 }
