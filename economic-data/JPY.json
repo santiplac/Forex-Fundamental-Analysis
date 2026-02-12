@@ -1,6 +1,7 @@
 {
   "lastUpdate": "2026-02-12",
-  "source": "TradingEconomics + WorldBank (EUR corrected)",
+  "source": "TradingEconomics (100% Dynamic, Monthly Annualized)",
+  "methodology": "Monthly data \u00d7 12 for flow variables, converted to USD billions",
   "data": {
     "gdp": 4026.0,
     "gdpGrowth": -0.6,
@@ -8,7 +9,7 @@
     "unemployment": 2.6,
     "debt": 237.0,
     "currentAccount": 4.7,
-    "production": 2.6,
-    "tradeBalance": -35.0
+    "production": 31.2,
+    "tradeBalance": 1272.0
   }
 }
