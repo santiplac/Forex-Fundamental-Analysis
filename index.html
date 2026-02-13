@@ -940,16 +940,34 @@
 <script type="text/babel">
         console.log('🚀 Dashboard Forex v4 - Web Scraping Edition - Cargando...');
 
-    // Polyfill para AbortSignal.timeout (Edge compatibility)
-        if (!AbortSignal.timeout) {
-            AbortSignal.timeout = function(ms) {
-                const controller = new AbortController();
-                setTimeout(() => controller.abort(), ms);
-                return controller.signal;
-            };
-        }
-        
         const { useState, useEffect, useRef } = React;
+
+    // ========== FIX 1: EDGE COMPATIBILITY - Polyfill mejorado ==========
+if (!AbortSignal.timeout) {
+    AbortSignal.timeout = function(ms) {
+        const controller = new AbortController();
+        setTimeout(() => controller.abort(new DOMException('Timeout', 'TimeoutError')), ms);
+        return controller.signal;
+    };
+}
+
+// Helper para fetch con timeout que funciona en Edge
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+    }
+};
 
         // ========== SISTEMA DE CACHÉ ==========
         
@@ -1028,11 +1046,10 @@ const fetchWorldBankData = async (countryCode, indicator) => {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
                 
-                const response = await fetch(githubUrl, { 
-                    signal: controller.signal,
-                    cache: 'no-cache',
-                    mode: 'cors'
-                });
+                const response = await fetchWithTimeout(githubUrl, { 
+    cache: 'no-cache',
+    mode: 'cors'
+}, 8000);
                 
                 clearTimeout(timeoutId);
                 
@@ -1567,10 +1584,10 @@ const generateDynamicAlerts = (economicData, forexRates, calendar) => {
 
                 try {
                     const githubUrl = `https://globalinvesting.github.io/economic-data/${country.code}.json`;
-                    const response = await fetch(githubUrl, { 
-                        signal: AbortSignal.timeout(8000),
-                        cache: 'no-cache'
-                    });
+                    const response = await fetchWithTimeout(githubUrl, { 
+    cache: 'no-cache',
+    mode: 'cors'
+}, 8000);
                     
                     if (response.ok) {
                         const scrapedData = await response.json();
@@ -1632,18 +1649,12 @@ console.log(`✅ Loaded all data for ${country.code}`);
                     
 // CARGAR DATOS COT (archivo separado)
                     try {
-                        const cotUrl = `https://globalinvesting.github.io/cot-data/${country.code}.json`;
+                        const cotUrl = `https://globalinvesting.github.io/cot-data/${country.code}.json`;                
                         
-                        const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 5000);
-                        
-                        const cotResponse = await fetch(cotUrl, { 
-                            signal: controller.signal,
-                            cache: 'no-cache',
-                            mode: 'cors'
-                        });
-                        
-                        clearTimeout(timeoutId);
+                        const cotResponse = await fetchWithTimeout(cotUrl, { 
+    cache: 'no-cache',
+    mode: 'cors'
+}, 5000);
                         
                         if (cotResponse.ok) {
                             const cotData = await cotResponse.json();
@@ -2358,35 +2369,33 @@ const getHeatmapColor = (value, type) => {
                         break;
                     
                     case 'cotPositioning':
-                        // Positivo moderado (+5K a +15K) = verde (alcista saludable)
-                        // Muy positivo (>+20K) = rojo (saturado)
-                        // Negativo moderado (-5K a -15K) = rojo (bajista)
-                        // Muy negativo (<-20K) = verde (oversold, potencial rebote)
-                        const absValue = Math.abs(value);
-                        
-                        if (value > 20000) {
-                            // Extremadamente alcista = saturado = rojo
-                            intensity = Math.min((value - 20000) / 20000, 1);
-                            isPositive = false;
-                        } else if (value > 5000) {
-                            // Moderadamente alcista = verde
-                            intensity = 0.7;
-                            isPositive = true;
-                        } else if (value > -5000) {
-                            // Neutral = gris
-                            return 'var(--bg-card)';
-                        } else if (value > -20000) {
-                            // Moderadamente bajista = rojo
-                            intensity = 0.6;
-                            isPositive = false;
-                        } else {
-                            // Extremadamente bajista = oversold = verde
-                            intensity = 0.5;
-                            isPositive = true;
-                        }
-                        break;
-                }
-
+    // ✅ FIX: Corrección para USD negativo
+    if (value > 20000) {
+        intensity = Math.min((value - 20000) / 20000, 1);
+        isPositive = false;
+    } else if (value > 5000) {
+        intensity = 0.7;
+        isPositive = true;
+    } else if (value > -5000) {
+        // ✅ CRÍTICO: Si está entre -5K y +5K pero es negativo, debe ser rojo
+        if (value < 0) {
+            intensity = 0.4;
+            isPositive = false;
+        } else if (value > 0) {
+            intensity = 0.3;
+            isPositive = true;
+        } else {
+            return 'var(--bg-card)';
+        }
+    } else if (value > -20000) {
+        intensity = 0.6;
+        isPositive = false;
+    } else {
+        intensity = 0.5;
+        isPositive = true;
+    }
+    break;
+     }
                 // Aplicar colores con intensidad
                 if (isPositive) {
                     if (intensity > 0.7) return '#26a69a';      // Verde fuerte
@@ -2606,13 +2615,43 @@ const getSortedCountries = () => {
         const dataA = economicData[a.code] || {};
         const dataB = economicData[b.code] || {};
         
-        // ✅ CORRECCIÓN: Extraer score del objeto
-        const strengthObjA = calculateStrength(a.code, dataA, forexRates, economicData);
-        const strengthObjB = calculateStrength(b.code, dataB, forexRates, economicData);
-        const strengthA = strengthObjA.score || 50;
-        const strengthB = strengthObjB.score || 50;
+        // ✅ NUEVO ALGORITMO: Contar celdas verdes en heatmap
+        const indicators = [
+            'gdpGrowth', 'interestRate', 'inflation', 'unemployment',
+            'currentAccount', 'debt', 'tradeBalance', 'production',
+            'retailSales', 'wageGrowth', 'manufacturingPMI', 'cotPositioning'
+        ];
         
-        return strengthB - strengthA;
+        let greenCellsA = 0;
+        let greenCellsB = 0;
+        
+        indicators.forEach(indicator => {
+            const valueA = dataA[indicator];
+            const valueB = dataB[indicator];
+            
+            if (valueA !== null && valueA !== undefined && !isNaN(valueA)) {
+                const colorA = getHeatmapColor(valueA, indicator);
+                if (colorA.includes('#26a69a') || colorA.includes('#00897b') || colorA.includes('#00695c')) {
+                    greenCellsA++;
+                }
+            }
+            
+            if (valueB !== null && valueB !== undefined && !isNaN(valueB)) {
+                const colorB = getHeatmapColor(valueB, indicator);
+                if (colorB.includes('#26a69a') || colorB.includes('#00897b') || colorB.includes('#00695c')) {
+                    greenCellsB++;
+                }
+            }
+        });
+        
+        // Si empatan en celdas verdes, desempatar por strength score
+        if (greenCellsA === greenCellsB) {
+            const strengthObjA = calculateStrength(a.code, dataA, forexRates, economicData);
+            const strengthObjB = calculateStrength(b.code, dataB, forexRates, economicData);
+            return (strengthObjB.score || 50) - (strengthObjA.score || 50);
+        }
+        
+        return greenCellsB - greenCellsA;
     });
 };
 
@@ -2807,7 +2846,7 @@ const hasCOTData = () => {
                                     }}>
                                         {strength}
                                     </div>
-                                    <div className="strength-label">Fundamentos</div>
+                                    <div className="strength-label">Fortaleza</div>
                                 </div>
                             </div>
                             <div className="card-body">
