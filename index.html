@@ -1710,28 +1710,28 @@ const calculateStrength = (currency, data = null, forexRates = {}, allEconomicDa
     
 // ========== TRADING-ORIENTED WEIGHTS (CALIBRADO CON REALIDAD DE MERCADO) ==========
     const TRADING_WEIGHTS = {
-        // Tier 1: External Balance & Safe Haven (35%) - MÁS PESO
-        currentAccount: { weight: 0.18, optimal: { min: 0, max: 5 }, direction: 'higher' },
-        tradeBalance: { weight: 0.12, optimal: { min: 0, max: null }, direction: 'higher' },
-        debt: { weight: 0.05, optimal: { min: 0, max: 60 }, direction: 'lower' },  // ✅ ACTIVADO
-        
-        // Tier 2: Rate differentials & Carry (30%) - REDUCIDO
-        interestRate: { weight: 0.20, optimal: { min: 2.5, max: 5.0 }, direction: 'higher' },
-        inflation: { weight: 0.10, optimal: { min: 1.8, max: 2.5 }, direction: 'target' },
-        
-        // Tier 3: Growth & Employment (20%) - REDUCIDO
-        gdpGrowth: { weight: 0.12, optimal: { min: 2.0, max: 3.5 }, direction: 'higher' },
-        unemployment: { weight: 0.08, optimal: { min: 3.0, max: 5.0 }, direction: 'lower' },
-        
-        // Tier 4: Market Sentiment Indicators (15%)
-        cotPositioning: { weight: 0.10, optimal: { min: 5000, max: 15000 }, direction: 'moderate_bullish' },
-        manufacturingPMI: { weight: 0.05, optimal: { min: 50, max: 55 }, direction: 'expansion' },
-        
-        // Tier 5: Secondary (0% - no usado en score principal)
-        production: { weight: 0.00, optimal: { min: 1.0, max: 3.0 }, direction: 'stable' },
-        retailSales: { weight: 0.00, optimal: { min: 0.3, max: 1.0 }, direction: 'stable' },
-        wageGrowth: { weight: 0.00, optimal: { min: 2.5, max: 4.0 }, direction: 'stable' }
-    };
+    // Tier 1: External Balance & Safe Haven (30%)
+    currentAccount: { weight: 0.15, optimal: { min: 0, max: 5 }, direction: 'higher' },
+    tradeBalance: { weight: 0.10, optimal: { min: 0, max: null }, direction: 'higher' },
+    debt: { weight: 0.05, optimal: { min: 0, max: 60 }, direction: 'lower' },
+    
+    // Tier 2: Rate Differentials & Carry (30%)
+    interestRate: { weight: 0.20, optimal: { min: 2.5, max: 5.0 }, direction: 'higher' },
+    inflation: { weight: 0.10, optimal: { min: 1.8, max: 2.5 }, direction: 'target' },
+    
+    // Tier 3: Growth & Employment (20%)
+    gdpGrowth: { weight: 0.10, optimal: { min: 2.0, max: 3.5 }, direction: 'higher' },
+    unemployment: { weight: 0.06, optimal: { min: 3.0, max: 5.0 }, direction: 'lower' },
+    production: { weight: 0.04, optimal: { min: 1.0, max: 3.0 }, direction: 'higher' },
+    
+    // Tier 4: Consumption & Wages (10%)
+    retailSales: { weight: 0.05, optimal: { min: 0.3, max: 1.0 }, direction: 'higher' },
+    wageGrowth: { weight: 0.05, optimal: { min: 2.5, max: 4.0 }, direction: 'target' },
+    
+    // Tier 5: Market Sentiment (10%)
+    cotPositioning: { weight: 0.07, optimal: { min: 5000, max: 15000 }, direction: 'moderate_bullish' },
+    manufacturingPMI: { weight: 0.03, optimal: { min: 50, max: 55 }, direction: 'expansion' }
+};
     
     // ========== SCORING FUNCTIONS ==========
     const scoreIndicator = (value, indicator) => {
@@ -1825,6 +1825,55 @@ const calculateStrength = (currency, data = null, forexRates = {}, allEconomicDa
                     score = 40 + ((value - 48) / 2) * 20;
                 } else {
                     score = Math.max(0, 40 - ((48 - value) / 10) * 40);
+                }
+                break;
+
+                case 'stable':
+                // Para production, retailSales, wageGrowth - estabilidad es positiva
+                if (indicator === 'production') {
+                    // >1.5% = fuerte (100)
+                    // 0.5-1.5% = moderado (70)
+                    // 0-0.5% = débil (40)
+                    // <0% = contracción (0-40)
+                    if (value > 1.5) {
+                        score = 100;
+                    } else if (value > 0.5) {
+                        score = 70 + ((value - 0.5) / 1.0) * 30;
+                    } else if (value > 0) {
+                        score = 40 + (value / 0.5) * 30;
+                    } else if (value > -1.0) {
+                        score = 20 + ((value + 1.0) / 1.0) * 20;
+                    } else {
+                        score = Math.max(0, 20 + ((value + 2.0) / 1.0) * 20);
+                    }
+                } else if (indicator === 'retailSales') {
+                    // >0.5% = fuerte consumo (100)
+                    // 0-0.5% = moderado (60)
+                    // <0% = contracción (0-50)
+                    if (value > 0.5) {
+                        score = 100;
+                    } else if (value > 0) {
+                        score = 60 + (value / 0.5) * 40;
+                    } else if (value > -0.5) {
+                        score = 40 + ((value + 0.5) / 0.5) * 20;
+                    } else {
+                        score = Math.max(0, 40 + ((value + 1.0) / 0.5) * 40);
+                    }
+                } else if (indicator === 'wageGrowth') {
+                    // 2.5-4.5% = ideal (100)
+                    // >5% = inflacionario (70)
+                    // <2% = débil (40)
+                    if (value >= 2.5 && value <= 4.5) {
+                        score = 100;
+                    } else if (value > 4.5 && value <= 6.0) {
+                        score = 70 + ((6.0 - value) / 1.5) * 30;
+                    } else if (value > 6.0) {
+                        score = Math.max(0, 70 - ((value - 6.0) / 2.0) * 70);
+                    } else if (value >= 1.5) {
+                        score = 40 + ((value - 1.5) / 1.0) * 60;
+                    } else {
+                        score = Math.max(0, 40 - ((1.5 - value) / 1.5) * 40);
+                    }
                 }
                 break;
             
@@ -3395,9 +3444,9 @@ const sentiment = getSentiment(strength);
 
 <div className="footer">
     <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>DASHBOARD DE ANÁLISIS FUNDAMENTAL FOREX - DATA-DRIVEN</div>
-    <div style={{ marginBottom: '1rem' }}>
-        Metodología: Modelo cuantitativo 100% basado en datos económicos reales<br/>
-        Ponderación Core: Balance Externo (35%) • Diferenciales de Tasas (30%) • Crecimiento & Empleo (20%) • Sentimiento de Mercado (15%)<br/>
+<div style={{ marginBottom: '1rem' }}>
+        Metodología: Modelo cuantitativo 100% basado en datos económicos reales • 13 indicadores ponderados<br/>
+        Balance Externo (30%) • Tasas (30%) • Crecimiento (20%) • Consumo & Salarios (10%) • Sentimiento (10%)<br/>
         Datos actualizados diariamente desde Trading Economics, FRED y CFTC
     </div>
 
