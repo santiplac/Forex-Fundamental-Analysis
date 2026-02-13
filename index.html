@@ -2446,13 +2446,12 @@ const hasCOTData = () => {
 
                     <div className="content">
 {activeTab === 'overview' && (
-    <div>
+    <>
         <div className="section-header">
             <div className="section-title">Resumen de Divisas y Análisis Fundamental</div>
             <div className="section-meta">Ordenadas por fortaleza fundamental • Actualizado {lastUpdate ? lastUpdate.toLocaleDateString('es-ES') : ''}</div>
         </div>
         
-        {/* ✅ VALIDACIÓN: Solo renderizar si hay datos económicos */}
         {Object.keys(economicData).length === 0 ? (
             <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>
                 Cargando datos económicos...
@@ -2468,177 +2467,177 @@ const hasCOTData = () => {
 
                     return (
                         <div key={country.code} className="currency-card">
-                        <div className="card-header">
-                            <div className="card-title-section">
-                                <span className="card-flag flag-emoji">{country.flag}</span>
-                                <div>
-                                    <div className="card-currency-code">{country.code}</div>
-                                    <div className="card-currency-name">{country.currency}</div>
+                            <div className="card-header">
+                                <div className="card-title-section">
+                                    <span className="card-flag flag-emoji">{country.flag}</span>
+                                    <div>
+                                        <div className="card-currency-code">{country.code}</div>
+                                        <div className="card-currency-name">{country.currency}</div>
+                                    </div>
+                                </div>
+                                <div className="card-strength">
+                                    <div className="strength-score" style={{ 
+                                        color: sentiment === 'alcista' ? 'var(--green-strong)' : 
+                                               sentiment === 'bajista' ? 'var(--red-strong)' : 
+                                               'var(--neutral)' 
+                                    }}>
+                                        {strength}
+                                    </div>
+                                    <div className="strength-label">Fortaleza</div>
+                                    <div style={{
+                                        fontSize: '0.65rem',
+                                        color: 'var(--text-tertiary)',
+                                        marginTop: '0.25rem',
+                                        fontWeight: 400
+                                    }}>
+                                        95% CI: [{strengthObj.confidence.lower}–{strengthObj.confidence.upper}]
+                                    </div>
                                 </div>
                             </div>
-                            <div className="card-strength">
-                                <div className="strength-score" style={{ 
-                                    color: sentiment === 'alcista' ? 'var(--green-strong)' : 
-                                           sentiment === 'bajista' ? 'var(--red-strong)' : 
-                                           'var(--neutral)' 
-                                }}>
-                                    {strength}
+                            <div className="card-body">
+                                <div className="central-bank">
+                                    <div className="bank-label">Banco Central</div>
+                                    <div className="bank-name">{country.centralBank}</div>
+                                    <div className="bank-info">
+                                        <div className="bank-info-item">
+                                            <div className="bank-info-label">Tasa</div>
+                                            <div className="bank-info-value">{data.interestRate?.toFixed(2)}%</div>
+                                        </div>
+                                        <div className="bank-info-item">
+                                            <div className="bank-info-label">Próxima Reunión</div>
+                                            <div className="bank-info-value">{country.nextMeeting}</div>
+                                        </div>
+                                        <div className="bank-info-item">
+                                            <div className="bank-info-label">Perspectiva</div>
+                                            <div className="bank-info-value">{country.outlook}</div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="strength-label">Fortaleza</div>
-                                <div style={{
-                                    fontSize: '0.65rem',
-                                    color: 'var(--text-tertiary)',
-                                    marginTop: '0.25rem',
-                                    fontWeight: 400
-                                }}>
-                                    95% CI: [{strengthObj.confidence.lower}–{strengthObj.confidence.upper}]
+
+                                <div className="metrics-grid">
+                                    <div className="metric">
+                                        <div className="metric-label">Crecimiento PIB</div>
+                                        <div className="metric-value" style={{ 
+                                            color: data.gdpGrowth !== null && data.gdpGrowth > 1.8 ? 'var(--green-strong)' : 
+                                                   data.gdpGrowth !== null && data.gdpGrowth < 1.0 ? 'var(--red-strong)' : 
+                                                   'var(--text-primary)' 
+                                        }}>
+                                            {formatValue(data.gdpGrowth)}%
+                                        </div>
+                                    </div>
+                                    <div className="metric">
+                                        <div className="metric-label">Inflación</div>
+                                        <div className="metric-value" style={{ 
+                                            color: data.inflation !== null && data.inflation >= 1.8 && data.inflation <= 2.5 ? 'var(--green-strong)' : 
+                                                   data.inflation !== null && data.inflation > 3.5 ? 'var(--red-strong)' : 
+                                                   'var(--text-primary)' 
+                                        }}>
+                                            {formatValue(data.inflation)}%
+                                        </div>
+                                    </div>
+                                    <div className="metric">
+                                        <div className="metric-label">Desempleo</div>
+                                        <div className="metric-value" style={{ 
+                                            color: data.unemployment !== null && data.unemployment < 3.5 ? 'var(--green-strong)' : 
+                                                   data.unemployment !== null && data.unemployment > 6 ? 'var(--red-strong)' : 
+                                                   'var(--text-primary)' 
+                                        }}>
+                                            {formatValue(data.unemployment)}%
+                                        </div>
+                                    </div>
+                                    <div className="metric">
+                                        <div className="metric-label">Cuenta Corriente</div>
+                                        <div className="metric-value metric-value-small" style={{ 
+                                            color: data.currentAccount !== null && data.currentAccount > 2 ? 'var(--green-strong)' : 
+                                                   data.currentAccount !== null && data.currentAccount < -3 ? 'var(--red-strong)' : 
+                                                   'var(--text-primary)' 
+                                        }}>
+                                            {data.currentAccount !== null && data.currentAccount !== undefined 
+                                                ? `${data.currentAccount > 0 ? '+' : ''}${formatValue(data.currentAccount)}%`
+                                                : 'N/D'}
+                                        </div>
+                                    </div>
+                                    <div className="metric">
+                                        <div className="metric-label">Balanza Comercial</div>
+                                        <div className="metric-value metric-value-small" style={{ 
+                                            color: data.tradeBalance !== null && data.tradeBalance > 10 ? 'var(--green-strong)' : 
+                                                   data.tradeBalance !== null && data.tradeBalance < -20 ? 'var(--red-strong)' : 
+                                                   'var(--text-primary)' 
+                                        }}>
+                                            {data.tradeBalance !== null && data.tradeBalance !== undefined 
+                                                ? `${data.tradeBalance > 0 ? '+' : ''}${formatValue(data.tradeBalance)}M`
+                                                : 'N/D'}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="metric">
+                                        <div className="metric-label">Ventas Minoristas</div>
+                                        <div className="metric-value metric-value-small" style={{ 
+                                            color: data.retailSales !== null && data.retailSales > 0.5 ? 'var(--green-strong)' : 
+                                                   data.retailSales !== null && data.retailSales < -0.5 ? 'var(--red-strong)' : 
+                                                   'var(--text-primary)' 
+                                        }}>
+                                            {data.retailSales !== null && data.retailSales !== undefined 
+                                                ? `${data.retailSales > 0 ? '+' : ''}${formatValue(data.retailSales)}%`
+                                                : 'N/D'}
+                                        </div>
+                                    </div>
+
+                                    <div className="metric">
+                                        <div className="metric-label">Crecimiento Salarial</div>
+                                        <div className="metric-value metric-value-small" style={{ 
+                                            color: data.wageGrowth !== null && data.wageGrowth >= 2.5 && data.wageGrowth <= 4.5 ? 'var(--green-strong)' : 
+                                                   data.wageGrowth !== null && data.wageGrowth > 5.5 ? 'var(--orange)' : 
+                                                   'var(--text-primary)' 
+                                        }}>
+                                            {formatValue(data.wageGrowth)}%
+                                        </div>
+                                    </div>
+
+                                    <div className="metric">
+                                        <div className="metric-label">PMI Manufacturero</div>
+                                        <div className="metric-value metric-value-small" style={{ 
+                                            color: data.manufacturingPMI !== null && data.manufacturingPMI > 50 ? 'var(--green-strong)' : 
+                                                   data.manufacturingPMI !== null && data.manufacturingPMI < 50 ? 'var(--red-strong)' : 
+                                                   'var(--text-primary)' 
+                                        }}>
+                                            {formatValue(data.manufacturingPMI, 1)}
+                                        </div>
+                                    </div>
+
+                                    <div className="metric">
+                                        <div className="metric-label">COT Positioning</div>
+                                        <div className="metric-value metric-value-small" style={{ 
+                                            color: data.cotPositioning !== null && data.cotPositioning > 10000 ? 'var(--green-strong)' : 
+                                                   data.cotPositioning !== null && data.cotPositioning < -10000 ? 'var(--red-strong)' : 
+                                                   data.cotPositioning !== null ? 'var(--text-primary)' :
+                                                   'var(--text-tertiary)'
+                                        }}>
+                                            {data.cotPositioning !== null && data.cotPositioning !== undefined 
+                                                ? `${data.cotPositioning > 0 ? '+' : ''}${(data.cotPositioning / 1000).toFixed(1)}K`
+                                                : 'N/A'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="analysis-section">
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                                        <div className="analysis-title">Análisis Fundamental</div>
+                                        <div className={`sentiment-badge sentiment-${sentiment}`}>
+                                            <div className="sentiment-indicator" style={{ background: sentiment === 'alcista' ? 'var(--green-strong)' : sentiment === 'bajista' ? 'var(--red-strong)' : 'var(--neutral)' }}></div>
+                                            {sentiment}
+                                        </div>
+                                    </div>
+                                    <div className="analysis-text">{generateAnalysis(country.code, forexRates, economicData)}</div>
                                 </div>
                             </div>
                         </div>
-                        <div className="card-body">
-                            <div className="central-bank">
-                                <div className="bank-label">Banco Central</div>
-                                <div className="bank-name">{country.centralBank}</div>
-                                <div className="bank-info">
-                                    <div className="bank-info-item">
-                                        <div className="bank-info-label">Tasa</div>
-                                        <div className="bank-info-value">{data.interestRate?.toFixed(2)}%</div>
-                                    </div>
-                                    <div className="bank-info-item">
-                                        <div className="bank-info-label">Próxima Reunión</div>
-                                        <div className="bank-info-value">{country.nextMeeting}</div>
-                                    </div>
-                                    <div className="bank-info-item">
-                                        <div className="bank-info-label">Perspectiva</div>
-                                        <div className="bank-info-value">{country.outlook}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="metrics-grid">
-                                <div className="metric">
-                                    <div className="metric-label">Crecimiento PIB</div>
-                                    <div className="metric-value" style={{ 
-                                        color: data.gdpGrowth !== null && data.gdpGrowth > 1.8 ? 'var(--green-strong)' : 
-                                               data.gdpGrowth !== null && data.gdpGrowth < 1.0 ? 'var(--red-strong)' : 
-                                               'var(--text-primary)' 
-                                    }}>
-                                        {formatValue(data.gdpGrowth)}%
-                                    </div>
-                                </div>
-                                <div className="metric">
-                                    <div className="metric-label">Inflación</div>
-                                    <div className="metric-value" style={{ 
-                                        color: data.inflation !== null && data.inflation >= 1.8 && data.inflation <= 2.5 ? 'var(--green-strong)' : 
-                                               data.inflation !== null && data.inflation > 3.5 ? 'var(--red-strong)' : 
-                                               'var(--text-primary)' 
-                                    }}>
-                                        {formatValue(data.inflation)}%
-                                    </div>
-                                </div>
-                                <div className="metric">
-                                    <div className="metric-label">Desempleo</div>
-                                    <div className="metric-value" style={{ 
-                                        color: data.unemployment !== null && data.unemployment < 3.5 ? 'var(--green-strong)' : 
-                                               data.unemployment !== null && data.unemployment > 6 ? 'var(--red-strong)' : 
-                                               'var(--text-primary)' 
-                                    }}>
-                                        {formatValue(data.unemployment)}%
-                                    </div>
-                                </div>
-                                <div className="metric">
-                                    <div className="metric-label">Cuenta Corriente</div>
-                                    <div className="metric-value metric-value-small" style={{ 
-                                        color: data.currentAccount !== null && data.currentAccount > 2 ? 'var(--green-strong)' : 
-                                               data.currentAccount !== null && data.currentAccount < -3 ? 'var(--red-strong)' : 
-                                               'var(--text-primary)' 
-                                    }}>
-                                        {data.currentAccount !== null && data.currentAccount !== undefined 
-                                            ? `${data.currentAccount > 0 ? '+' : ''}${formatValue(data.currentAccount)}%`
-                                            : 'N/D'}
-                                    </div>
-                                </div>
-                                <div className="metric">
-                                    <div className="metric-label">Balanza Comercial</div>
-                                    <div className="metric-value metric-value-small" style={{ 
-                                        color: data.tradeBalance !== null && data.tradeBalance > 10 ? 'var(--green-strong)' : 
-                                               data.tradeBalance !== null && data.tradeBalance < -20 ? 'var(--red-strong)' : 
-                                               'var(--text-primary)' 
-                                    }}>
-                                        {data.tradeBalance !== null && data.tradeBalance !== undefined 
-                                            ? `${data.tradeBalance > 0 ? '+' : ''}${formatValue(data.tradeBalance)}M`
-                                            : 'N/D'}
-                                    </div>
-                                </div>
-                                
-                                <div className="metric">
-                                    <div className="metric-label">Ventas Minoristas</div>
-                                    <div className="metric-value metric-value-small" style={{ 
-                                        color: data.retailSales !== null && data.retailSales > 0.5 ? 'var(--green-strong)' : 
-                                               data.retailSales !== null && data.retailSales < -0.5 ? 'var(--red-strong)' : 
-                                               'var(--text-primary)' 
-                                    }}>
-                                        {data.retailSales !== null && data.retailSales !== undefined 
-                                            ? `${data.retailSales > 0 ? '+' : ''}${formatValue(data.retailSales)}%`
-                                            : 'N/D'}
-                                    </div>
-                                </div>
-
-                                <div className="metric">
-                                    <div className="metric-label">Crecimiento Salarial</div>
-                                    <div className="metric-value metric-value-small" style={{ 
-                                        color: data.wageGrowth !== null && data.wageGrowth >= 2.5 && data.wageGrowth <= 4.5 ? 'var(--green-strong)' : 
-                                               data.wageGrowth !== null && data.wageGrowth > 5.5 ? 'var(--orange)' : 
-                                               'var(--text-primary)' 
-                                    }}>
-                                        {formatValue(data.wageGrowth)}%
-                                    </div>
-                                </div>
-
-                                <div className="metric">
-                                    <div className="metric-label">PMI Manufacturero</div>
-                                    <div className="metric-value metric-value-small" style={{ 
-                                        color: data.manufacturingPMI !== null && data.manufacturingPMI > 50 ? 'var(--green-strong)' : 
-                                               data.manufacturingPMI !== null && data.manufacturingPMI < 50 ? 'var(--red-strong)' : 
-                                               'var(--text-primary)' 
-                                    }}>
-                                        {formatValue(data.manufacturingPMI, 1)}
-                                    </div>
-                                </div>
-
-                                <div className="metric">
-                                    <div className="metric-label">COT Positioning</div>
-                                    <div className="metric-value metric-value-small" style={{ 
-                                        color: data.cotPositioning !== null && data.cotPositioning > 10000 ? 'var(--green-strong)' : 
-                                               data.cotPositioning !== null && data.cotPositioning < -10000 ? 'var(--red-strong)' : 
-                                               data.cotPositioning !== null ? 'var(--text-primary)' :
-                                               'var(--text-tertiary)'
-                                    }}>
-                                        {data.cotPositioning !== null && data.cotPositioning !== undefined 
-                                            ? `${data.cotPositioning > 0 ? '+' : ''}${(data.cotPositioning / 1000).toFixed(1)}K`
-                                            : 'N/A'}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="analysis-section">
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                                    <div className="analysis-title">Análisis Fundamental</div>
-                                    <div className={`sentiment-badge sentiment-${sentiment}`}>
-                                        <div className="sentiment-indicator" style={{ background: sentiment === 'alcista' ? 'var(--green-strong)' : sentiment === 'bajista' ? 'var(--red-strong)' : 'var(--neutral)' }}></div>
-                                        {sentiment}
-                                    </div>
-                                </div>
-                                <div className="analysis-text">{generateAnalysis(country.code, forexRates, economicData)}</div>
-                            </div>
-                        </div>
-                    </div>
-                );
-            })}
-        </div>
-    </div>
+                    );
+                })}
+            </div>
+        )}
+    </>
 )}
-
                         {activeTab === 'heatmap' && (
                             <div>
                                 <div className="section-header">
