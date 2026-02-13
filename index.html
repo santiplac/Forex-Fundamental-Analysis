@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon" href="apple-touch-icon.png">
     
     <!-- SEO Meta Tags -->
-    <title>Dashboard de Análisis Fundamental Forex v3 | Indicadores Económicos en Tiempo Real y Fortaleza de Divisas</title>
+    <title>Dashboard de Análisis Fundamental Forex | Indicadores Económicos en Tiempo Real y Fortaleza de Divisas</title>
     <meta name="description" content="Dashboard profesional de análisis fundamental forex con indicadores económicos en tiempo real, datos de bancos centrales y rankings de fortaleza de divisas para pares principales. Rastrea PIB, inflación, tasas de interés y balanza comercial.">
     <meta name="keywords" content="análisis forex, fortaleza divisas, indicadores económicos, dashboard forex, análisis fundamental, trading forex, tasas bancos centrales, crecimiento PIB, datos inflación, tasas interés, señales forex, pares divisas, herramientas forex">
     <meta name="author" content="Global Investing">
@@ -36,10 +36,10 @@
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7977942731354565"
      crossorigin="anonymous"></script>
     
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js" crossorigin></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" crossorigin></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <!-- Noto Color Emoji para soporte de emojis en todos los navegadores -->
     <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">
@@ -939,6 +939,15 @@
 
 <script type="text/babel">
         console.log('🚀 Dashboard Forex v4 - Web Scraping Edition - Cargando...');
+
+    // Polyfill para AbortSignal.timeout (Edge compatibility)
+        if (!AbortSignal.timeout) {
+            AbortSignal.timeout = function(ms) {
+                const controller = new AbortController();
+                setTimeout(() => controller.abort(), ms);
+                return controller.signal;
+            };
+        }
         
         const { useState, useEffect, useRef } = React;
 
@@ -1007,24 +1016,30 @@
         // All data now comes from GitHub Pages scraped JSON files
         // These functions are no longer needed as we use Trading Economics scraping
 
-        const fetchWorldBankData = async (countryCode, indicator) => {
+const fetchWorldBankData = async (countryCode, indicator) => {
             const cacheKey = `scraped_${countryCode}_${indicator}`;
             const cached = CacheManager.get(cacheKey);
             if (cached !== null) return cached;
 
             try {
-                // Fetch from GitHub Pages scraped data
                 const githubUrl = `https://globalinvesting.github.io/economic-data/${countryCode}.json`;
+                
+                // Edge-compatible fetch con timeout manual
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
                 const response = await fetch(githubUrl, { 
-                    signal: AbortSignal.timeout(5000),
-                    cache: 'no-cache'
+                    signal: controller.signal,
+                    cache: 'no-cache',
+                    mode: 'cors'
                 });
+                
+                clearTimeout(timeoutId);
                 
                 if (response.ok) {
                     const scrapedData = await response.json();
                     
                     if (scrapedData.data) {
-                        // Map World Bank indicators to our scraped data
                         const indicatorMap = {
                             [WORLD_BANK_INDICATORS.gdp]: 'gdp',
                             [WORLD_BANK_INDICATORS.gdpGrowth]: 'gdpGrowth',
@@ -1039,12 +1054,11 @@
                         if (scrapedKey && scrapedData.data[scrapedKey] !== undefined) {
                             const value = scrapedData.data[scrapedKey];
                             
-                            // Special handling for GDP (convert to trillions) and trade balance (convert to billions)
                             let finalValue = value;
                             if (scrapedKey === 'gdp') {
-                                finalValue = value / 1000; // Trading Economics shows billions, we want trillions
+                                finalValue = value / 1000;
                             } else if (scrapedKey === 'tradeBalance') {
-                                finalValue = value; // Already in billions
+                                finalValue = value;
                             }
                             
                             console.log(`✅ Scraped data for ${countryCode} ${scrapedKey}: ${finalValue}`);
@@ -1054,28 +1068,39 @@
                     }
                 }
             } catch (error) {
-                console.warn(`Scraped data fetch failed for ${countryCode}:`, error.message);
+                if (error.name === 'AbortError') {
+                    console.warn(`Timeout fetching data for ${countryCode}`);
+                } else {
+                    console.warn(`Scraped data fetch failed for ${countryCode}:`, error.message);
+                }
             }
             
-            // Fallback to null if scraping failed
             console.warn(`❌ No scraped data available for ${countryCode} ${indicator}`);
             return null;
         };
 
-        const fetchInterestRate = async (country) => {
+const fetchInterestRate = async (country) => {
             const cacheKey = `interest_rate_${country.code}`;
             const cached = CacheManager.get(cacheKey);
             if (cached !== null) return cached;
 
             console.log(`🔍 Fetching interest rate for ${country.code}...`);
 
-            // ========== ESTRATEGIA PRINCIPAL: GitHub Pages JSON ==========
+            // Estrategia principal: GitHub Pages JSON
             try {
                 const githubUrl = `https://globalinvesting.github.io/rates/${country.code}.json`;
+                
+                // Edge-compatible timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
                 const response = await fetch(githubUrl, { 
-                    signal: AbortSignal.timeout(5000),
-                    cache: 'no-cache'
+                    signal: controller.signal,
+                    cache: 'no-cache',
+                    mode: 'cors'
                 });
+                
+                clearTimeout(timeoutId);
                 
                 if (response.ok) {
                     const data = await response.json();
@@ -1094,17 +1119,24 @@
                     }
                 }
             } catch (error) {
-                console.warn(`GitHub Pages failed for ${country.code}, trying fallback...`);
+                if (error.name !== 'AbortError') {
+                    console.warn(`GitHub Pages failed for ${country.code}:`, error.message);
+                }
             }
 
-            // ========== FALLBACK: Alpha Vantage (solo USD) ==========
+            // Fallback: Alpha Vantage (solo USD)
             if (country.code === 'USD') {
                 const alphaKeys = ['2TW8Y8DDBPRQ2VTV', 'RIBXT3XYLI69O5WY'];
                 
                 for (const apiKey of alphaKeys) {
                     try {
                         const url = `https://www.alphavantage.co/query?function=FEDERAL_FUNDS_RATE&apikey=${apiKey}`;
-                        const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+                        
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 8000);
+                        
+                        const response = await fetch(url, { signal: controller.signal, mode: 'cors' });
+                        clearTimeout(timeoutId);
                         
                         if (response.ok) {
                             const data = await response.json();
@@ -1127,18 +1159,24 @@
             return null;
         };
 
-        const fetchProductionDynamic = async (countryCode) => {
+       const fetchProductionDynamic = async (countryCode) => {
             const cacheKey = `production_${countryCode}`;
             const cached = CacheManager.get(cacheKey);
             if (cached !== null) return cached;
 
             try {
-                // Fetch from GitHub Pages scraped data
                 const githubUrl = `https://globalinvesting.github.io/economic-data/${countryCode}.json`;
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
                 const response = await fetch(githubUrl, { 
-                    signal: AbortSignal.timeout(5000),
-                    cache: 'no-cache'
+                    signal: controller.signal,
+                    cache: 'no-cache',
+                    mode: 'cors'
                 });
+                
+                clearTimeout(timeoutId);
                 
                 if (response.ok) {
                     const scrapedData = await response.json();
@@ -1151,7 +1189,9 @@
                     }
                 }
             } catch (error) {
-                console.warn(`Scraped production fetch failed for ${countryCode}:`, error.message);
+                if (error.name !== 'AbortError') {
+                    console.warn(`Scraped production fetch failed for ${countryCode}:`, error.message);
+                }
             }
 
             console.warn(`❌ No production data available for ${countryCode}`);
@@ -1590,27 +1630,36 @@ console.log(`✅ Loaded all data for ${country.code}`);
                         console.error(`❌ Failed to fetch scraped data for ${country.code}`);
                     }
                     
-                    // CARGAR DATOS COT (archivo separado)
-                    if (true) { // ✅ Todas las divisas ahora tienen COT (USD usa DXY Index)
+// CARGAR DATOS COT (archivo separado)
+                    if (true) {
                         try {
                             const cotUrl = `https://globalinvesting.github.io/cot-data/${country.code}.json`;
+                            
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 5000);
+                            
                             const cotResponse = await fetch(cotUrl, { 
-                                signal: AbortSignal.timeout(5000),
-                                cache: 'no-cache'
+                                signal: controller.signal,
+                                cache: 'no-cache',
+                                mode: 'cors'
                             });
+                            
+                            clearTimeout(timeoutId);
                             
                             if (cotResponse.ok) {
                                 const cotData = await cotResponse.json();
                                 if (cotData.netPosition !== null && cotData.netPosition !== undefined) {
-    economicData[country.code].cotPositioning = cotData.netPosition;
+                                    economicData[country.code].cotPositioning = cotData.netPosition;
                                     console.log(`✅ Loaded COT for ${country.code}: ${cotData.positioning}`);
                                 }
                             }
                         } catch (error) {
-                            console.warn(`No COT data for ${country.code}`);
+                            if (error.name !== 'AbortError') {
+                                console.warn(`No COT data for ${country.code}`);
+                            }
                         }
                     }
-                } catch (error) {
+                catch (error) {
                     console.error(`❌ Error loading data for ${country.code}:`, error);
                 }
                 
@@ -2533,7 +2582,7 @@ const hasCOTData = () => {
                                     }}>
                                         {strength}
                                     </div>
-                                    <div className="strength-label">Fortaleza</div>
+                                    <div className="strength-label">Fundamentos</div>
                                     <div style={{
                                         fontSize: '0.65rem',
                                         color: 'var(--text-tertiary)',
