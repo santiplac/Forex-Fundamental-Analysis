@@ -1,4 +1,4 @@
-name: Update Economic Data - Full Column Debug
+name: Update Economic Data - Enhanced with New Indicators
 on:
   schedule:
     - cron: '0 6 * * *'
@@ -23,9 +23,9 @@ jobs:
       - name: Create data directory
         run: mkdir -p economic-data
       
-      - name: Scrape with full column reading
+      - name: Scrape enhanced economic data
         run: |
-          cat > scrape_economics_debug.py << 'EOFPYTHON'
+          cat > scrape_economics_enhanced.py << 'EOFPYTHON'
           import requests
           from bs4 import BeautifulSoup
           import json
@@ -41,7 +41,9 @@ jobs:
           
           CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'NZD']
           
+          # ========== EXPANDED INDICATOR URLS ==========
           INDICATOR_URLS = {
+              # Existing indicators
               'gdp': 'https://tradingeconomics.com/country-list/gdp?continent=world',
               'gdpGrowth': 'https://tradingeconomics.com/country-list/gdp-growth-rate?continent=world',
               'inflation': 'https://tradingeconomics.com/country-list/inflation-rate?continent=world',
@@ -49,7 +51,12 @@ jobs:
               'debt': 'https://tradingeconomics.com/country-list/government-debt-to-gdp',
               'currentAccount': 'https://tradingeconomics.com/country-list/current-account-to-gdp?continent=world',
               'production': 'https://tradingeconomics.com/country-list/industrial-production?continent=world',
-              'tradeBalance': 'https://tradingeconomics.com/country-list/balance-of-trade'
+              'tradeBalance': 'https://tradingeconomics.com/country-list/balance-of-trade',
+              
+              # NEW INDICATORS
+              'retailSales': 'https://tradingeconomics.com/country-list/retail-sales-mom',
+              'wageGrowth': 'https://tradingeconomics.com/country-list/wage-growth',
+              'manufacturingPMI': 'https://tradingeconomics.com/country-list/manufacturing-pmi'
           }
           
           COUNTRY_NAMES = {
@@ -122,54 +129,33 @@ jobs:
               return None
           
           def parse_trade_balance_row(cols, currency_code):
-              """
-              Parse Trade Balance row with ALL columns
-              
-              Expected columns:
-              0: Country
-              1: Last (current value)
-              2: Previous 
-              3: Reference (date)
-              4: Unit (e.g., "JPY Billion", "USD Million")
-              """
+              """Parse Trade Balance with unit conversion"""
               if len(cols) < 5:
                   print(f"    ⚠️  {currency_code}: Not enough columns ({len(cols)})")
                   return None
               
               country_text = cols[0].get_text(strip=True)
               last_text = cols[1].get_text(strip=True)
-              previous_text = cols[2].get_text(strip=True)
-              reference_text = cols[3].get_text(strip=True)
               unit_text = cols[4].get_text(strip=True)
               
-              # Debug: Show all columns
-              print(f"    [DEBUG] Country: {country_text}")
-              print(f"    [DEBUG] Last: {last_text}")
-              print(f"    [DEBUG] Previous: {previous_text}")
-              print(f"    [DEBUG] Reference: {reference_text}")
-              print(f"    [DEBUG] Unit: {unit_text}")
-              
-              # Parse the value
               value = clean_number(last_text)
               if value is None:
                   print(f"    ❌ Could not parse value from '{last_text}'")
                   return None
               
-              # Parse unit to determine scale and currency
               unit_lower = unit_text.lower()
               
               # Determine scale
               if 'billion' in unit_lower:
-                  scale_multiplier = 1000  # billions to millions
+                  scale_multiplier = 1000
               elif 'million' in unit_lower:
                   scale_multiplier = 1
               elif 'trillion' in unit_lower:
-                  scale_multiplier = 1000000  # trillions to millions
+                  scale_multiplier = 1000000
               else:
-                  print(f"    ⚠️  Unknown scale in unit '{unit_text}', assuming millions")
                   scale_multiplier = 1
               
-              # Determine source currency from unit
+              # Determine source currency
               source_currency = None
               for curr in ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'NZD']:
                   if curr in unit_text.upper():
@@ -177,7 +163,6 @@ jobs:
                       break
               
               if source_currency is None:
-                  print(f"    ⚠️  Could not determine currency from unit '{unit_text}', assuming USD")
                   source_currency = 'USD'
               
               # Convert to millions in source currency
@@ -193,7 +178,7 @@ jobs:
                       return None
                   value_usd_millions = value_in_source_millions / fx_rate
               
-              print(f"    ✅ Conversion: {value} {unit_text} → {value_in_source_millions:,.0f} {source_currency} millions → {value_usd_millions:,.2f} USD millions")
+              print(f"    ✅ {currency_code}: {value} {unit_text} → {value_usd_millions:,.2f} USD millions")
               
               return round(value_usd_millions, 2)
           
@@ -227,13 +212,10 @@ jobs:
                           if any(name.lower() in country_text.lower() for name in country_names):
                               
                               if indicator_name == 'tradeBalance':
-                                  # Special handling for trade balance with all columns
-                                  print(f"\n  Processing {currency_code}:")
                                   value = parse_trade_balance_row(cols, currency_code)
                                   if value is not None:
                                       data[currency_code] = value
                               else:
-                                  # Standard handling for other indicators
                                   last_value_text = cols[1].get_text(strip=True)
                                   raw_value = clean_number(last_value_text)
                                   
@@ -260,16 +242,79 @@ jobs:
                   print(f"  ❌ Error: {e}")
                   return {}
           
+          def load_cot_data_from_file():
+              """
+              Load COT data from separate cot-data/ directory
+              This data is fetched by a separate workflow that runs weekly
+              Returns None if no COT data is available (COT is optional)
+              """
+              print(f"\n{'='*80}")
+              print("LOADING COT DATA FROM FILE")
+              print("Note: COT data is updated weekly by separate workflow")
+              print(f"{'='*80}")
+              
+              import os
+              
+              cot_data = {}
+              cot_dir = 'cot-data'
+              
+              if not os.path.exists(cot_dir):
+                  print(f"  ⚠️  {cot_dir}/ directory not found")
+                  print("     COT data will not be available")
+                  return {}
+              
+              currencies = ['EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'NZD']
+              
+              for currency in currencies:
+                  filepath = f"{cot_dir}/{currency}.json"
+                  
+                  if os.path.exists(filepath):
+                      try:
+                          with open(filepath, 'r') as f:
+                              data = json.load(f)
+                              
+                          net_position = data.get('netPosition')
+                          
+                          if net_position is not None:
+                              cot_data[currency] = net_position
+                              
+                              source = data.get('source', 'Unknown')
+                              report_date = data.get('reportDate', 'Unknown')
+                              
+                              print(f"  ✓ {currency}: {net_position:+,} contracts")
+                              print(f"    Source: {source} | Date: {report_date}")
+                          else:
+                              print(f"  ⚠️  {currency}: File exists but no netPosition found")
+                      
+                      except Exception as e:
+                          print(f"  ❌ {currency}: Error reading file - {e}")
+                  else:
+                      print(f"  ⚠️  {currency}: No COT data file")
+              
+              if len(cot_data) > 0:
+                  print(f"\n  ✅ Loaded COT data for {len(cot_data)}/7 currencies")
+              else:
+                  print(f"\n  ⚠️  No COT data available")
+                  print("     Run the update-cot workflow to fetch COT data")
+              
+              return cot_data
+          
           def scrape_all_indicators():
               all_data = {}
               for currency in CURRENCIES:
                   all_data[currency] = {}
               
+              # Scrape standard indicators
               for indicator_key, url in INDICATOR_URLS.items():
                   indicator_data = scrape_trading_economics_table(url, indicator_key)
                   for currency_code, value in indicator_data.items():
                       all_data[currency_code][indicator_key] = value
                   time.sleep(2)
+              
+              # Add COT positioning (from separate file, optional)
+              cot_data = load_cot_data_from_file()
+              for currency_code, value in cot_data.items():
+                  all_data[currency_code]['cotPositioning'] = value
               
               return all_data
           
@@ -283,7 +328,7 @@ jobs:
               for currency in CURRENCIES:
                   data = all_data.get(currency, {})
                   
-                  all_indicators = list(INDICATOR_URLS.keys())
+                  all_indicators = list(INDICATOR_URLS.keys()) + ['cotPositioning']
                   missing = [ind for ind in all_indicators if data.get(ind) is None]
                   
                   if missing:
@@ -293,11 +338,15 @@ jobs:
                   
                   data_package = {
                       'lastUpdate': today,
-                      'source': 'TradingEconomics',
-                      'methodology': 'Automatic unit detection and conversion from Trading Economics',
+                      'source': 'TradingEconomics + COT',
+                      'methodology': 'Web scraping with automatic unit conversion',
                       'units': {
                           'gdp': 'Trillions USD',
-                          'tradeBalance': 'Millions USD (monthly, auto-converted from source unit)',
+                          'tradeBalance': 'Millions USD (monthly)',
+                          'retailSales': '% Month-over-Month',
+                          'wageGrowth': '% Year-over-Year',
+                          'manufacturingPMI': 'Index (>50 = expansion)',
+                          'cotPositioning': 'Net contracts (positive = bullish)',
                           'other': 'Percentages'
                       },
                       'data': data
@@ -308,28 +357,70 @@ jobs:
           
           def print_summary(all_data):
               print(f"\n{'='*80}")
-              print("TRADE BALANCE SUMMARY (USD Millions/month)")
+              print("SUMMARY - NEW INDICATORS")
               print(f"{'='*80}")
               
+              print("\n📊 RETAIL SALES (MoM %)")
+              print("-" * 40)
+              for currency in CURRENCIES:
+                  rs = all_data.get(currency, {}).get('retailSales')
+                  if rs is not None:
+                      status = "📈" if rs > 0 else "📉"
+                      print(f"  {currency}: {rs:+6.2f}%  {status}")
+                  else:
+                      print(f"  {currency}:    N/A")
+              
+              print("\n💰 WAGE GROWTH (YoY %)")
+              print("-" * 40)
+              for currency in CURRENCIES:
+                  wg = all_data.get(currency, {}).get('wageGrowth')
+                  if wg is not None:
+                      status = "🔥" if wg > 3.5 else "✓"
+                      print(f"  {currency}: {wg:6.2f}%  {status}")
+                  else:
+                      print(f"  {currency}:    N/A")
+              
+              print("\n🏭 MANUFACTURING PMI")
+              print("-" * 40)
+              for currency in CURRENCIES:
+                  pmi = all_data.get(currency, {}).get('manufacturingPMI')
+                  if pmi is not None:
+                      status = "💪" if pmi > 50 else "⚠️"
+                      print(f"  {currency}: {pmi:6.2f}  {status}")
+                  else:
+                      print(f"  {currency}:    N/A")
+              
+              print("\n📊 COT POSITIONING (Net)")
+              print("-" * 40)
               sorted_currencies = sorted(
-                  CURRENCIES,
-                  key=lambda c: all_data.get(c, {}).get('tradeBalance', 0) or 0,
+                  [c for c in CURRENCIES if c != 'USD'],
+                  key=lambda c: all_data.get(c, {}).get('cotPositioning', 0) or 0,
                   reverse=True
               )
               
               for currency in sorted_currencies:
-                  tb = all_data.get(currency, {}).get('tradeBalance')
-                  if tb is not None:
-                      status = "✓ Surplus" if tb > 0 else "✗ Deficit"
-                      print(f"  {currency}: {tb:+15,.2f} M USD/mo  ({status})")
+                  cot = all_data.get(currency, {}).get('cotPositioning')
+                  if cot is not None:
+                      if cot > 15:
+                          status = "🟢 Strong Bullish"
+                      elif cot > 5:
+                          status = "🟡 Bullish"
+                      elif cot > -5:
+                          status = "⚪ Neutral"
+                      elif cot > -15:
+                          status = "🟠 Bearish"
+                      else:
+                          status = "🔴 Strong Bearish"
+                      print(f"  {currency}: {cot:+8.1f}  {status}")
                   else:
-                      print(f"  {currency}:            N/A")
+                      print(f"  {currency}:      N/A")
               
               print(f"\n{'='*80}")
           
           if __name__ == '__main__':
               print("="*80)
-              print("ECONOMIC DATA SCRAPER - AUTO UNIT DETECTION")
+              print("ENHANCED ECONOMIC DATA SCRAPER")
+              print("NEW: Retail Sales, Wage Growth, Manufacturing PMI, COT")
               print("="*80)
               
               if not fetch_exchange_rates():
@@ -343,7 +434,7 @@ jobs:
           
           EOFPYTHON
           
-          python scrape_economics_debug.py
+          python scrape_economics_enhanced.py
       
       - name: Commit and push
         run: |
@@ -353,7 +444,7 @@ jobs:
           if git diff --quiet && git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "📊 Auto unit detection for Trade Balance $(date +'%Y-%m-%d')"
+            git commit -m "📊 Enhanced data: Retail Sales, Wage Growth, PMI, COT $(date +'%Y-%m-%d')"
             git pull --rebase origin main || true
             git push
           fi
