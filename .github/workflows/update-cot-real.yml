@@ -1,0 +1,534 @@
+name: Update COT Data (Real CFTC Data Only)
+on:
+  schedule:
+    - cron: '0 20 * * 5'  # Fridays at 8:00 PM UTC (after CFTC 3:30 PM ET release)
+  workflow_dispatch:
+
+jobs:
+  update-cot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 lxml pandas --break-system-packages
+      
+      - name: Create cot-data directory
+        run: mkdir -p cot-data
+      
+      - name: Fetch real COT data from CFTC
+        run: |
+          cat > fetch_cot_real.py << 'EOFPYTHON'
+          import requests
+          from bs4 import BeautifulSoup
+          import json
+          import re
+          from datetime import date, datetime
+          import time
+          import io
+          
+          HEADERS = {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.9',
+          }
+          
+          # CFTC futures symbols for forex
+          CFTC_SYMBOLS = {
+              'EUR': {
+                  'name': 'EURO FX',
+                  'code': '099741',  # CME Euro FX futures
+                  'contract': '6E'
+              },
+              'GBP': {
+                  'name': 'BRITISH POUND STERLING',
+                  'code': '096742',  # CME British Pound futures
+                  'contract': '6B'
+              },
+              'JPY': {
+                  'name': 'JAPANESE YEN',
+                  'code': '097741',  # CME Japanese Yen futures
+                  'contract': '6J'
+              },
+              'CAD': {
+                  'name': 'CANADIAN DOLLAR',
+                  'code': '090741',  # CME Canadian Dollar futures
+                  'contract': '6C'
+              },
+              'AUD': {
+                  'name': 'AUSTRALIAN DOLLAR',
+                  'code': '232741',  # CME Australian Dollar futures
+                  'contract': '6A'
+              },
+              'CHF': {
+                  'name': 'SWISS FRANC',
+                  'code': '092741',  # CME Swiss Franc futures
+                  'contract': '6S'
+              },
+              'NZD': {
+                  'name': 'NEW ZEALAND DOLLAR',
+                  'code': '112741',  # CME New Zealand Dollar futures
+                  'contract': '6N'
+              }
+          }
+          
+          def fetch_cftc_disaggregated_report():
+              """
+              Fetch latest Disaggregated Futures report from CFTC
+              This is the official weekly report released every Friday at 3:30 PM ET
+              """
+              print("\n" + "="*80)
+              print("FETCHING CFTC DISAGGREGATED FUTURES REPORT")
+              print("Official source: https://www.cftc.gov")
+              print("="*80)
+              
+              try:
+                  # CFTC releases data in multiple formats
+                  # We'll try Excel format first (most reliable)
+                  
+                  base_url = "https://www.cftc.gov/dea/futures/deacmxsf.htm"
+                  
+                  print("\n📊 Accessing CFTC reports page...")
+                  response = requests.get(base_url, headers=HEADERS, timeout=20)
+                  soup = BeautifulSoup(response.content, 'lxml')
+                  
+                  # Find the latest Disaggregated report link
+                  # Format: "f_year.xls" or "deacmxsYYYY.xls"
+                  
+                  links = soup.find_all('a', href=True)
+                  excel_links = [link for link in links if '.xls' in link['href'].lower()]
+                  
+                  if not excel_links:
+                      print("❌ No Excel report links found on CFTC page")
+                      return None
+                  
+                  # Get the most recent file
+                  latest_link = None
+                  for link in excel_links:
+                      href = link['href']
+                      if 'deacmxsf' in href.lower() or 'disaggregated' in href.lower():
+                          latest_link = href
+                          break
+                  
+                  if not latest_link:
+                      # Try any Excel link as fallback
+                      latest_link = excel_links[0]['href']
+                  
+                  # Make sure it's a full URL
+                  if not latest_link.startswith('http'):
+                      latest_link = f"https://www.cftc.gov{latest_link}"
+                  
+                  print(f"📥 Downloading: {latest_link}")
+                  
+                  # Download the Excel file
+                  excel_response = requests.get(latest_link, headers=HEADERS, timeout=30)
+                  excel_response.raise_for_status()
+                  
+                  print("✅ Report downloaded successfully")
+                  return excel_response.content
+                  
+              except Exception as e:
+                  print(f"❌ Error fetching CFTC report: {e}")
+                  return None
+          
+          def parse_cftc_excel_data(excel_content):
+              """
+              Parse CFTC Excel file and extract forex positioning data
+              """
+              print("\n" + "="*80)
+              print("PARSING CFTC EXCEL DATA")
+              print("="*80)
+              
+              try:
+                  import pandas as pd
+                  
+                  # Read Excel file
+                  df = pd.read_excel(io.BytesIO(excel_content))
+                  
+                  print(f"\n📋 Loaded {len(df)} rows")
+                  
+                  cot_data = {}
+                  
+                  # Look for each currency
+                  for currency, info in CFTC_SYMBOLS.items():
+                      print(f"\n🔍 Searching for {currency} ({info['name']})...")
+                      
+                      # Find rows matching this currency
+                      mask = df['Market_and_Exchange_Names'].str.contains(
+                          info['name'], 
+                          case=False, 
+                          na=False
+                      )
+                      
+                      currency_rows = df[mask]
+                      
+                      if len(currency_rows) == 0:
+                          print(f"  ⚠️  Not found in report")
+                          continue
+                      
+                      # Get the latest (most recent) row
+                      latest_row = currency_rows.iloc[-1]
+                      
+                      # Extract positioning data
+                      # Non-Commercial = speculators (hedge funds, CTAs, etc.)
+                      # We want: Long - Short = Net Position
+                      
+                      try:
+                          noncomm_long = float(latest_row.get('NonComm_Positions_Long_All', 0))
+                          noncomm_short = float(latest_row.get('NonComm_Positions_Short_All', 0))
+                          net_position = noncomm_long - noncomm_short
+                          
+                          report_date = latest_row.get('Report_Date_as_YYYY-MM-DD', 'Unknown')
+                          
+                          cot_data[currency] = {
+                              'netPosition': int(net_position),
+                              'long': int(noncomm_long),
+                              'short': int(noncomm_short),
+                              'reportDate': str(report_date),
+                              'source': 'CFTC Official'
+                          }
+                          
+                          print(f"  ✅ Long: {noncomm_long:,.0f} | Short: {noncomm_short:,.0f} | Net: {net_position:+,.0f}")
+                          print(f"     Report Date: {report_date}")
+                          
+                      except Exception as e:
+                          print(f"  ❌ Error parsing data: {e}")
+                          continue
+                  
+                  return cot_data
+                  
+              except Exception as e:
+                  print(f"❌ Error parsing Excel: {e}")
+                  print(f"   Make sure pandas and openpyxl are installed")
+                  return {}
+          
+          def fetch_cot_from_quandl():
+              """
+              Alternative source: Quandl (free, no API key needed for basic data)
+              Only if CFTC direct download fails
+              """
+              print("\n" + "="*80)
+              print("TRYING ALTERNATIVE SOURCE: Quandl")
+              print("="*80)
+              
+              cot_data = {}
+              
+              # Quandl CFTC COT datasets
+              quandl_codes = {
+                  'EUR': 'CHRIS/CME_EC1',  # Euro FX
+                  'GBP': 'CHRIS/CME_BP1',  # British Pound
+                  'JPY': 'CHRIS/CME_JY1',  # Japanese Yen
+                  'CAD': 'CHRIS/CME_CD1',  # Canadian Dollar
+                  'AUD': 'CHRIS/CME_AD1',  # Australian Dollar
+                  'CHF': 'CHRIS/CME_SF1',  # Swiss Franc
+                  'NZD': 'CHRIS/CME_NE1'   # New Zealand Dollar
+              }
+              
+              for currency, code in quandl_codes.items():
+                  try:
+                      url = f"https://data.nasdaq.com/api/v3/datasets/{code}.json?rows=1"
+                      response = requests.get(url, timeout=15)
+                      
+                      if response.ok:
+                          data = response.json()
+                          
+                          if 'dataset' in data and 'data' in data['dataset']:
+                              latest = data['dataset']['data'][0]
+                              
+                              # Format: [Date, Open, High, Low, Last, Change, Settle, Volume, OpenInt]
+                              # For COT we need to find NonComm Long/Short
+                              # This is simplified - real COT data has more columns
+                              
+                              print(f"  ℹ️  {currency}: Data available but format needs verification")
+                      
+                      time.sleep(0.5)
+                      
+                  except Exception as e:
+                      print(f"  ⚠️  {currency}: {e}")
+                      continue
+              
+              return cot_data
+          
+          def fetch_cot_from_investing_com():
+              """
+              Scrape COT data from Investing.com
+              They publish CFTC data in a readable format
+              """
+              print("\n" + "="*80)
+              print("TRYING SOURCE: Investing.com COT Reports")
+              print("="*80)
+              
+              try:
+                  url = "https://www.investing.com/economic-calendar/cot-speculative-positions-466"
+                  response = requests.get(url, headers=HEADERS, timeout=20)
+                  soup = BeautifulSoup(response.content, 'lxml')
+                  
+                  cot_data = {}
+                  
+                  # Look for tables with COT data
+                  tables = soup.find_all('table')
+                  
+                  for table in tables:
+                      rows = table.find_all('tr')
+                      
+                      for row in rows:
+                          cells = row.find_all(['td', 'th'])
+                          
+                          if len(cells) >= 3:
+                              text = ' '.join([cell.get_text(strip=True) for cell in cells]).lower()
+                              
+                              for currency, info in CFTC_SYMBOLS.items():
+                                  if currency.lower() in text or info['contract'].lower() in text:
+                                      
+                                      # Try to extract the net position
+                                      for cell in cells:
+                                          cell_text = cell.get_text(strip=True)
+                                          
+                                          # Look for numbers that could be net positions
+                                          match = re.search(r'([+-]?\d+[,\.]?\d*)[kKmM]?', cell_text)
+                                          if match:
+                                              value_str = match.group(1).replace(',', '')
+                                              
+                                              try:
+                                                  value = float(value_str)
+                                                  
+                                                  # Convert K/M suffixes
+                                                  if 'k' in cell_text.lower():
+                                                      value *= 1000
+                                                  elif 'm' in cell_text.lower():
+                                                      value *= 1000000
+                                                  
+                                                  if currency not in cot_data:
+                                                      cot_data[currency] = {
+                                                          'netPosition': int(value),
+                                                          'source': 'Investing.com',
+                                                          'reportDate': str(date.today())
+                                                      }
+                                                      print(f"  ✓ {currency}: {value:+,.0f}")
+                                                      break
+                                              except:
+                                                  continue
+                  
+                  return cot_data
+                  
+              except Exception as e:
+                  print(f"❌ Error: {e}")
+                  return {}
+          
+          def fetch_cot_from_barchart():
+              """
+              Scrape from Barchart - they have clean COT data presentation
+              """
+              print("\n" + "="*80)
+              print("TRYING SOURCE: Barchart")
+              print("="*80)
+              
+              cot_data = {}
+              
+              for currency, info in CFTC_SYMBOLS.items():
+                  try:
+                      url = f"https://www.barchart.com/futures/commitment-of-traders/futures-only/{info['contract']}"
+                      response = requests.get(url, headers=HEADERS, timeout=15)
+                      
+                      if response.ok:
+                          soup = BeautifulSoup(response.content, 'lxml')
+                          
+                          # Look for "Non-Commercial Net" position
+                          tables = soup.find_all('table')
+                          
+                          for table in tables:
+                              rows = table.find_all('tr')
+                              
+                              for row in rows:
+                                  cells = row.find_all(['td', 'th'])
+                                  
+                                  for i, cell in enumerate(cells):
+                                      text = cell.get_text(strip=True).lower()
+                                      
+                                      if 'non-commercial' in text and 'net' in text:
+                                          # Next cell should have the value
+                                          if i + 1 < len(cells):
+                                              value_text = cells[i + 1].get_text(strip=True)
+                                              value_text = value_text.replace(',', '').replace('+', '')
+                                              
+                                              try:
+                                                  net_position = float(value_text)
+                                                  
+                                                  cot_data[currency] = {
+                                                      'netPosition': int(net_position),
+                                                      'source': 'Barchart',
+                                                      'reportDate': str(date.today())
+                                                  }
+                                                  
+                                                  print(f"  ✓ {currency}: {net_position:+,.0f} contracts")
+                                                  break
+                                              except:
+                                                  continue
+                      
+                      time.sleep(1)
+                      
+                  except Exception as e:
+                      print(f"  ⚠️  {currency}: {e}")
+                      continue
+              
+              return cot_data
+          
+          # ============================================
+          # MAIN EXECUTION
+          # ============================================
+          
+          print("\n" + "="*80)
+          print("COT DATA FETCHER - REAL DATA ONLY")
+          print("Source Priority: CFTC Official > Barchart > Investing.com")
+          print("="*80)
+          
+          final_cot_data = {}
+          
+          # ========== METHOD 1: CFTC Official Excel Report ==========
+          excel_data = fetch_cftc_disaggregated_report()
+          
+          if excel_data:
+              cot_from_excel = parse_cftc_excel_data(excel_data)
+              
+              if cot_from_excel:
+                  final_cot_data.update(cot_from_excel)
+                  print(f"\n✅ CFTC Official: {len(cot_from_excel)}/7 currencies")
+          
+          # ========== METHOD 2: Barchart (for missing currencies) ==========
+          missing = [c for c in CFTC_SYMBOLS.keys() if c not in final_cot_data]
+          
+          if missing:
+              print(f"\n🔄 Fetching missing currencies from Barchart: {', '.join(missing)}")
+              barchart_data = fetch_cot_from_barchart()
+              
+              for currency, data in barchart_data.items():
+                  if currency not in final_cot_data:
+                      final_cot_data[currency] = data
+          
+          # ========== METHOD 3: Investing.com (last resort) ==========
+          missing = [c for c in CFTC_SYMBOLS.keys() if c not in final_cot_data]
+          
+          if missing:
+              print(f"\n🔄 Trying Investing.com for: {', '.join(missing)}")
+              investing_data = fetch_cot_from_investing_com()
+              
+              for currency, data in investing_data.items():
+                  if currency not in final_cot_data:
+                      final_cot_data[currency] = data
+          
+          # ========== SAVE RESULTS ==========
+          print("\n" + "="*80)
+          print("SAVING COT DATA")
+          print("="*80)
+          
+          if not final_cot_data:
+              print("\n❌ CRITICAL ERROR: NO COT DATA OBTAINED")
+              print("   Possible reasons:")
+              print("   - CFTC website is down")
+              print("   - Report not yet published (check time)")
+              print("   - Network issues")
+              print("\n⚠️  COT data will NOT be available in dashboard")
+              exit(0)  # Don't fail the workflow, just skip COT
+          
+          for currency, data in final_cot_data.items():
+              filename = f'cot-data/{currency}.json'
+              
+              with open(filename, 'w') as f:
+                  json.dump(data, f, indent=2)
+              
+              print(f"💾 {currency}: {data['netPosition']:+,} ({data['source']})")
+          
+          # ========== VALIDATION ==========
+          print("\n" + "="*80)
+          print("VALIDATION")
+          print("="*80)
+          
+          missing = [c for c in CFTC_SYMBOLS.keys() if c not in final_cot_data]
+          
+          if missing:
+              print(f"\n⚠️  Missing COT data for: {', '.join(missing)}")
+              print("   These currencies will show 'N/A' in dashboard")
+          else:
+              print("\n✅ COMPLETE: All 7 currencies have COT data")
+          
+          print("\n" + "="*80)
+          print("COT POSITIONING SUMMARY")
+          print("="*80)
+          
+          sorted_currencies = sorted(
+              final_cot_data.keys(),
+              key=lambda c: final_cot_data[c]['netPosition'],
+              reverse=True
+          )
+          
+          for currency in sorted_currencies:
+              data = final_cot_data[currency]
+              net = data['netPosition']
+              
+              if net > 50000:
+                  sentiment = "🟢 Strong Bullish"
+              elif net > 20000:
+                  sentiment = "🟡 Bullish"
+              elif net > -20000:
+                  sentiment = "⚪ Neutral"
+              elif net > -50000:
+                  sentiment = "🟠 Bearish"
+              else:
+                  sentiment = "🔴 Strong Bearish"
+              
+              print(f"{currency}: {net:+10,} contracts  {sentiment}")
+              print(f"       Source: {data['source']} | Date: {data['reportDate']}")
+          
+          print("\n✅ COT UPDATE COMPLETED")
+          
+          EOFPYTHON
+          
+          python fetch_cot_real.py
+      
+      - name: Display COT summary
+        run: |
+          echo ""
+          echo "╔════════════════════════════════════════════════╗"
+          echo "║         COT POSITIONING SUMMARY                ║"
+          echo "╚════════════════════════════════════════════════╝"
+          echo ""
+          
+          for currency in EUR GBP JPY AUD CAD CHF NZD; do
+            if [ -f "cot-data/$currency.json" ]; then
+              echo "[$currency]"
+              python3 -c "
+          import json
+          with open('cot-data/$currency.json') as f:
+              data = json.load(f)
+              print(f\"  Net Position: {data['netPosition']:+,} contracts\")
+              if 'long' in data and 'short' in data:
+                  print(f\"  Long: {data['long']:,} | Short: {data['short']:,}\")
+              print(f\"  Source: {data['source']}\")
+              print(f\"  Report Date: {data['reportDate']}\")
+          "
+              echo ""
+            else
+              echo "[$currency] - No data available"
+              echo ""
+            fi
+          done
+      
+      - name: Commit and push
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add cot-data/
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "📊 COT update $(date +'%Y-%m-%d') - Real CFTC data"
+            git pull --rebase origin main || true
+            git push
+          fi
