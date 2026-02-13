@@ -1602,241 +1602,234 @@
         // REFERENCIA: "Effective exchange rate indices: an update" (BIS, 2019)
         //             https://www.bis.org/publ/qtrpdf/r_qt1912e.pdf
         //
-        // METODOLOGÍA:
-        // 60% REER-based (estándar BIS simplificado)
-        // 40% Macroeconomic fundamentals (basado en IMF External Balance Assessment)
+        // METODOLOGÍA CORREGIDA:
+        // - Base neutral en 50 (escala 0-100)
+        // - Comparación RELATIVA entre todas las divisas
+        // - Balance entre factores positivos y negativos
+        // - Normalización final realista: 30-75 puntos típicos
         //
         // ========================================================================
 
         const calculateStrength = (currency, data = null, forexRates = {}, allEconomicData = {}) => {
             if (!data) return 50;
             
+            let totalScore = 50; // Base neutral
+            
             // ====================================================================
-            // PARTE 1: REER-BASED SCORE (60% del peso total)
+            // CÁLCULO DE PROMEDIOS GLOBALES (para comparación relativa)
             // ====================================================================
-            // Basado en metodología del BIS para Real Effective Exchange Rate
-            // Aproximación usando inflación relativa y competitividad
             
-            let reerScore = 100; // Base neutral
+            const allValues = Object.values(allEconomicData).filter(d => d && typeof d === 'object');
             
-            // ------------------------------------------------------------------
-            // 1.1 INFLACIÓN RELATIVA (core de REER)
-            // ------------------------------------------------------------------
-            // Principio: PPP (Purchasing Power Parity)
-            // Inflación baja relativa → moneda se aprecia en términos reales
-            
-            const allInflations = Object.values(allEconomicData)
-                .filter(d => d.inflation !== null && d.inflation !== undefined)
-                .map(d => d.inflation);
-            
-            const avgInflation = allInflations.length > 0 
-                ? allInflations.reduce((sum, inf) => sum + inf, 0) / allInflations.length
-                : 2.0;
-            
-            const inflationDiff = avgInflation - (data.inflation || 2.0);
-            reerScore += inflationDiff * 4; // Inflación baja = competitivo = fuerte
-            
-            // ------------------------------------------------------------------
-            // 1.2 PRODUCTIVIDAD RELATIVA (Balassa-Samuelson Effect)
-            // ------------------------------------------------------------------
-            // Mayor productividad → apreciación real de largo plazo
-            
-            const allGrowthRates = Object.values(allEconomicData)
-                .filter(d => d.gdpGrowth !== null && d.gdpGrowth !== undefined)
-                .map(d => d.gdpGrowth);
-            
-            const avgGrowth = allGrowthRates.length > 0
-                ? allGrowthRates.reduce((sum, g) => sum + g, 0) / allGrowthRates.length
-                : 1.5;
-            
-            const growthDiff = (data.gdpGrowth || 0) - avgGrowth;
-            reerScore += growthDiff * 6; // Productividad superior = fuerte
-            
-            // ------------------------------------------------------------------
-            // 1.3 COMPETITIVIDAD COMERCIAL (Trade Balance)
-            // ------------------------------------------------------------------
-            // Superávit persistente → demanda estructural por moneda
-            
-            if (data.tradeBalance !== null && data.tradeBalance !== undefined && data.gdp) {
-                const gdpMonthly = (data.gdp * 1000) / 12; // PIB mensual en billions
-                const tbPercent = (data.tradeBalance / gdpMonthly) * 100;
-                
-                // Normalizado: superávit >2% mensual es muy fuerte
-                if (tbPercent > 2.0) reerScore += 18;
-                else if (tbPercent > 1.0) reerScore += 14;
-                else if (tbPercent > 0.5) reerScore += 10;
-                else if (tbPercent > 0) reerScore += 6;
-                else if (tbPercent > -0.5) reerScore += 2;
-                else if (tbPercent > -1.5) reerScore -= 4;
-                else if (tbPercent > -2.5) reerScore -= 8;
-                else reerScore -= 12;
-            }
-            
-            // ------------------------------------------------------------------
-            // 1.4 TÉRMINOS DE INTERCAMBIO (Terms of Trade proxy)
-            // ------------------------------------------------------------------
-            // Commodities impactan fuertemente a AUD, CAD, NZD
-            
-            const commodityExposure = {
-                'AUD': 0.6,  // Alta exposición (hierro, carbón, gas)
-                'CAD': 0.5,  // Alta exposición (petróleo, madera)
-                'NZD': 0.4,  // Media exposición (lácteos, agricultura)
-                'NOK': 0.7,  // Muy alta (petróleo)
-                'RUB': 0.7,  // Muy alta (petróleo, gas)
-                'CLP': 0.6,  // Alta (cobre)
-                'BRL': 0.4   // Media (soja, hierro)
+            const calculateAverage = (key) => {
+                const values = allValues.filter(d => d[key] !== null && d[key] !== undefined).map(d => d[key]);
+                return values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : null;
             };
             
-            if (commodityExposure[currency] && data.tradeBalance !== null) {
-                // Si hay superávit comercial, asumimos commodities favorables
-                const commodityEffect = data.tradeBalance > 0 
-                    ? commodityExposure[currency] * 10
-                    : -commodityExposure[currency] * 8;
-                reerScore += commodityEffect;
-            }
-            
-            // ------------------------------------------------------------------
-            // 1.5 DIFERENCIAL DE TASAS (UIP - Uncovered Interest Parity)
-            // ------------------------------------------------------------------
-            // Carry trade: tasas altas atraen flujos de capital
-            
-            const allRates = Object.values(allEconomicData)
-                .filter(d => d.interestRate !== null && d.interestRate !== undefined)
-                .map(d => d.interestRate);
-            
-            const avgRate = allRates.length > 0
-                ? allRates.reduce((sum, r) => sum + r, 0) / allRates.length
-                : 3.5;
-            
-            const rateDiff = (data.interestRate || 0) - avgRate;
-            reerScore += rateDiff * 3; // Peso moderado (carry trade es corto plazo)
-            
-            // ------------------------------------------------------------------
-            // 1.6 SAFE HAVEN STATUS
-            // ------------------------------------------------------------------
-            // CHF, JPY, USD tienen demanda estructural como refugio
-            
-            const safeHavenPremium = {
-                'CHF': 10,  // Safe haven #1 (neutralidad, estabilidad)
-                'JPY': 6,   // Safe haven #2 (pero tasas bajas contrarrestan)
-                'USD': 7    // Reserve currency + safe haven
-            };
-            
-            if (safeHavenPremium[currency]) {
-                reerScore += safeHavenPremium[currency];
-            }
-            
-            // Normalizar REER score a rango 0-100
-            const reerNormalized = Math.max(0, Math.min(100, reerScore));
+            const avgInflation = calculateAverage('inflation') || 2.0;
+            const avgGdpGrowth = calculateAverage('gdpGrowth') || 1.5;
+            const avgInterestRate = calculateAverage('interestRate') || 3.5;
+            const avgUnemployment = calculateAverage('unemployment') || 5.0;
+            const avgCurrentAccount = calculateAverage('currentAccount') || 0;
+            const avgDebt = calculateAverage('debt') || 100;
             
             // ====================================================================
-            // PARTE 2: MACROECONOMIC FUNDAMENTALS SCORE (40% del peso)
+            // 1. INFLACIÓN RELATIVA (peso: 15 puntos)
             // ====================================================================
-            // Basado en IMF External Balance Assessment (EBA) methodology
-            
-            let fundamentalsScore = 50; // Base neutral
-            
-            // ------------------------------------------------------------------
-            // 2.1 CUENTA CORRIENTE (External Balance)
-            // ------------------------------------------------------------------
-            // FMI considera esto fundamental para valoración de largo plazo
-            
-            if (data.currentAccount !== null && data.currentAccount !== undefined) {
-                if (data.currentAccount > 6) fundamentalsScore += 15;
-                else if (data.currentAccount > 3) fundamentalsScore += 12;
-                else if (data.currentAccount > 1.5) fundamentalsScore += 9;
-                else if (data.currentAccount > 0) fundamentalsScore += 6;
-                else if (data.currentAccount > -1.5) fundamentalsScore += 2;
-                else if (data.currentAccount > -3) fundamentalsScore -= 4;
-                else if (data.currentAccount > -5) fundamentalsScore -= 9;
-                else fundamentalsScore -= 14;
-            }
-            
-            // ------------------------------------------------------------------
-            // 2.2 SOLIDEZ FISCAL (Debt to GDP)
-            // ------------------------------------------------------------------
-            // Deuda alta → riesgo soberano → presión vendedora
-            
-            if (data.debt !== null && data.debt !== undefined) {
-                if (data.debt < 40) fundamentalsScore += 10;
-                else if (data.debt < 60) fundamentalsScore += 7;
-                else if (data.debt < 90) fundamentalsScore += 3;
-                else if (data.debt < 110) fundamentalsScore += 0;
-                else if (data.debt < 140) fundamentalsScore -= 5;
-                else if (data.debt < 200) fundamentalsScore -= 10;
-                else fundamentalsScore -= 15; // JPY 264%!
-            }
-            
-            // ------------------------------------------------------------------
-            // 2.3 MERCADO LABORAL (Unemployment)
-            // ------------------------------------------------------------------
-            // Pleno empleo → economía sana → fortaleza
-            
-            if (data.unemployment !== null && data.unemployment !== undefined) {
-                if (data.unemployment < 3.0) fundamentalsScore += 8;
-                else if (data.unemployment < 4.0) fundamentalsScore += 6;
-                else if (data.unemployment < 5.0) fundamentalsScore += 4;
-                else if (data.unemployment < 6.5) fundamentalsScore += 1;
-                else if (data.unemployment < 8.0) fundamentalsScore -= 2;
-                else fundamentalsScore -= 6;
-            }
-            
-            // ------------------------------------------------------------------
-            // 2.4 CRECIMIENTO ECONÓMICO (GDP Growth)
-            // ------------------------------------------------------------------
-            // Ya incluido en REER via productividad, pero reforzamos
-            
-            if (data.gdpGrowth !== null && data.gdpGrowth !== undefined) {
-                if (data.gdpGrowth >= 2.5) fundamentalsScore += 8;
-                else if (data.gdpGrowth >= 2.0) fundamentalsScore += 6;
-                else if (data.gdpGrowth >= 1.5) fundamentalsScore += 4;
-                else if (data.gdpGrowth >= 1.0) fundamentalsScore += 2;
-                else if (data.gdpGrowth >= 0.5) fundamentalsScore += 0;
-                else if (data.gdpGrowth >= 0) fundamentalsScore -= 3;
-                else fundamentalsScore -= 8; // Recesión
-            }
-            
-            // ------------------------------------------------------------------
-            // 2.5 ESTABILIDAD DE PRECIOS (Inflation vs Target)
-            // ------------------------------------------------------------------
-            // Inflación controlada = credibilidad del banco central
+            // Inflación cerca del 2% objetivo es ideal
+            // Inflación muy alta o muy baja es negativa
             
             if (data.inflation !== null && data.inflation !== undefined) {
                 const inflationTarget = 2.0;
                 const inflationDev = Math.abs(data.inflation - inflationTarget);
+                const inflationRelativeDev = data.inflation - avgInflation;
                 
-                if (inflationDev <= 0.5) fundamentalsScore += 10; // En objetivo
-                else if (inflationDev <= 1.0) fundamentalsScore += 6;
-                else if (inflationDev <= 1.5) fundamentalsScore += 3;
-                else if (inflationDev <= 2.5) fundamentalsScore -= 2;
-                else fundamentalsScore -= 7; // Muy desviado
+                if (inflationDev <= 0.5) {
+                    totalScore += 8; // En objetivo perfecto
+                } else if (inflationDev <= 1.0) {
+                    totalScore += 5; // Cercano al objetivo
+                } else if (inflationDev <= 1.5) {
+                    totalScore += 2; // Aceptable
+                } else if (inflationDev <= 2.5) {
+                    totalScore -= 3; // Desviado
+                } else {
+                    totalScore -= 8; // Muy desviado
+                }
+                
+                // Ajuste relativo: inflación baja vs promedio es bueno
+                if (inflationRelativeDev < -1.0) totalScore += 4;
+                else if (inflationRelativeDev < 0) totalScore += 2;
+                else if (inflationRelativeDev > 1.5) totalScore -= 4;
             }
             
-            // ------------------------------------------------------------------
-            // 2.6 PRODUCCIÓN INDUSTRIAL (Momentum económico)
-            // ------------------------------------------------------------------
+            // ====================================================================
+            // 2. CRECIMIENTO GDP (peso: 12 puntos)
+            // ====================================================================
+            
+            if (data.gdpGrowth !== null && data.gdpGrowth !== undefined) {
+                const growthRelative = data.gdpGrowth - avgGdpGrowth;
+                
+                if (data.gdpGrowth >= 3.0) totalScore += 10;
+                else if (data.gdpGrowth >= 2.5) totalScore += 8;
+                else if (data.gdpGrowth >= 2.0) totalScore += 6;
+                else if (data.gdpGrowth >= 1.5) totalScore += 3;
+                else if (data.gdpGrowth >= 1.0) totalScore += 1;
+                else if (data.gdpGrowth >= 0.5) totalScore -= 2;
+                else if (data.gdpGrowth >= 0) totalScore -= 5;
+                else totalScore -= 10; // Recesión
+                
+                // Ajuste relativo
+                if (growthRelative > 1.0) totalScore += 2;
+                else if (growthRelative < -1.0) totalScore -= 2;
+            }
+            
+            // ====================================================================
+            // 3. TASAS DE INTERÉS (peso: 10 puntos)
+            // ====================================================================
+            // Tasas altas atraen capital (carry trade)
+            
+            if (data.interestRate !== null && data.interestRate !== undefined) {
+                const rateDiff = data.interestRate - avgInterestRate;
+                
+                if (rateDiff > 2.0) totalScore += 8;
+                else if (rateDiff > 1.0) totalScore += 5;
+                else if (rateDiff > 0.5) totalScore += 3;
+                else if (rateDiff < -2.0) totalScore -= 8;
+                else if (rateDiff < -1.0) totalScore -= 5;
+                else if (rateDiff < -0.5) totalScore -= 2;
+                
+                // Penalización por tasas extremas
+                if (data.interestRate > 8.0) totalScore -= 3; // Demasiado alto puede indicar problemas
+                if (data.interestRate < 0) totalScore -= 5; // Tasas negativas son señal de debilidad
+            }
+            
+            // ====================================================================
+            // 4. BALANZA COMERCIAL (peso: 15 puntos)
+            // ====================================================================
+            // Superávit = demanda por moneda
+            
+            if (data.tradeBalance !== null && data.tradeBalance !== undefined && data.gdp) {
+                const gdpMonthly = (data.gdp * 1000) / 12;
+                const tbPercent = (data.tradeBalance / gdpMonthly) * 100;
+                
+                if (tbPercent > 3.0) totalScore += 12;
+                else if (tbPercent > 2.0) totalScore += 10;
+                else if (tbPercent > 1.0) totalScore += 7;
+                else if (tbPercent > 0.5) totalScore += 4;
+                else if (tbPercent > 0) totalScore += 2;
+                else if (tbPercent > -1.0) totalScore -= 2;
+                else if (tbPercent > -2.0) totalScore -= 5;
+                else if (tbPercent > -3.0) totalScore -= 9;
+                else totalScore -= 12;
+            }
+            
+            // ====================================================================
+            // 5. CUENTA CORRIENTE (peso: 12 puntos)
+            // ====================================================================
+            
+            if (data.currentAccount !== null && data.currentAccount !== undefined) {
+                const caRelative = data.currentAccount - avgCurrentAccount;
+                
+                if (data.currentAccount > 5) totalScore += 10;
+                else if (data.currentAccount > 3) totalScore += 8;
+                else if (data.currentAccount > 1.5) totalScore += 5;
+                else if (data.currentAccount > 0) totalScore += 2;
+                else if (data.currentAccount > -2) totalScore -= 2;
+                else if (data.currentAccount > -4) totalScore -= 6;
+                else totalScore -= 10;
+                
+                // Ajuste relativo
+                if (caRelative > 2) totalScore += 2;
+                else if (caRelative < -2) totalScore -= 2;
+            }
+            
+            // ====================================================================
+            // 6. DEUDA PÚBLICA (peso: 10 puntos)
+            // ====================================================================
+            
+            if (data.debt !== null && data.debt !== undefined) {
+                const debtRelative = avgDebt - data.debt; // Invertido: menos deuda es mejor
+                
+                if (data.debt < 40) totalScore += 8;
+                else if (data.debt < 60) totalScore += 5;
+                else if (data.debt < 90) totalScore += 2;
+                else if (data.debt < 110) totalScore -= 1;
+                else if (data.debt < 140) totalScore -= 4;
+                else if (data.debt < 180) totalScore -= 8;
+                else totalScore -= 12; // Deuda extrema
+                
+                // Ajuste relativo
+                if (debtRelative > 30) totalScore += 3;
+                else if (debtRelative < -30) totalScore -= 3;
+            }
+            
+            // ====================================================================
+            // 7. DESEMPLEO (peso: 8 puntos)
+            // ====================================================================
+            
+            if (data.unemployment !== null && data.unemployment !== undefined) {
+                const unemploymentRelative = avgUnemployment - data.unemployment;
+                
+                if (data.unemployment < 3.0) totalScore += 7;
+                else if (data.unemployment < 4.0) totalScore += 5;
+                else if (data.unemployment < 5.0) totalScore += 3;
+                else if (data.unemployment < 6.5) totalScore += 1;
+                else if (data.unemployment < 8.0) totalScore -= 2;
+                else if (data.unemployment < 10.0) totalScore -= 5;
+                else totalScore -= 8;
+                
+                // Ajuste relativo
+                if (unemploymentRelative > 1.5) totalScore += 2;
+                else if (unemploymentRelative < -1.5) totalScore -= 2;
+            }
+            
+            // ====================================================================
+            // 8. PRODUCCIÓN INDUSTRIAL (peso: 6 puntos)
+            // ====================================================================
             
             if (data.production !== null && data.production !== undefined) {
-                if (data.production > 2.0) fundamentalsScore += 4;
-                else if (data.production > 0.5) fundamentalsScore += 2;
-                else if (data.production > -0.5) fundamentalsScore += 0;
-                else if (data.production > -2.0) fundamentalsScore -= 2;
-                else fundamentalsScore -= 4;
+                if (data.production > 3.0) totalScore += 5;
+                else if (data.production > 1.5) totalScore += 3;
+                else if (data.production > 0.5) totalScore += 1;
+                else if (data.production > -0.5) totalScore += 0;
+                else if (data.production > -2.0) totalScore -= 2;
+                else totalScore -= 5;
             }
             
-            // Normalizar fundamentals score a rango 0-100
-            const fundamentalsNormalized = Math.max(0, Math.min(100, fundamentalsScore));
-            
             // ====================================================================
-            // COMBINACIÓN FINAL: 60% REER + 40% Fundamentals
+            // 9. FACTORES ESPECIALES
             // ====================================================================
             
-            const finalScore = (reerNormalized * 0.6) + (fundamentalsNormalized * 0.4);
+            // Safe Haven Premium
+            const safeHavenBonus = {
+                'CHF': 5,  // Neutralidad, estabilidad
+                'JPY': 3,  // Safe haven pero tasas bajas
+                'USD': 4   // Reserve currency
+            };
             
-            // Ajustar a rango 20-95 (dejar margen para casos extremos)
-            const adjustedScore = 20 + (finalScore * 0.75);
+            if (safeHavenBonus[currency]) {
+                totalScore += safeHavenBonus[currency];
+            }
             
-            return Math.max(20, Math.min(95, adjustedScore)).toFixed(1);
+            // Penalización por commodities dependencia en entorno desfavorable
+            const commodityRisk = {
+                'AUD': -2,  // Vulnerable a precios commodities
+                'CAD': -2,
+                'NZD': -1
+            };
+            
+            if (commodityRisk[currency] && data.tradeBalance && data.tradeBalance < 0) {
+                totalScore += commodityRisk[currency];
+            }
+            
+            // ====================================================================
+            // NORMALIZACIÓN FINAL
+            // ====================================================================
+            
+            // Limitar a rango realista: 30-75 típico, extremos 20-85
+            const finalScore = Math.max(20, Math.min(85, totalScore));
+            
+            return finalScore.toFixed(1);
         };
 
         const clearDashboardCache = () => {
@@ -2092,7 +2085,7 @@
 
             const getSentiment = (strength) => {
                 if (strength >= 60) return 'alcista';
-                if (strength <= 45) return 'bajista';
+                if (strength <= 40) return 'bajista';
                 return 'neutral';
             };
 
@@ -2563,7 +2556,7 @@
                         <div className="footer">
                             <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>DASHBOARD DE ANÁLISIS FUNDAMENTAL FOREX</div>
 <div style={{ marginBottom: '1rem' }}>
-    Metodología: 60% REER (BIS) + 40% Fundamentos (IMF EBA)<br/>
+    Metodología: Comparación relativa entre divisas basada en BIS REER + IMF EBA<br/>
     Referencia: Bank for International Settlements (2019)<br/>
     Datos actualizados diariamente desde Trading Economics
 </div>
