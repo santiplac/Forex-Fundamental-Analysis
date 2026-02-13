@@ -2806,7 +2806,19 @@ const getSortedCountries = () => {
         const dataA = economicData[a.code] || {};
         const dataB = economicData[b.code] || {};
         
-        // ✅ CORRECCIÓN: Contar celdas verdes en heatmap
+        // Primero: Ordenar por strength score
+        const strengthObjA = calculateStrength(a.code, dataA, forexRates, economicData);
+        const strengthObjB = calculateStrength(b.code, dataB, forexRates, economicData);
+        
+        const scoreA = strengthObjA.score || 50;
+        const scoreB = strengthObjB.score || 50;
+        
+        // ✅ CRÍTICO: Mayor score primero (descendente)
+        if (Math.abs(scoreA - scoreB) > 0.1) {
+            return scoreB - scoreA;
+        }
+        
+        // Desempate: Contar celdas verdes
         const indicators = [
             'gdpGrowth', 'interestRate', 'inflation', 'unemployment',
             'currentAccount', 'debt', 'tradeBalance', 'production',
@@ -2835,15 +2847,7 @@ const getSortedCountries = () => {
             }
         });
         
-        // ✅ CORRECCIÓN CRÍTICA: Invertir el orden (de mayor a menor)
-        // Si empatan en celdas verdes, desempatar por strength score
-        if (greenCellsA === greenCellsB) {
-            const strengthObjA = calculateStrength(a.code, dataA, forexRates, economicData);
-            const strengthObjB = calculateStrength(b.code, dataB, forexRates, economicData);
-            return (strengthObjB.score || 50) - (strengthObjA.score || 50);
-        }
-        
-        // ✅ CORRECCIÓN: Invertido para mostrar las MÁS FUERTES PRIMERO
+        // ✅ Más celdas verdes primero
         return greenCellsB - greenCellsA;
     });
 };
