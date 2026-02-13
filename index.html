@@ -2599,55 +2599,54 @@ const hasCOTData = () => {
                                                                 {country.code === 'USD' ? '1.0000' : rate.toFixed(4)}
                                                             </div>
                                                         </div>
+<div className="metric">
+                                                            <div className="metric-label">Ventas Minoristas</div>
+                                                            <div className="metric-value metric-value-small" style={{ 
+                                                                color: data.retailSales !== null && data.retailSales > 0.5 ? 'var(--green-strong)' : 
+                                                                       data.retailSales !== null && data.retailSales < -0.5 ? 'var(--red-strong)' : 
+                                                                       'var(--text-primary)' 
+                                                            }}>
+                                                                {data.retailSales !== null && data.retailSales !== undefined 
+                                                                    ? `${data.retailSales > 0 ? '+' : ''}${formatValue(data.retailSales)}%`
+                                                                    : 'N/D'}
+                                                            </div>
+                                                        </div>
+
                                                         <div className="metric">
-    <div className="metric-label">Ventas Minoristas</div>
-    <div className="metric-value metric-value-small" style={{ 
-        color: data.retailSales !== null && data.retailSales > 0.5 ? 'var(--green-strong)' : 
-               data.retailSales !== null && data.retailSales < -0.5 ? 'var(--red-strong)' : 
-               'var(--text-primary)' 
-    }}>
-        {data.retailSales !== null && data.retailSales !== undefined 
-            ? `${data.retailSales > 0 ? '+' : ''}${formatValue(data.retailSales)}%`
-            : 'N/D'}
-    </div>
-</div>
+                                                            <div className="metric-label">Crecimiento Salarial</div>
+                                                            <div className="metric-value metric-value-small" style={{ 
+                                                                color: data.wageGrowth !== null && data.wageGrowth >= 2.5 && data.wageGrowth <= 4.5 ? 'var(--green-strong)' : 
+                                                                       data.wageGrowth !== null && data.wageGrowth > 5.5 ? 'var(--orange)' : 
+                                                                       'var(--text-primary)' 
+                                                            }}>
+                                                                {formatValue(data.wageGrowth)}%
+                                                            </div>
+                                                        </div>
 
-<div className="metric">
-    <div className="metric-label">Crecimiento Salarial</div>
-    <div className="metric-value metric-value-small" style={{ 
-        color: data.wageGrowth !== null && data.wageGrowth >= 2.5 && data.wageGrowth <= 4.5 ? 'var(--green-strong)' : 
-               data.wageGrowth !== null && data.wageGrowth > 5.5 ? 'var(--orange)' : 
-               'var(--text-primary)' 
-    }}>
-        {formatValue(data.wageGrowth)}%
-    </div>
-</div>
+                                                        <div className="metric">
+                                                            <div className="metric-label">PMI Manufacturero</div>
+                                                            <div className="metric-value metric-value-small" style={{ 
+                                                                color: data.manufacturingPMI !== null && data.manufacturingPMI > 50 ? 'var(--green-strong)' : 
+                                                                       data.manufacturingPMI !== null && data.manufacturingPMI < 50 ? 'var(--red-strong)' : 
+                                                                       'var(--text-primary)' 
+                                                            }}>
+                                                                {formatValue(data.manufacturingPMI, 1)}
+                                                            </div>
+                                                        </div>
 
-<div className="metric">
-    <div className="metric-label">PMI Manufacturero</div>
-    <div className="metric-value metric-value-small" style={{ 
-        color: data.manufacturingPMI !== null && data.manufacturingPMI > 50 ? 'var(--green-strong)' : 
-               data.manufacturingPMI !== null && data.manufacturingPMI < 50 ? 'var(--red-strong)' : 
-               'var(--text-primary)' 
-    }}>
-        {formatValue(data.manufacturingPMI, 1)}
-    </div>
-</div>
-
-<div className="metric">
-<div className="metric">
-    <div className="metric-label">COT Positioning</div>
-    <div className="metric-value metric-value-small" style={{ 
-        color: data.cotPositioning !== null && data.cotPositioning > 10000 ? 'var(--green-strong)' : 
-               data.cotPositioning !== null && data.cotPositioning < -10000 ? 'var(--red-strong)' : 
-               data.cotPositioning !== null ? 'var(--text-primary)' :
-               'var(--text-tertiary)'
-    }}>
-        {data.cotPositioning !== null && data.cotPositioning !== undefined 
-            ? `${data.cotPositioning > 0 ? '+' : ''}${(data.cotPositioning / 1000).toFixed(1)}K`
-            : 'N/A'}
-    </div>
-</div>
+                                                        <div className="metric">
+                                                            <div className="metric-label">COT Positioning</div>
+                                                            <div className="metric-value metric-value-small" style={{ 
+                                                                color: data.cotPositioning !== null && data.cotPositioning > 10000 ? 'var(--green-strong)' : 
+                                                                       data.cotPositioning !== null && data.cotPositioning < -10000 ? 'var(--red-strong)' : 
+                                                                       data.cotPositioning !== null ? 'var(--text-primary)' :
+                                                                       'var(--text-tertiary)'
+                                                            }}>
+                                                                {data.cotPositioning !== null && data.cotPositioning !== undefined 
+                                                                    ? `${data.cotPositioning > 0 ? '+' : ''}${(data.cotPositioning / 1000).toFixed(1)}K`
+                                                                    : 'N/A'}
+                                                            </div>
+                                                        </div>
                                                     </div>
 
                                                     <div className="analysis-section">
