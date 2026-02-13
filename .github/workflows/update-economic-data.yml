@@ -1,4 +1,4 @@
-name: Update Economic Data - OECD Monthly Trade Balance
+name: Update Economic Data - Full Column Debug
 on:
   schedule:
     - cron: '0 6 * * *'
@@ -23,9 +23,9 @@ jobs:
       - name: Create data directory
         run: mkdir -p economic-data
       
-      - name: Scrape data with OECD for Trade Balance
+      - name: Scrape with full column reading
         run: |
-          cat > scrape_economics_oecd.py << 'EOFPYTHON'
+          cat > scrape_economics_debug.py << 'EOFPYTHON'
           import requests
           from bs4 import BeautifulSoup
           import json
@@ -41,7 +41,6 @@ jobs:
           
           CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'NZD']
           
-          # Trading Economics URLs (all EXCEPT trade balance)
           INDICATOR_URLS = {
               'gdp': 'https://tradingeconomics.com/country-list/gdp?continent=world',
               'gdpGrowth': 'https://tradingeconomics.com/country-list/gdp-growth-rate?continent=world',
@@ -50,6 +49,7 @@ jobs:
               'debt': 'https://tradingeconomics.com/country-list/government-debt-to-gdp',
               'currentAccount': 'https://tradingeconomics.com/country-list/current-account-to-gdp?continent=world',
               'production': 'https://tradingeconomics.com/country-list/industrial-production?continent=world',
+              'tradeBalance': 'https://tradingeconomics.com/country-list/balance-of-trade'
           }
           
           COUNTRY_NAMES = {
@@ -61,18 +61,6 @@ jobs:
               'AUD': ['Australia'],
               'CHF': ['Switzerland'],
               'NZD': ['New Zealand']
-          }
-          
-          # OECD country codes
-          OECD_CODES = {
-              'USD': 'USA',
-              'EUR': 'EA19',  # Euro Area (19 countries)
-              'GBP': 'GBR',
-              'JPY': 'JPN',
-              'CAD': 'CAN',
-              'AUD': 'AUS',
-              'CHF': 'CHE',
-              'NZD': 'NZL'
           }
           
           exchange_rates = {}
@@ -121,75 +109,6 @@ jobs:
                   print(f"❌ Error: {e}")
                   return False
           
-          def fetch_oecd_trade_balance(currency_code):
-              """
-              Fetch MONTHLY trade balance from OECD API
-              
-              OECD Dataset: MEI (Main Economic Indicators)
-              Subject: XTNTVA01 - Trade Balance (goods and services)
-              Measure: STSA - Seasonally adjusted
-              Frequency: M - Monthly
-              
-              Returns: value in millions USD (monthly), or None if not available
-              """
-              oecd_code = OECD_CODES.get(currency_code)
-              if not oecd_code:
-                  print(f"  ⚠️  {currency_code}: No OECD country code")
-                  return None
-              
-              # OECD SDMX-JSON API
-              # Format: https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_FINMARK,1.0/
-              #         {LOCATION}.{SUBJECT}.{MEASURE}.{FREQUENCY}?startPeriod=2023-01&dimensionAtObservation=TIME_PERIOD
-              
-              url = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_FINMARK,1.0/"
-              
-              # Try different subject codes for trade balance
-              subjects = [
-                  'XTNTVA01',  # Trade balance (preferred)
-                  'XTEXVA01',  # Exports
-                  'XTIMVA01',  # Imports (we can calculate TB = EX - IM)
-              ]
-              
-              for subject in subjects:
-                  query = f"{oecd_code}.{subject}.STSA.M"
-                  params = {
-                      'startPeriod': '2023-01',
-                      'dimensionAtObservation': 'TIME_PERIOD',
-                      'detail': 'dataonly'
-                  }
-                  
-                  try:
-                      full_url = url + query
-                      response = requests.get(full_url, params=params, timeout=15, headers={'Accept': 'application/json'})
-                      
-                      if response.ok:
-                          data = response.json()
-                          
-                          # SDMX-JSON structure: data.dataSets[0].observations
-                          if 'data' in data and 'dataSets' in data['data']:
-                              datasets = data['data']['dataSets']
-                              if len(datasets) > 0 and 'observations' in datasets[0]:
-                                  observations = datasets[0]['observations']
-                                  
-                                  if observations:
-                                      # Get the most recent observation
-                                      # Observations are keyed by dimension indices
-                                      last_key = max(observations.keys(), key=lambda x: int(x.split(':')[-1]))
-                                      last_value = observations[last_key][0]  # [value, status, ...]
-                                      
-                                      # Get time period from structure
-                                      time_periods = data['data']['structure']['dimensions']['observation'][0]['values']
-                                      last_period = time_periods[-1]['id']
-                                      
-                                      print(f"  ✅ {currency_code}: {last_value:,.2f}M USD (OECD {subject}, {last_period})")
-                                      return last_value
-                  except Exception as e:
-                      print(f"  ⚠️  {currency_code}: OECD {subject} failed - {e}")
-                      continue
-              
-              print(f"  ❌ {currency_code}: All OECD subjects failed")
-              return None
-          
           def clean_number(text):
               if not text:
                   return None
@@ -201,6 +120,82 @@ jobs:
                   except:
                       pass
               return None
+          
+          def parse_trade_balance_row(cols, currency_code):
+              """
+              Parse Trade Balance row with ALL columns
+              
+              Expected columns:
+              0: Country
+              1: Last (current value)
+              2: Previous 
+              3: Reference (date)
+              4: Unit (e.g., "JPY Billion", "USD Million")
+              """
+              if len(cols) < 5:
+                  print(f"    ⚠️  {currency_code}: Not enough columns ({len(cols)})")
+                  return None
+              
+              country_text = cols[0].get_text(strip=True)
+              last_text = cols[1].get_text(strip=True)
+              previous_text = cols[2].get_text(strip=True)
+              reference_text = cols[3].get_text(strip=True)
+              unit_text = cols[4].get_text(strip=True)
+              
+              # Debug: Show all columns
+              print(f"    [DEBUG] Country: {country_text}")
+              print(f"    [DEBUG] Last: {last_text}")
+              print(f"    [DEBUG] Previous: {previous_text}")
+              print(f"    [DEBUG] Reference: {reference_text}")
+              print(f"    [DEBUG] Unit: {unit_text}")
+              
+              # Parse the value
+              value = clean_number(last_text)
+              if value is None:
+                  print(f"    ❌ Could not parse value from '{last_text}'")
+                  return None
+              
+              # Parse unit to determine scale and currency
+              unit_lower = unit_text.lower()
+              
+              # Determine scale
+              if 'billion' in unit_lower:
+                  scale_multiplier = 1000  # billions to millions
+              elif 'million' in unit_lower:
+                  scale_multiplier = 1
+              elif 'trillion' in unit_lower:
+                  scale_multiplier = 1000000  # trillions to millions
+              else:
+                  print(f"    ⚠️  Unknown scale in unit '{unit_text}', assuming millions")
+                  scale_multiplier = 1
+              
+              # Determine source currency from unit
+              source_currency = None
+              for curr in ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'NZD']:
+                  if curr in unit_text.upper():
+                      source_currency = curr
+                      break
+              
+              if source_currency is None:
+                  print(f"    ⚠️  Could not determine currency from unit '{unit_text}', assuming USD")
+                  source_currency = 'USD'
+              
+              # Convert to millions in source currency
+              value_in_source_millions = value * scale_multiplier
+              
+              # Convert to USD
+              if source_currency == 'USD':
+                  value_usd_millions = value_in_source_millions
+              else:
+                  fx_rate = exchange_rates.get(source_currency)
+                  if fx_rate is None or fx_rate == 0:
+                      print(f"    ❌ No FX rate for {source_currency}")
+                      return None
+                  value_usd_millions = value_in_source_millions / fx_rate
+              
+              print(f"    ✅ Conversion: {value} {unit_text} → {value_in_source_millions:,.0f} {source_currency} millions → {value_usd_millions:,.2f} USD millions")
+              
+              return round(value_usd_millions, 2)
           
           def scrape_trading_economics_table(url, indicator_name):
               print(f"\n{'='*80}")
@@ -227,29 +222,37 @@ jobs:
                           continue
                       
                       country_text = cols[0].get_text(strip=True)
-                      last_value_text = cols[1].get_text(strip=True)
                       
                       for currency_code, country_names in COUNTRY_NAMES.items():
                           if any(name.lower() in country_text.lower() for name in country_names):
                               
-                              raw_value = clean_number(last_value_text)
-                              
-                              if raw_value is None:
-                                  print(f"  ⚠️  {currency_code}: Could not parse '{last_value_text}'")
-                                  break
-                              
-                              if indicator_name == 'gdp':
-                                  data[currency_code] = round(raw_value, 2)
-                                  print(f"  ✓ {currency_code}: ${raw_value:.2f}T USD")
+                              if indicator_name == 'tradeBalance':
+                                  # Special handling for trade balance with all columns
+                                  print(f"\n  Processing {currency_code}:")
+                                  value = parse_trade_balance_row(cols, currency_code)
+                                  if value is not None:
+                                      data[currency_code] = value
                               else:
-                                  data[currency_code] = round(raw_value, 2)
-                                  print(f"  ✓ {currency_code}: {raw_value:.2f}%")
+                                  # Standard handling for other indicators
+                                  last_value_text = cols[1].get_text(strip=True)
+                                  raw_value = clean_number(last_value_text)
+                                  
+                                  if raw_value is None:
+                                      print(f"  ⚠️  {currency_code}: Could not parse '{last_value_text}'")
+                                      break
+                                  
+                                  if indicator_name == 'gdp':
+                                      data[currency_code] = round(raw_value, 2)
+                                      print(f"  ✓ {currency_code}: ${raw_value:.2f}T USD")
+                                  else:
+                                      data[currency_code] = round(raw_value, 2)
+                                      print(f"  ✓ {currency_code}: {raw_value:.2f}%")
                               
                               break
                   
                   missing = [c for c in CURRENCIES if c not in data]
                   if missing:
-                      print(f"  ⚠️  Missing: {', '.join(missing)}")
+                      print(f"\n  ⚠️  Missing: {', '.join(missing)}")
                   
                   return data
                   
@@ -262,23 +265,11 @@ jobs:
               for currency in CURRENCIES:
                   all_data[currency] = {}
               
-              # Scrape from Trading Economics
               for indicator_key, url in INDICATOR_URLS.items():
                   indicator_data = scrape_trading_economics_table(url, indicator_key)
                   for currency_code, value in indicator_data.items():
                       all_data[currency_code][indicator_key] = value
                   time.sleep(2)
-              
-              # Get Trade Balance from OECD API
-              print(f"\n{'='*80}")
-              print("FETCHING MONTHLY TRADE BALANCE FROM OECD API")
-              print(f"{'='*80}")
-              
-              for currency in CURRENCIES:
-                  tb_value = fetch_oecd_trade_balance(currency)
-                  if tb_value is not None:
-                      all_data[currency]['tradeBalance'] = round(tb_value, 2)
-                  time.sleep(0.5)
               
               return all_data
           
@@ -292,7 +283,7 @@ jobs:
               for currency in CURRENCIES:
                   data = all_data.get(currency, {})
                   
-                  all_indicators = list(INDICATOR_URLS.keys()) + ['tradeBalance']
+                  all_indicators = list(INDICATOR_URLS.keys())
                   missing = [ind for ind in all_indicators if data.get(ind) is None]
                   
                   if missing:
@@ -302,19 +293,11 @@ jobs:
                   
                   data_package = {
                       'lastUpdate': today,
-                      'sources': {
-                          'gdp': 'TradingEconomics',
-                          'gdpGrowth': 'TradingEconomics',
-                          'inflation': 'TradingEconomics',
-                          'unemployment': 'TradingEconomics',
-                          'debt': 'TradingEconomics',
-                          'currentAccount': 'TradingEconomics',
-                          'production': 'TradingEconomics',
-                          'tradeBalance': 'OECD MEI (Monthly Economic Indicators)'
-                      },
+                      'source': 'TradingEconomics',
+                      'methodology': 'Automatic unit detection and conversion from Trading Economics',
                       'units': {
                           'gdp': 'Trillions USD',
-                          'tradeBalance': 'Millions USD (monthly, seasonally adjusted)',
+                          'tradeBalance': 'Millions USD (monthly, auto-converted from source unit)',
                           'other': 'Percentages'
                       },
                       'data': data
@@ -325,7 +308,7 @@ jobs:
           
           def print_summary(all_data):
               print(f"\n{'='*80}")
-              print("TRADE BALANCE SUMMARY (OECD API - USD Millions/month)")
+              print("TRADE BALANCE SUMMARY (USD Millions/month)")
               print(f"{'='*80}")
               
               sorted_currencies = sorted(
@@ -346,7 +329,7 @@ jobs:
           
           if __name__ == '__main__':
               print("="*80)
-              print("ECONOMIC DATA SCRAPER - OECD MONTHLY TRADE BALANCE")
+              print("ECONOMIC DATA SCRAPER - AUTO UNIT DETECTION")
               print("="*80)
               
               if not fetch_exchange_rates():
@@ -360,7 +343,7 @@ jobs:
           
           EOFPYTHON
           
-          python scrape_economics_oecd.py
+          python scrape_economics_debug.py
       
       - name: Commit and push
         run: |
@@ -370,7 +353,7 @@ jobs:
           if git diff --quiet && git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "📊 Updated economic data (OECD Monthly Trade Balance) $(date +'%Y-%m-%d')"
+            git commit -m "📊 Auto unit detection for Trade Balance $(date +'%Y-%m-%d')"
             git pull --rebase origin main || true
             git push
           fi
