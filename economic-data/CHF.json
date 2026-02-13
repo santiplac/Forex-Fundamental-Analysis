@@ -1,10 +1,14 @@
 {
   "lastUpdate": "2026-02-13",
-  "source": "TradingEconomics",
-  "methodology": "Automatic unit detection and conversion from Trading Economics",
+  "source": "TradingEconomics + COT",
+  "methodology": "Web scraping with automatic unit conversion",
   "units": {
     "gdp": "Trillions USD",
-    "tradeBalance": "Millions USD (monthly, auto-converted from source unit)",
+    "tradeBalance": "Millions USD (monthly)",
+    "retailSales": "% Month-over-Month",
+    "wageGrowth": "% Year-over-Year",
+    "manufacturingPMI": "Index (>50 = expansion)",
+    "cotPositioning": "Net contracts (positive = bullish)",
     "other": "Percentages"
   },
   "data": {
@@ -15,6 +19,9 @@
     "debt": 15.7,
     "currentAccount": 5.1,
     "production": 2.4,
-    "tradeBalance": 3943.27
+    "tradeBalance": 3943.27,
+    "retailSales": 1.0,
+    "wageGrowth": 2.0,
+    "manufacturingPMI": 48.8
   }
 }
