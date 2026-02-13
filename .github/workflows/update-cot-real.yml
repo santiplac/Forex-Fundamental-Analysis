@@ -39,15 +39,14 @@ jobs:
           }
 
           COT_URLS = {
-    'USD': 'https://www.investing.com/economic-calendar/cftc-us-dollar-speculative-positions-1619',
-    'EUR': 'https://www.investing.com/economic-calendar/cftc-eur-speculative-positions-1611',
-    'GBP': 'https://www.investing.com/economic-calendar/cftc-gbp-speculative-positions-1612',
-    'JPY': 'https://www.investing.com/economic-calendar/cftc-jpy-speculative-positions-1614',
-    'AUD': 'https://www.investing.com/economic-calendar/cftc-aud-speculative-positions-1615',
-    'CAD': 'https://www.investing.com/economic-calendar/cftc-cad-speculative-positions-1613',
-    'CHF': 'https://www.investing.com/economic-calendar/cftc-chf-speculative-positions-1617',
-    'NZD': 'https://www.investing.com/economic-calendar/cftc-nzd-speculative-positions-1616'
-}
+              'EUR': 'https://www.investing.com/economic-calendar/cftc-eur-speculative-positions-1611',
+              'GBP': 'https://www.investing.com/economic-calendar/cftc-gbp-speculative-positions-1612',
+              'JPY': 'https://www.investing.com/economic-calendar/cftc-jpy-speculative-positions-1614',
+              'AUD': 'https://www.investing.com/economic-calendar/cftc-aud-speculative-positions-1615',
+              'CAD': 'https://www.investing.com/economic-calendar/cftc-cad-speculative-positions-1613',
+              'CHF': 'https://www.investing.com/economic-calendar/cftc-chf-speculative-positions-1617',
+              'NZD': 'https://www.investing.com/economic-calendar/cftc-nzd-speculative-positions-1616'
+          }
 
           def clean_number(text):
               if not text or text.strip() == '':
@@ -159,7 +158,7 @@ jobs:
           echo "╚════════════════════════════════════════════════╝"
           echo ""
           
-          for currency in USD EUR GBP JPY AUD CAD CHF NZD; do
+          for currency in EUR GBP JPY AUD CAD CHF NZD; do
             if [ -f "cot-data/$currency.json" ]; then
               echo "[$currency]"
               python3 -c "
