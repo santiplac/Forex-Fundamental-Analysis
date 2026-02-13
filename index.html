@@ -2174,8 +2174,6 @@ const getSentiment = (strength) => {
 };
 
 const generateAnalysis = (currency, forexRates, economicData) => {
-
-const generateAnalysis = (currency, forexRates, economicData) => {
     if (!economicData[currency]) return 'Cargando datos...';
     const data = economicData[currency];
     const country = countries.find(c => c.code === currency);
