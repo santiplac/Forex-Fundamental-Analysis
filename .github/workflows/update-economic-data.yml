@@ -1,4 +1,4 @@
-name: Update Economic Data - World Bank Trade Balance
+name: Update Economic Data - OECD Monthly Trade Balance
 on:
   schedule:
     - cron: '0 6 * * *'
@@ -23,9 +23,9 @@ jobs:
       - name: Create data directory
         run: mkdir -p economic-data
       
-      - name: Scrape data with World Bank for Trade Balance
+      - name: Scrape data with OECD for Trade Balance
         run: |
-          cat > scrape_economics_worldbank.py << 'EOFPYTHON'
+          cat > scrape_economics_oecd.py << 'EOFPYTHON'
           import requests
           from bs4 import BeautifulSoup
           import json
@@ -63,10 +63,10 @@ jobs:
               'NZD': ['New Zealand']
           }
           
-          # World Bank country codes and ISO codes for conversion
-          WORLD_BANK_CODES = {
+          # OECD country codes
+          OECD_CODES = {
               'USD': 'USA',
-              'EUR': 'EMU',  # European Monetary Union
+              'EUR': 'EA19',  # Euro Area (19 countries)
               'GBP': 'GBR',
               'JPY': 'JPN',
               'CAD': 'CAN',
@@ -121,56 +121,73 @@ jobs:
                   print(f"❌ Error: {e}")
                   return False
           
-          def fetch_world_bank_trade_balance(currency_code):
+          def fetch_oecd_trade_balance(currency_code):
               """
-              Fetch trade balance from World Bank API
+              Fetch MONTHLY trade balance from OECD API
               
-              World Bank Indicator: NE.RSB.GNFS.CD (External balance on goods and services, current US$)
-              This is annual data, we'll convert to monthly by dividing by 12
+              OECD Dataset: MEI (Main Economic Indicators)
+              Subject: XTNTVA01 - Trade Balance (goods and services)
+              Measure: STSA - Seasonally adjusted
+              Frequency: M - Monthly
               
-              Returns: value in millions USD (monthly estimate), or None if not available
+              Returns: value in millions USD (monthly), or None if not available
               """
-              wb_code = WORLD_BANK_CODES.get(currency_code)
-              if not wb_code:
-                  print(f"  ⚠️  {currency_code}: No World Bank country code")
+              oecd_code = OECD_CODES.get(currency_code)
+              if not oecd_code:
+                  print(f"  ⚠️  {currency_code}: No OECD country code")
                   return None
               
-              # World Bank API endpoint
-              # Format: http://api.worldbank.org/v2/country/{country}/indicator/{indicator}?format=json&per_page=1&date=2020:2024
-              indicator = 'NE.RSB.GNFS.CD'  # External balance on goods and services
-              url = f"http://api.worldbank.org/v2/country/{wb_code}/indicator/{indicator}"
-              params = {
-                  'format': 'json',
-                  'per_page': 1,
-                  'date': '2020:2024',  # Last 5 years to get most recent
-                  'mrnev': 1  # Most recent non-empty value
-              }
+              # OECD SDMX-JSON API
+              # Format: https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_FINMARK,1.0/
+              #         {LOCATION}.{SUBJECT}.{MEASURE}.{FREQUENCY}?startPeriod=2023-01&dimensionAtObservation=TIME_PERIOD
               
-              try:
-                  response = requests.get(url, params=params, timeout=15)
-                  if response.ok:
-                      data = response.json()
+              url = "https://sdmx.oecd.org/public/rest/data/OECD.SDD.STES,DSD_STES@DF_FINMARK,1.0/"
+              
+              # Try different subject codes for trade balance
+              subjects = [
+                  'XTNTVA01',  # Trade balance (preferred)
+                  'XTEXVA01',  # Exports
+                  'XTIMVA01',  # Imports (we can calculate TB = EX - IM)
+              ]
+              
+              for subject in subjects:
+                  query = f"{oecd_code}.{subject}.STSA.M"
+                  params = {
+                      'startPeriod': '2023-01',
+                      'dimensionAtObservation': 'TIME_PERIOD',
+                      'detail': 'dataonly'
+                  }
+                  
+                  try:
+                      full_url = url + query
+                      response = requests.get(full_url, params=params, timeout=15, headers={'Accept': 'application/json'})
                       
-                      # World Bank returns array: [metadata, data_array]
-                      if len(data) >= 2 and data[1]:
-                          record = data[1][0]  # Most recent record
-                          value_annual = record.get('value')
-                          year = record.get('date', 'N/A')
+                      if response.ok:
+                          data = response.json()
                           
-                          if value_annual is not None:
-                              # Convert annual to monthly and to millions
-                              value_monthly_millions = (value_annual / 12) / 1_000_000
-                              print(f"  ✅ {currency_code}: {value_monthly_millions:,.2f}M USD/mo (World Bank {year}, annual: ${value_annual/1e9:.1f}B)")
-                              return value_monthly_millions
-                          else:
-                              print(f"  ⚠️  {currency_code}: No value in World Bank data")
-                      else:
-                          print(f"  ⚠️  {currency_code}: Empty World Bank response")
-                  else:
-                      print(f"  ❌ {currency_code}: World Bank API error {response.status_code}")
-              except Exception as e:
-                  print(f"  ❌ {currency_code}: World Bank request failed - {e}")
+                          # SDMX-JSON structure: data.dataSets[0].observations
+                          if 'data' in data and 'dataSets' in data['data']:
+                              datasets = data['data']['dataSets']
+                              if len(datasets) > 0 and 'observations' in datasets[0]:
+                                  observations = datasets[0]['observations']
+                                  
+                                  if observations:
+                                      # Get the most recent observation
+                                      # Observations are keyed by dimension indices
+                                      last_key = max(observations.keys(), key=lambda x: int(x.split(':')[-1]))
+                                      last_value = observations[last_key][0]  # [value, status, ...]
+                                      
+                                      # Get time period from structure
+                                      time_periods = data['data']['structure']['dimensions']['observation'][0]['values']
+                                      last_period = time_periods[-1]['id']
+                                      
+                                      print(f"  ✅ {currency_code}: {last_value:,.2f}M USD (OECD {subject}, {last_period})")
+                                      return last_value
+                  except Exception as e:
+                      print(f"  ⚠️  {currency_code}: OECD {subject} failed - {e}")
+                      continue
               
+              print(f"  ❌ {currency_code}: All OECD subjects failed")
               return None
           
           def clean_number(text):
@@ -252,13 +269,13 @@ jobs:
                       all_data[currency_code][indicator_key] = value
                   time.sleep(2)
               
-              # Get Trade Balance from World Bank API
+              # Get Trade Balance from OECD API
               print(f"\n{'='*80}")
-              print("FETCHING TRADE BALANCE FROM WORLD BANK API")
+              print("FETCHING MONTHLY TRADE BALANCE FROM OECD API")
               print(f"{'='*80}")
               
               for currency in CURRENCIES:
-                  tb_value = fetch_world_bank_trade_balance(currency)
+                  tb_value = fetch_oecd_trade_balance(currency)
                   if tb_value is not None:
                       all_data[currency]['tradeBalance'] = round(tb_value, 2)
                   time.sleep(0.5)
@@ -293,11 +310,11 @@ jobs:
                           'debt': 'TradingEconomics',
                           'currentAccount': 'TradingEconomics',
                           'production': 'TradingEconomics',
-                          'tradeBalance': 'World Bank (annual data / 12 for monthly estimate)'
+                          'tradeBalance': 'OECD MEI (Monthly Economic Indicators)'
                       },
                       'units': {
                           'gdp': 'Trillions USD',
-                          'tradeBalance': 'Millions USD (monthly estimate from World Bank annual data)',
+                          'tradeBalance': 'Millions USD (monthly, seasonally adjusted)',
                           'other': 'Percentages'
                       },
                       'data': data
@@ -308,7 +325,7 @@ jobs:
           
           def print_summary(all_data):
               print(f"\n{'='*80}")
-              print("TRADE BALANCE SUMMARY (World Bank API - USD Millions/month)")
+              print("TRADE BALANCE SUMMARY (OECD API - USD Millions/month)")
               print(f"{'='*80}")
               
               sorted_currencies = sorted(
@@ -329,7 +346,7 @@ jobs:
           
           if __name__ == '__main__':
               print("="*80)
-              print("ECONOMIC DATA SCRAPER - WORLD BANK FOR TRADE BALANCE")
+              print("ECONOMIC DATA SCRAPER - OECD MONTHLY TRADE BALANCE")
               print("="*80)
               
               if not fetch_exchange_rates():
@@ -343,7 +360,7 @@ jobs:
           
           EOFPYTHON
           
-          python scrape_economics_worldbank.py
+          python scrape_economics_oecd.py
       
       - name: Commit and push
         run: |
@@ -353,7 +370,7 @@ jobs:
           if git diff --quiet && git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "📊 Updated economic data (World Bank for Trade Balance) $(date +'%Y-%m-%d')"
+            git commit -m "📊 Updated economic data (OECD Monthly Trade Balance) $(date +'%Y-%m-%d')"
             git pull --rebase origin main || true
             git push
           fi
