@@ -1,4 +1,4 @@
-name: Update Economic Data - Smart Scale Detection
+name: Update Economic Data - FRED Trade Balance
 on:
   schedule:
     - cron: '0 6 * * *'
@@ -23,15 +23,18 @@ jobs:
       - name: Create data directory
         run: mkdir -p economic-data
       
-      - name: Scrape with smart scale detection
+      - name: Scrape data with FRED for Trade Balance
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: |
-          cat > scrape_economics.py << 'EOFPYTHON'
+          cat > scrape_economics_fred.py << 'EOFPYTHON'
           import requests
           from bs4 import BeautifulSoup
           import json
           import re
           from datetime import date
           import time
+          import os
           
           HEADERS = {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -41,6 +44,7 @@ jobs:
           
           CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'NZD']
           
+          # Trading Economics URLs (all EXCEPT trade balance)
           INDICATOR_URLS = {
               'gdp': 'https://tradingeconomics.com/country-list/gdp?continent=world',
               'gdpGrowth': 'https://tradingeconomics.com/country-list/gdp-growth-rate?continent=world',
@@ -49,7 +53,7 @@ jobs:
               'debt': 'https://tradingeconomics.com/country-list/government-debt-to-gdp',
               'currentAccount': 'https://tradingeconomics.com/country-list/current-account-to-gdp?continent=world',
               'production': 'https://tradingeconomics.com/country-list/industrial-production?continent=world',
-              'tradeBalance': 'https://tradingeconomics.com/country-list/balance-of-trade'
+              # NO TRADE BALANCE - we'll use FRED instead
           }
           
           COUNTRY_NAMES = {
@@ -63,18 +67,19 @@ jobs:
               'NZD': ['New Zealand']
           }
           
-          # CRITICAL: Known scale patterns for trade balance
-          # Based on Trading Economics display conventions
-          TRADE_BALANCE_SCALE_RULES = {
-              # Countries that report in BILLIONS (values usually < 500)
-              'USD': 'billion',   # USA: -56.83 means -56.83 billion
-              'EUR': 'million',   # Eurozone: 9896 means 9896 million
-              'JPY': 'billion',   # Japan: 106 means 106 billion (JPY)
-              'GBP': 'million',   # UK: -4340 means -4340 million (GBP)
-              'CAD': 'million',   # Canada: -2200 means -2200 million
-              'AUD': 'million',   # Australia: 3373 means 3373 million
-              'CHF': 'million',   # Switzerland: 3036 means 3036 million
-              'NZD': 'million',   # New Zealand: 52 means 52 million
+          # FRED API Configuration
+          FRED_API_KEY = os.getenv('FRED_API_KEY', '5e0ae2ba29361b8ddb614fd5f92c0a51')
+          
+          # FRED Series IDs for Trade Balance (in millions USD)
+          FRED_TRADE_BALANCE = {
+              'USD': 'BOPGSTB',           # US Balance on Goods and Services
+              'JPY': 'XTNTVA01JPM667S',   # Japan Trade Balance
+              'EUR': 'XTNTVA01EZM667S',   # Euro Area Trade Balance
+              'GBP': 'XTNTVA01GBM667S',   # UK Trade Balance
+              'CAD': 'XTNTVA01CAM667S',   # Canada Trade Balance
+              'AUD': 'XTNTVA01AUM667S',   # Australia Trade Balance
+              'CHF': 'XTNTVA01CHM667S',   # Switzerland Trade Balance
+              'NZD': 'XTNTVA01NZM667S',   # New Zealand Trade Balance
           }
           
           exchange_rates = {}
@@ -123,72 +128,50 @@ jobs:
                   print(f"❌ Error: {e}")
                   return False
           
-          def infer_trade_balance_currency(currency_code, value):
+          def fetch_fred_trade_balance(currency_code):
               """
-              Infer source currency for trade balance
-              
-              Rules:
-              - JPY reports in JPY (values are in billions JPY)
-              - GBP reports in GBP (values are in millions GBP)
-              - CHF reports in CHF (values are in millions CHF)
-              - Everyone else reports in USD
+              Fetch trade balance from FRED API
+              Returns: value in millions USD (monthly), or None if not available
               """
-              # Countries that report in their own currency
-              local_currency_countries = {
-                  'JPY': 'JPY',
-                  'GBP': 'GBP',
-                  'CHF': 'CHF',
-                  'AUD': 'AUD',
-                  'NZD': 'NZD',
-                  'CAD': 'CAD'
-              }
-              
-              return local_currency_countries.get(currency_code, 'USD')
-          
-          def convert_trade_balance_to_usd_millions(currency_code, value):
-              """
-              Convert trade balance to USD Millions using smart detection
-              
-              Process:
-              1. Determine if value is in billions or millions (from known patterns)
-              2. Determine source currency (from known patterns)
-              3. Convert to millions in source currency
-              4. Convert to USD using FX rate
-              
-              Example: Japan 106 JPY Billion
-                Step 1: scale_type = 'billion'
-                Step 2: source_currency = 'JPY'
-                Step 3: 106 * 1000 = 106,000 JPY Millions
-                Step 4: 106,000 / 153.71 = 689,612 USD Millions ✓
-              """
-              if value is None:
+              series_id = FRED_TRADE_BALANCE.get(currency_code)
+              if not series_id:
+                  print(f"  ⚠️  {currency_code}: No FRED series ID configured")
                   return None
               
-              # Step 1: Get scale (billion or million)
-              scale_type = TRADE_BALANCE_SCALE_RULES.get(currency_code, 'million')
+              url = "https://api.stlouisfed.org/fred/series/observations"
+              params = {
+                  'series_id': series_id,
+                  'api_key': FRED_API_KEY,
+                  'file_type': 'json',
+                  'sort_order': 'desc',
+                  'limit': 1,
+                  'units': 'lin'  # Linear units (not change, not % change)
+              }
               
-              # Step 2: Get source currency
-              source_currency = infer_trade_balance_currency(currency_code, value)
+              try:
+                  response = requests.get(url, params=params, timeout=15)
+                  if response.ok:
+                      data = response.json()
+                      
+                      if 'observations' in data and len(data['observations']) > 0:
+                          obs = data['observations'][0]
+                          value_str = obs.get('value', '.')
+                          date_str = obs.get('date', 'N/A')
+                          
+                          if value_str != '.':
+                              value = float(value_str)
+                              print(f"  ✅ {currency_code}: {value:,.2f}M USD (FRED: {date_str}, Series: {series_id})")
+                              return value
+                          else:
+                              print(f"  ⚠️  {currency_code}: No data in FRED series {series_id}")
+                      else:
+                          print(f"  ⚠️  {currency_code}: Empty FRED response for {series_id}")
+                  else:
+                      print(f"  ❌ {currency_code}: FRED API error {response.status_code}")
+              except Exception as e:
+                  print(f"  ❌ {currency_code}: FRED request failed - {e}")
               
-              # Step 3: Convert to millions in source currency
-              if scale_type == 'billion':
-                  # CRITICAL FIX: Convert billions to millions FIRST
-                  value_in_source_millions = value * 1000.0  # billions to millions
-              else:
-                  value_in_source_millions = value  # already in millions
-              
-              # Step 4: Convert to USD
-              if source_currency == 'USD':
-                  value_usd_millions = value_in_source_millions
-              else:
-                  fx_rate = exchange_rates.get(source_currency)
-                  if fx_rate is None or fx_rate == 0:
-                      print(f"      ⚠️  No FX rate for {source_currency}")
-                      return None
-                  # Convert from source currency to USD
-                  value_usd_millions = value_in_source_millions / fx_rate
-              
-              return value_usd_millions
+              return None
           
           def clean_number(text):
               if not text:
@@ -237,37 +220,15 @@ jobs:
                               if raw_value is None:
                                   print(f"  ⚠️  {currency_code}: Could not parse '{last_value_text}'")
                                   break
-                                  
-                              # DEBUG: Show what we read
-                              if indicator_name == 'tradeBalance':
-                                  print(f"  [DEBUG] {currency_code}: Raw text='{last_value_text}' → Parsed value={raw_value}")
                               
-                              # Percentages
-                              if indicator_name in ['gdpGrowth', 'inflation', 'unemployment', 
-                                                   'debt', 'currentAccount', 'production']:
-                                  data[currency_code] = round(raw_value, 2)
-                                  print(f"  ✓ {currency_code}: {raw_value:.2f}%")
-                              
-                              # GDP (already in Trillions USD)
-                              elif indicator_name == 'gdp':
+                              # All indicators are percentages except GDP
+                              if indicator_name == 'gdp':
                                   data[currency_code] = round(raw_value, 2)
                                   print(f"  ✓ {currency_code}: ${raw_value:.2f}T USD")
-                              
-                              # Trade Balance (smart conversion)
-                              elif indicator_name == 'tradeBalance':
-                                  scale = TRADE_BALANCE_SCALE_RULES.get(currency_code, 'million')
-                                  source_curr = infer_trade_balance_currency(currency_code, raw_value)
-                                  
-                                  value_usd_millions = convert_trade_balance_to_usd_millions(
-                                      currency_code, 
-                                      raw_value
-                                  )
-                                  
-                                  if value_usd_millions is not None:
-                                      data[currency_code] = round(value_usd_millions, 2)
-                                      print(f"  ✓ {currency_code}: {raw_value:,.2f} {source_curr} {scale} → ${value_usd_millions:,.2f}M USD")
-                                  else:
-                                      print(f"  ❌ {currency_code}: Conversion failed")
+                              else:
+                                  # gdpGrowth, inflation, unemployment, debt, currentAccount, production
+                                  data[currency_code] = round(raw_value, 2)
+                                  print(f"  ✓ {currency_code}: {raw_value:.2f}%")
                               
                               break
                   
@@ -286,11 +247,23 @@ jobs:
               for currency in CURRENCIES:
                   all_data[currency] = {}
               
+              # Scrape from Trading Economics (everything except trade balance)
               for indicator_key, url in INDICATOR_URLS.items():
                   indicator_data = scrape_trading_economics_table(url, indicator_key)
                   for currency_code, value in indicator_data.items():
                       all_data[currency_code][indicator_key] = value
                   time.sleep(2)
+              
+              # Get Trade Balance from FRED API
+              print(f"\n{'='*80}")
+              print("FETCHING TRADE BALANCE FROM FRED API")
+              print(f"{'='*80}")
+              
+              for currency in CURRENCIES:
+                  tb_value = fetch_fred_trade_balance(currency)
+                  if tb_value is not None:
+                      all_data[currency]['tradeBalance'] = round(tb_value, 2)
+                  time.sleep(0.5)  # Be nice to FRED API
               
               return all_data
           
@@ -304,7 +277,9 @@ jobs:
               for currency in CURRENCIES:
                   data = all_data.get(currency, {})
                   
-                  missing = [ind for ind in INDICATOR_URLS.keys() if data.get(ind) is None]
+                  all_indicators = list(INDICATOR_URLS.keys()) + ['tradeBalance']
+                  missing = [ind for ind in all_indicators if data.get(ind) is None]
+                  
                   if missing:
                       print(f"⚠️  {currency}: Missing {', '.join(missing)}")
                   else:
@@ -312,11 +287,19 @@ jobs:
                   
                   data_package = {
                       'lastUpdate': today,
-                      'source': 'TradingEconomics',
-                      'methodology': 'Smart scale detection based on known country patterns',
+                      'sources': {
+                          'gdp': 'TradingEconomics',
+                          'gdpGrowth': 'TradingEconomics',
+                          'inflation': 'TradingEconomics',
+                          'unemployment': 'TradingEconomics',
+                          'debt': 'TradingEconomics',
+                          'currentAccount': 'TradingEconomics',
+                          'production': 'TradingEconomics',
+                          'tradeBalance': 'FRED (Federal Reserve Economic Data)'
+                      },
                       'units': {
                           'gdp': 'Trillions USD',
-                          'tradeBalance': 'Millions USD (monthly, converted from local currency)',
+                          'tradeBalance': 'Millions USD (monthly, from FRED)',
                           'other': 'Percentages'
                       },
                       'data': data
@@ -327,12 +310,12 @@ jobs:
           
           def print_summary(all_data):
               print(f"\n{'='*80}")
-              print("TRADE BALANCE SUMMARY (USD Millions/month)")
+              print("TRADE BALANCE SUMMARY (FRED API - USD Millions/month)")
               print(f"{'='*80}")
               
               sorted_currencies = sorted(
                   CURRENCIES,
-                  key=lambda c: all_data.get(c, {}).get('tradeBalance', 0),
+                  key=lambda c: all_data.get(c, {}).get('tradeBalance', 0) or 0,
                   reverse=True
               )
               
@@ -341,23 +324,18 @@ jobs:
                   if tb is not None:
                       status = "✓ Surplus" if tb > 0 else "✗ Deficit"
                       print(f"  {currency}: {tb:+15,.2f} M USD/mo  ({status})")
+                  else:
+                      print(f"  {currency}:            N/A")
               
               print(f"\n{'='*80}")
-              print("EXPECTED VS ACTUAL:")
-              print(f"{'='*80}")
-              print("  JPY: 106 billion JPY → ~690,000 M USD")
-              print("  USD: -56.83 billion USD → -56,830 M USD")
-              print("  GBP: -4,340 million GBP → ~-5,920 M USD")
-              print("  CHF: +3,036 million CHF → ~+3,944 M USD")
-              print(f"{'='*80}")
           
           if __name__ == '__main__':
               print("="*80)
-              print("ECONOMIC DATA SCRAPER - SMART SCALE DETECTION")
+              print("ECONOMIC DATA SCRAPER - FRED API FOR TRADE BALANCE")
               print("="*80)
               
               if not fetch_exchange_rates():
-                  exit(1)
+                  print("⚠️  Continuing without exchange rates...")
               
               all_data = scrape_all_indicators()
               validate_and_save(all_data)
@@ -367,7 +345,7 @@ jobs:
           
           EOFPYTHON
           
-          python scrape_economics.py
+          python scrape_economics_fred.py
       
       - name: Commit and push
         run: |
@@ -377,7 +355,7 @@ jobs:
           if git diff --quiet && git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "🎯 Smart scale detection for trade balance (country-specific rules) $(date +'%Y-%m-%d')"
+            git commit -m "📊 Updated economic data (FRED for Trade Balance) $(date +'%Y-%m-%d')"
             git pull --rebase origin main || true
             git push
           fi
