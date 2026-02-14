@@ -1772,7 +1772,7 @@ const calculateStrength = (currency, data = null, forexRates = {}, allEconomicDa
     };
     
 // ========== TRADING-ORIENTED WEIGHTS (CALIBRADO CON REALIDAD DE MERCADO) ==========
-    const TRADING_WEIGHTS = {
+const TRADING_WEIGHTS = {
     // Tier 1: External Balance & Safe Haven (30%)
     currentAccount: { weight: 0.15, optimal: { min: 0, max: 5 }, direction: 'higher' },
     tradeBalance: { weight: 0.10, optimal: { min: 0, max: null }, direction: 'higher' },
@@ -1785,11 +1785,11 @@ const calculateStrength = (currency, data = null, forexRates = {}, allEconomicDa
     // Tier 3: Growth & Employment (20%)
     gdpGrowth: { weight: 0.10, optimal: { min: 2.0, max: 3.5 }, direction: 'higher' },
     unemployment: { weight: 0.06, optimal: { min: 3.0, max: 5.0 }, direction: 'lower' },
-    production: { weight: 0.04, optimal: { min: 1.0, max: 3.0 }, direction: 'higher' },
+    production: { weight: 0.04, optimal: { min: 1.0, max: 3.0 }, direction: 'stable' },
     
     // Tier 4: Consumption & Wages (10%)
-    retailSales: { weight: 0.05, optimal: { min: 0.3, max: 1.0 }, direction: 'higher' },
-    wageGrowth: { weight: 0.05, optimal: { min: 2.5, max: 4.0 }, direction: 'target' },
+    retailSales: { weight: 0.05, optimal: { min: 0.3, max: 1.0 }, direction: 'stable' },
+    wageGrowth: { weight: 0.05, optimal: { min: 2.5, max: 4.0 }, direction: 'stable' },
     
     // Tier 5: Market Sentiment (10%)
     cotPositioning: { weight: 0.07, optimal: { min: 5000, max: 15000 }, direction: 'moderate_bullish' },
