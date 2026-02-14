@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://globalinvesting.github.io/sitemap.xml
+
+# Optimización para rastreadores
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: Slurp
+Allow: /
