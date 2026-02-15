@@ -1014,7 +1014,7 @@ if (!AbortSignal.timeout) {
     };
 }
 
-// Helper para fetch con timeout que funciona en Edge
+// Helper para fetch con timeout y retry logic
 const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
@@ -1029,6 +1029,27 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
     } catch (error) {
         clearTimeout(timeoutId);
         throw error;
+    }
+};
+
+// Fetch con retry automático
+const fetchWithRetry = async (url, options = {}, maxRetries = 3) => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await fetchWithTimeout(url, options, 8000);
+        } catch (error) {
+            const isLastAttempt = attempt === maxRetries;
+            
+            if (isLastAttempt) {
+                console.error(`❌ Failed after ${maxRetries} attempts: ${url}`);
+                throw error;
+            }
+            
+            // Exponential backoff: 1s, 2s, 4s
+            const delayMs = 1000 * Math.pow(2, attempt - 1);
+            console.warn(`⚠️ Attempt ${attempt} failed, retrying in ${delayMs}ms...`);
+            await delay(delayMs);
+        }
     }
 };
 
@@ -1098,66 +1119,56 @@ const fetchWithTimeout = async (url, options = {}, timeoutMs = 8000) => {
         // These functions are no longer needed as we use Trading Economics scraping
 
 const fetchWorldBankData = async (countryCode, indicator) => {
-            const cacheKey = `scraped_${countryCode}_${indicator}`;
-            const cached = CacheManager.get(cacheKey);
-            if (cached !== null) return cached;
+    const cacheKey = `scraped_${countryCode}_${indicator}`;
+    const cached = CacheManager.get(cacheKey);
+    if (cached !== null) return cached;
 
-            try {
-                const githubUrl = `https://globalinvesting.github.io/economic-data/${countryCode}.json`;
+    try {
+        const githubUrl = `https://globalinvesting.github.io/economic-data/${countryCode}.json`;
+        
+        const response = await fetchWithRetry(githubUrl, { 
+            cache: 'no-cache',
+            mode: 'cors'
+        }, 3); // ✅ CORREGIDO
+        
+        if (response.ok) {
+            const scrapedData = await response.json();
+            
+            if (scrapedData.data) {
+                const indicatorMap = {
+                    [WORLD_BANK_INDICATORS.gdp]: 'gdp',
+                    [WORLD_BANK_INDICATORS.gdpGrowth]: 'gdpGrowth',
+                    [WORLD_BANK_INDICATORS.inflation]: 'inflation',
+                    [WORLD_BANK_INDICATORS.unemployment]: 'unemployment',
+                    [WORLD_BANK_INDICATORS.currentAccount]: 'currentAccount',
+                    [WORLD_BANK_INDICATORS.debt]: 'debt',
+                    [WORLD_BANK_INDICATORS.tradeBalance]: 'tradeBalance'
+                };
                 
-                // Edge-compatible fetch con timeout manual
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
-                
-                const response = await fetchWithTimeout(githubUrl, { 
-    cache: 'no-cache',
-    mode: 'cors'
-}, 8000);
-                
-                clearTimeout(timeoutId);
-                
-                if (response.ok) {
-                    const scrapedData = await response.json();
+                const scrapedKey = indicatorMap[indicator];
+                if (scrapedKey && scrapedData.data[scrapedKey] !== undefined) {
+                    const value = scrapedData.data[scrapedKey];
                     
-                    if (scrapedData.data) {
-                        const indicatorMap = {
-                            [WORLD_BANK_INDICATORS.gdp]: 'gdp',
-                            [WORLD_BANK_INDICATORS.gdpGrowth]: 'gdpGrowth',
-                            [WORLD_BANK_INDICATORS.inflation]: 'inflation',
-                            [WORLD_BANK_INDICATORS.unemployment]: 'unemployment',
-                            [WORLD_BANK_INDICATORS.currentAccount]: 'currentAccount',
-                            [WORLD_BANK_INDICATORS.debt]: 'debt',
-                            [WORLD_BANK_INDICATORS.tradeBalance]: 'tradeBalance'
-                        };
-                        
-                        const scrapedKey = indicatorMap[indicator];
-                        if (scrapedKey && scrapedData.data[scrapedKey] !== undefined) {
-                            const value = scrapedData.data[scrapedKey];
-                            
-                            let finalValue = value;
-                            if (scrapedKey === 'gdp') {
-                                finalValue = value / 1000;
-                            } else if (scrapedKey === 'tradeBalance') {
-                                finalValue = value;
-                            }
-                            
-                            console.log(`✅ Scraped data for ${countryCode} ${scrapedKey}: ${finalValue}`);
-                            CacheManager.set(cacheKey, finalValue, CACHE_CONFIG.ECONOMIC_DATA);
-                            return finalValue;
-                        }
+                    let finalValue = value;
+                    if (scrapedKey === 'gdp') {
+                        finalValue = value / 1000;
+                    } else if (scrapedKey === 'tradeBalance') {
+                        finalValue = value;
                     }
-                }
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    console.warn(`Timeout fetching data for ${countryCode}`);
-                } else {
-                    console.warn(`Scraped data fetch failed for ${countryCode}:`, error.message);
+                    
+                    console.log(`✅ Scraped data for ${countryCode} ${scrapedKey}: ${finalValue}`);
+                    CacheManager.set(cacheKey, finalValue, CACHE_CONFIG.ECONOMIC_DATA);
+                    return finalValue;
                 }
             }
-            
-            console.warn(`❌ No scraped data available for ${countryCode} ${indicator}`);
-            return null;
-        };
+        }
+    } catch (error) {
+        console.warn(`Scraped data fetch failed for ${countryCode}:`, error.message);
+    }
+    
+    console.warn(`❌ No scraped data available for ${countryCode} ${indicator}`);
+    return null;
+};
 
 const fetchInterestRate = async (country) => {
             const cacheKey = `interest_rate_${country.code}`;
@@ -1174,11 +1185,10 @@ const fetchInterestRate = async (country) => {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
                 
-                const response = await fetch(githubUrl, { 
-                    signal: controller.signal,
-                    cache: 'no-cache',
-                    mode: 'cors'
-                });
+                const response = await fetchWithRetry(githubUrl, { 
+    cache: 'no-cache',
+    mode: 'cors'
+}, 3);
                 
                 clearTimeout(timeoutId);
                 
@@ -1204,19 +1214,17 @@ const fetchInterestRate = async (country) => {
                 }
             }
 
-            // Fallback: Alpha Vantage (solo USD)
-            if (country.code === 'USD') {
-                const alphaKeys = ['2TW8Y8DDBPRQ2VTV', 'RIBXT3XYLI69O5WY'];
-                
-                for (const apiKey of alphaKeys) {
-                    try {
-                        const url = `https://www.alphavantage.co/query?function=FEDERAL_FUNDS_RATE&apikey=${apiKey}`;
-                        
-                        const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 8000);
-                        
-                        const response = await fetch(url, { signal: controller.signal, mode: 'cors' });
-                        clearTimeout(timeoutId);
+// Fallback: Alpha Vantage (solo USD)
+if (country.code === 'USD') {
+    const alphaKeys = ['2TW8Y8DDBPRQ2VTV', 'RIBXT3XYLI69O5WY'];
+    
+    for (const apiKey of alphaKeys) {
+        try {
+            const url = `https://www.alphavantage.co/query?function=FEDERAL_FUNDS_RATE&apikey=${apiKey}`;
+            
+            const response = await fetchWithRetry(url, { // ✅ Usar 'url', no 'githubUrl'
+                mode: 'cors'
+            }, 2); // ✅ Menos intentos para Alpha Vantage
                         
                         if (response.ok) {
                             const data = await response.json();
@@ -1250,11 +1258,10 @@ const fetchInterestRate = async (country) => {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000);
                 
-                const response = await fetch(githubUrl, { 
-                    signal: controller.signal,
-                    cache: 'no-cache',
-                    mode: 'cors'
-                });
+                const response = await fetchWithRetry(githubUrl, { 
+    cache: 'no-cache',
+    mode: 'cors'
+}, 3);
                 
                 clearTimeout(timeoutId);
                 
@@ -1625,7 +1632,7 @@ const generateDynamicAlerts = (economicData, forexRates, calendar) => {
 
 const loadAllEconomicData = async (setEconomicData, setDataLoadingStatus) => {
             const cacheKey = 'all_economic_data';
-            const DASHBOARD_VERSION = '4.5.1'; // ✅ Incrementar para forzar recarga
+            const DASHBOARD_VERSION = '4.6.0'; // ✅ Health checks + retry logic + error boundary
             
             // ✅ Verificar versión del caché
             const cachedVersion = localStorage.getItem('forex_dashboard_version');
@@ -1657,10 +1664,10 @@ const loadAllEconomicData = async (setEconomicData, setDataLoadingStatus) => {
 
                 try {
                     const githubUrl = `https://globalinvesting.github.io/economic-data/${country.code}.json`;
-                    const response = await fetchWithTimeout(githubUrl, { 
+const response = await fetchWithRetry(githubUrl, { 
     cache: 'no-cache',
     mode: 'cors'
-}, 8000);
+}, 3);
                     
                     if (response.ok) {
                         const scrapedData = await response.json();
@@ -1724,10 +1731,10 @@ console.log(`✅ Loaded all data for ${country.code}`);
                     try {
                         const cotUrl = `https://globalinvesting.github.io/cot-data/${country.code}.json`;                
                         
-                        const cotResponse = await fetchWithTimeout(cotUrl, { 
+const cotResponse = await fetchWithRetry(cotUrl, { 
     cache: 'no-cache',
     mode: 'cors'
-}, 5000);
+}, 2); // Solo 2 intentos para COT (menos crítico)
                         
                         if (cotResponse.ok) {
                             const cotData = await cotResponse.json();
@@ -2302,6 +2309,122 @@ contributions['inflation_stability'] = inflationStability;
             CacheManager.clearAll();
             alert('Caché limpiado. Recarga la página para obtener datos actualizados.');
         };
+
+    // ========== DATA HEALTH CHECK SYSTEM ==========
+const checkDataHealth = (economicData) => {
+    const issues = [];
+    const warnings = [];
+    
+    Object.keys(economicData).forEach(curr => {
+        const data = economicData[curr];
+        
+        // Check 1: Data age
+        if (data.lastUpdate) {
+            const age = Date.now() - new Date(data.lastUpdate).getTime();
+            const daysOld = Math.floor(age / (24 * 60 * 60 * 1000));
+            
+            if (daysOld > 7) {
+                issues.push(`${curr}: Datos con ${daysOld} días de antigüedad`);
+            } else if (daysOld > 3) {
+                warnings.push(`${curr}: Datos con ${daysOld} días (considerar actualización)`);
+            }
+        } else {
+            issues.push(`${curr}: Sin timestamp de actualización`);
+        }
+        
+        // Check 2: Missing critical indicators
+        const critical = ['interestRate', 'inflation', 'gdpGrowth', 'unemployment'];
+        const missing = critical.filter(ind => 
+            data[ind] === null || data[ind] === undefined
+        );
+        if (missing.length > 0) {
+            issues.push(`${curr}: Faltan indicadores críticos: ${missing.join(', ')}`);
+        }
+        
+        // Check 3: Out of range values
+        if (data.inflation !== null && data.inflation !== undefined) {
+            if (data.inflation < -5 || data.inflation > 25) {
+                issues.push(`${curr}: Inflación fuera de rango (${data.inflation}%)`);
+            }
+        }
+        
+        if (data.unemployment !== null && data.unemployment !== undefined) {
+            if (data.unemployment < 0 || data.unemployment > 30) {
+                issues.push(`${curr}: Desempleo fuera de rango (${data.unemployment}%)`);
+            }
+        }
+        
+        if (data.interestRate !== null && data.interestRate !== undefined) {
+            if (data.interestRate < -2 || data.interestRate > 20) {
+                issues.push(`${curr}: Tasa de interés fuera de rango (${data.interestRate}%)`);
+            }
+        }
+        
+        // Check 4: Data completeness score
+        const allIndicators = [
+            'gdp', 'gdpGrowth', 'interestRate', 'inflation', 'unemployment',
+            'currentAccount', 'debt', 'tradeBalance', 'production',
+            'retailSales', 'wageGrowth', 'manufacturingPMI', 'cotPositioning'
+        ];
+        
+        const available = allIndicators.filter(ind => 
+            data[ind] !== null && data[ind] !== undefined
+        ).length;
+        
+        const completeness = Math.round((available / allIndicators.length) * 100);
+        
+        if (completeness < 50) {
+            issues.push(`${curr}: Completitud de datos muy baja (${completeness}%)`);
+        } else if (completeness < 70) {
+            warnings.push(`${curr}: Completitud de datos ${completeness}%`);
+        }
+    });
+    
+    return {
+        healthy: issues.length === 0,
+        issues,
+        warnings,
+        timestamp: new Date().toISOString()
+    };
+};
+
+const getOldestDataTimestamp = (economicData) => {
+    let oldest = null;
+    
+    Object.values(economicData).forEach(data => {
+        if (data.lastUpdate) {
+            const date = new Date(data.lastUpdate);
+            if (!oldest || date < oldest) {
+                oldest = date;
+            }
+        }
+    });
+    
+    return oldest;
+};
+
+const getCacheAge = (economicData) => {
+    const oldest = getOldestDataTimestamp(economicData);
+    if (!oldest) return 'Desconocido';
+    
+    const ageMs = Date.now() - oldest.getTime();
+    const hours = Math.floor(ageMs / (60 * 60 * 1000));
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) return `${days}d ${hours % 24}h`;
+    if (hours > 0) return `${hours}h`;
+    return 'Reciente';
+};
+
+const isCacheStale = (economicData) => {
+    const oldest = getOldestDataTimestamp(economicData);
+    if (!oldest) return true;
+    
+    const ageMs = Date.now() - oldest.getTime();
+    const hours = Math.floor(ageMs / (60 * 60 * 1000));
+    
+    return hours > 48; // Stale if older than 48 hours
+};
 
         if (typeof window !== 'undefined') {
             window.clearForexCache = clearDashboardCache;
@@ -3062,6 +3185,82 @@ const hasCOTData = () => {
                 };
             }, [activeTab, historicalData]);
 
+const DataHealthCheck = ({ economicData }) => {
+    const [health, setHealth] = useState(null);
+    
+    useEffect(() => {
+        if (Object.keys(economicData).length > 0) {
+            const healthStatus = checkDataHealth(economicData);
+            setHealth(healthStatus);
+        }
+    }, [economicData]);
+    
+    if (!health) return null;
+    
+    // No mostrar si todo está bien
+    if (health.healthy && health.warnings.length === 0) return null;
+    
+    return (
+        <div style={{ marginBottom: '1.5rem' }}>
+            {health.issues.length > 0 && (
+                <div className="alert-card alert-warning" style={{ marginBottom: '1rem' }}>
+                    <div className="alert-icon" style={{ 
+                        background: 'rgba(239, 83, 80, 0.3)',
+                        color: 'var(--red-strong)'
+                    }}>
+                        ⚠️
+                    </div>
+                    <div className="alert-content">
+                        <h3>Problemas de Calidad de Datos Detectados</h3>
+                        <ul style={{ 
+                            marginTop: '0.75rem', 
+                            paddingLeft: '1.5rem',
+                            fontSize: '0.875rem',
+                            lineHeight: '1.8'
+                        }}>
+                            {health.issues.map((issue, i) => (
+                                <li key={i}>{issue}</li>
+                            ))}
+                        </ul>
+                        <p style={{ 
+                            marginTop: '0.75rem',
+                            fontSize: '0.8125rem',
+                            color: 'var(--text-secondary)'
+                        }}>
+                            Los datos pueden estar desactualizados o incompletos. 
+                            Considera refrescar el caché o esperar a la próxima actualización automática.
+                        </p>
+                    </div>
+                </div>
+            )}
+            
+            {health.warnings.length > 0 && (
+                <div className="alert-card alert-info" style={{ marginBottom: '1rem' }}>
+                    <div className="alert-icon" style={{ 
+                        background: 'rgba(255, 111, 0, 0.3)',
+                        color: 'var(--orange)'
+                    }}>
+                        ℹ️
+                    </div>
+                    <div className="alert-content">
+                        <h3>Avisos de Calidad de Datos</h3>
+                        <ul style={{ 
+                            marginTop: '0.75rem', 
+                            paddingLeft: '1.5rem',
+                            fontSize: '0.875rem',
+                            lineHeight: '1.8'
+                        }}>
+                            {health.warnings.map((warning, i) => (
+                                <li key={i}>{warning}</li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+            
             if (isLoading) {
                 return (
                     <div className="app-container">
@@ -3113,13 +3312,49 @@ const hasCOTData = () => {
     </div>
 {lastUpdate && (
     <div className="info-item">
-        <span>Actualizado: {lastUpdate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
+        <span>FX Rates: {lastUpdate.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</span>
+    </div>
+)}
+{Object.keys(economicData).length > 0 && (
+    <div className="info-item">
+        <span>Datos económicos: {getCacheAge(economicData)}</span>
+        {isCacheStale(economicData) && (
+            <span style={{ 
+                marginLeft: '0.5rem', 
+                color: 'var(--orange)',
+                fontSize: '1rem'
+            }}>⚠️</span>
+        )}
     </div>
 )}
 {hasCOTData() ? (
     <div className="info-item">
         <div className="status-live"></div>
         <span>COT Disponible</span>
+        {(() => {
+            // Mostrar fecha del último reporte COT
+            const currencies = ['EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'NZD'];
+            for (const curr of currencies) {
+                const data = economicData[curr];
+                if (data?.cotPositioning !== null && data?.cotPositioning !== undefined) {
+                    if (data.lastUpdate) {
+                        const cotDate = new Date(data.lastUpdate);
+                        const daysAgo = Math.floor((Date.now() - cotDate.getTime()) / (24 * 60 * 60 * 1000));
+                        return (
+                            <span style={{ 
+                                marginLeft: '0.5rem', 
+                                fontSize: '0.75rem',
+                                color: 'var(--text-tertiary)'
+                            }}>
+                                ({daysAgo === 0 ? 'Hoy' : daysAgo === 1 ? 'Ayer' : `${daysAgo}d`})
+                            </span>
+                        );
+                    }
+                    break;
+                }
+            }
+            return null;
+        })()}
     </div>
 ) : (
     <div className="info-item">
@@ -3130,7 +3365,27 @@ const hasCOTData = () => {
             borderRadius: '50%',
             opacity: 0.5
         }}></div>
-        <span style={{ color: 'var(--text-tertiary)' }}>COT: Próx. Viernes</span>
+        <span style={{ color: 'var(--text-tertiary)' }}>
+            COT: Próx. Viernes
+            {(() => {
+                // Calcular días hasta el próximo viernes
+                const today = new Date();
+                const dayOfWeek = today.getDay(); // 0 = domingo, 5 = viernes
+                let daysUntilFriday;
+                
+                if (dayOfWeek === 5) {
+                    daysUntilFriday = 0;
+                } else if (dayOfWeek < 5) {
+                    daysUntilFriday = 5 - dayOfWeek;
+                } else {
+                    daysUntilFriday = 7 - dayOfWeek + 5;
+                }
+                
+                if (daysUntilFriday === 0) return ' (hoy)';
+                if (daysUntilFriday === 1) return ' (mañana)';
+                return ` (${daysUntilFriday}d)`;
+            })()}
+        </span>
     </div>
 )}
 </div>
@@ -3148,6 +3403,8 @@ const hasCOTData = () => {
                     <div className="content">
 {activeTab === 'overview' && (
     <>
+        <DataHealthCheck economicData={economicData} />
+        
         <div className="section-header">
             <div className="section-title">Resumen de Divisas y Análisis Fundamental</div>
             <div className="section-meta">Ordenadas por fortaleza fundamental • Actualizado {lastUpdate ? lastUpdate.toLocaleDateString('es-ES') : ''}</div>
@@ -3332,8 +3589,10 @@ const hasCOTData = () => {
     </>
 )}
                         {activeTab === 'heatmap' && (
-                            <div>
-                                <div className="section-header">
+    <div>
+        <DataHealthCheck economicData={economicData} />
+        
+        <div className="section-header">
                                     <div className="section-title">Mapa de Calor de Indicadores Económicos</div>
                                 </div>
                                 <div className="heatmap-container">
@@ -3467,8 +3726,10 @@ const sentiment = getSentiment(strength);
                         )}
 
                         {activeTab === 'trends' && (
-                            <div>
-                                <div className="section-header">
+    <div>
+        <DataHealthCheck economicData={economicData} />
+        
+        <div className="section-header">
                                     <div className="section-title">Tendencias Históricas y Análisis de Datos</div>
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '1.5rem' }}>
@@ -3565,7 +3826,7 @@ const sentiment = getSentiment(strength);
             Limpiar Caché y Recargar Datos
         </button>
         <div style={{ marginTop: '1rem', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-            Dashboard v4.5.1 • Creado por Global Investing • {new Date().getFullYear()}
+            Dashboard v4.6.0 • Sistema de Validación de Datos Activo • {new Date().getFullYear()}
         </div>
     </div>
 </div>
@@ -3573,7 +3834,92 @@ const sentiment = getSentiment(strength);
                 </div>
             );
         };
-ReactDOM.render(<ForexDashboard />, document.getElementById('root'));
+// Error Boundary para capturar crashes
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null, errorInfo: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.error('💥 Dashboard crashed:', error, errorInfo);
+        this.setState({ error, errorInfo });
+        
+        // Intentar limpiar caché corrupto
+        try {
+            CacheManager.clearAll();
+            console.log('🧹 Cache cleared after crash');
+        } catch (e) {
+            console.error('Failed to clear cache:', e);
+        }
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="app-container">
+                    <div className="header">
+                        <div className="header-content">
+                            <div>
+                                <div className="brand-title">Análisis Fundamental Forex</div>
+                                <div className="brand-subtitle">Error del Sistema</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="content">
+                        <div className="alert-card alert-warning" style={{ maxWidth: '800px', margin: '2rem auto' }}>
+                            <div className="alert-icon" style={{ 
+                                background: 'rgba(239, 83, 80, 0.3)',
+                                color: 'var(--red-strong)',
+                                fontSize: '2rem'
+                            }}>
+                                💥
+                            </div>
+                            <div className="alert-content">
+                                <h3>El Dashboard ha Encontrado un Error</h3>
+                                <p style={{ marginTop: '1rem', lineHeight: '1.7' }}>
+                                    El sistema ha detectado un error crítico. Se ha limpiado el caché automáticamente.
+                                </p>
+                                <p style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                                    <strong>Error:</strong> {this.state.error && this.state.error.toString()}
+                                </p>
+                                <button 
+                                    onClick={() => window.location.reload()}
+                                    style={{
+                                        marginTop: '1.5rem',
+                                        padding: '12px 24px',
+                                        background: 'var(--blue)',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        cursor: 'pointer',
+                                        fontSize: '0.875rem',
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    Recargar Dashboard
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
+}
+
+ReactDOM.render(
+    <ErrorBoundary>
+        <ForexDashboard />
+    </ErrorBoundary>,
+    document.getElementById('root')
+);
 </script>
 </body>
 </html>
