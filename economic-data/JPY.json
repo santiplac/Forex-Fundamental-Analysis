@@ -1,9 +1,9 @@
 {
-  "lastUpdate": "2026-02-15",
+  "lastUpdate": "2026-02-16",
   "source": "TradingEconomics + COT",
   "data": {
     "gdp": 4026.0,
-    "gdpGrowth": -0.6,
+    "gdpGrowth": 0.1,
     "inflation": 2.1,
     "unemployment": 2.6,
     "debt": 237.0,
