@@ -1822,55 +1822,65 @@ const response = await fetchWithRetry(githubUrl, {
 if (response.ok) {
     const scrapedData = await response.json();
     
-    if (scrapedData.data) {
-        const data = scrapedData.data;
+if (scrapedData.data) {
+    const data = scrapedData.data;
+    const dates = scrapedData.dates || {}; // ← NUEVO: Leer fechas
+    
+    economicData[country.code].gdp = data.gdp ? data.gdp / 1000 : null;
+    economicData[country.code].gdpDate = dates.gdp || scrapedData.lastUpdate;
+    currentStep++;
+    
+    economicData[country.code].gdpGrowth = data.gdpGrowth || null;
+    economicData[country.code].gdpGrowthDate = dates.gdpGrowth || scrapedData.lastUpdate;
+    currentStep++;
+    
+    economicData[country.code].inflation = data.inflation || null;
+    economicData[country.code].inflationDate = dates.inflation || scrapedData.lastUpdate;
+    currentStep++;
+    
+    economicData[country.code].unemployment = data.unemployment || null;
+    economicData[country.code].unemploymentDate = dates.unemployment || scrapedData.lastUpdate;
+    currentStep++;
+    
+    economicData[country.code].currentAccount = data.currentAccount || null;
+    economicData[country.code].currentAccountDate = dates.currentAccount || scrapedData.lastUpdate;
+    currentStep++;
+    
+    economicData[country.code].debt = data.debt || null;
+    economicData[country.code].debtDate = dates.debt || scrapedData.lastUpdate;
+    currentStep++;
+    
+    economicData[country.code].tradeBalance = data.tradeBalance || null;
+    economicData[country.code].tradeBalanceDate = dates.tradeBalance || scrapedData.lastUpdate;
+    currentStep++;
         
-        economicData[country.code].gdp = data.gdp ? data.gdp / 1000 : null;
-        currentStep++;
-        
-        economicData[country.code].gdpGrowth = data.gdpGrowth || null;
-        currentStep++;
-        
-        economicData[country.code].inflation = data.inflation || null;
-        currentStep++;
-        
-        economicData[country.code].unemployment = data.unemployment || null;
-        currentStep++;
-        
-        economicData[country.code].currentAccount = data.currentAccount || null;
-        currentStep++;
-        
-        economicData[country.code].debt = data.debt || null;
-        currentStep++;
-        
-        economicData[country.code].tradeBalance = data.tradeBalance || null;
-        currentStep++;
-        
-        setDataLoadingStatus({ 
-            status: `${country.name}: Tasa de Interés...`, 
-            progress: Math.round((currentStep / totalSteps) * 100) 
-        });
-        economicData[country.code].interestRate = await fetchInterestRate(country);
-        currentStep++;
-        
-        economicData[country.code].production = data.production || null;
-        currentStep++;
+setDataLoadingStatus({ 
+        status: `${country.name}: Tasa de Interés...`, 
+        progress: Math.round((currentStep / totalSteps) * 100) 
+    });
+    economicData[country.code].interestRate = await fetchInterestRate(country);
+    economicData[country.code].interestRateDate = scrapedData.lastUpdate; // ← Usar fecha del scraping
+    currentStep++;
+    
+    economicData[country.code].production = data.production || null;
+    economicData[country.code].productionDate = dates.production || scrapedData.lastUpdate;
+    currentStep++;
 
-        // ✅ EXTRAER TIMESTAMP DEL JSON
-        economicData[country.code].lastUpdate = scrapedData.lastUpdate || new Date().toISOString();
+    // ✅ EXTRAER TIMESTAMP DEL JSON
+    economicData[country.code].lastUpdate = scrapedData.lastUpdate || new Date().toISOString();
 
-        // ✅ NUEVOS INDICADORES CON DEBUG
-        economicData[country.code].retailSales = data.retailSales !== undefined ? data.retailSales : null;
-        console.log(`📊 ${country.code} Retail Sales: ${economicData[country.code].retailSales}`);
+    // ✅ NUEVOS INDICADORES CON FECHAS
+    economicData[country.code].retailSales = data.retailSales !== undefined ? data.retailSales : null;
+    economicData[country.code].retailSalesDate = dates.retailSales || scrapedData.lastUpdate;
 
-        economicData[country.code].wageGrowth = data.wageGrowth !== undefined ? data.wageGrowth : null;
-        console.log(`💰 ${country.code} Wage Growth: ${economicData[country.code].wageGrowth}`);
+    economicData[country.code].wageGrowth = data.wageGrowth !== undefined ? data.wageGrowth : null;
+    economicData[country.code].wageGrowthDate = dates.wageGrowth || scrapedData.lastUpdate;
 
-        economicData[country.code].manufacturingPMI = data.manufacturingPMI !== undefined ? data.manufacturingPMI : null;
-        console.log(`🏭 ${country.code} PMI: ${economicData[country.code].manufacturingPMI}`);
+    economicData[country.code].manufacturingPMI = data.manufacturingPMI !== undefined ? data.manufacturingPMI : null;
+    economicData[country.code].manufacturingPMIDate = dates.manufacturingPMI || scrapedData.lastUpdate;
 
-        // COT se carga desde archivo separado después
-        economicData[country.code].cotPositioning = data.cotPositioning !== undefined ? data.cotPositioning : null;
+    // COT se carga desde archivo separado después
+    economicData[country.code].cotPositioning = data.cotPositioning !== undefined ? data.cotPositioning : null;
 
         console.log(`✅ Loaded all data for ${country.code}`);
     } else {
@@ -1893,6 +1903,9 @@ if (cotResponse.ok) {
     const cotData = await cotResponse.json();
     if (cotData.netPosition !== null && cotData.netPosition !== undefined) {
         economicData[country.code].cotPositioning = cotData.netPosition;
+        
+        // ✅ Guardar la fecha específica del reporte COT
+        economicData[country.code].cotPositioningDate = cotData.reportDate || cotData.lastUpdate || scrapedData.lastUpdate;
         
         // ✅ Actualizar timestamp si COT es más reciente
         if (cotData.lastUpdate) {
@@ -3946,19 +3959,19 @@ const sentiment = getSentiment(strength);
                                                                 <span className="overall-label" style={{ color: overallColor }}>{sentiment}</span>
                                                             </div>
                                                         </td>
-<HeatmapCell value={data.gdp} type="gdp" currency={country.code} indicator="gdp" lastUpdate={data.lastUpdate} />
-                                                        <HeatmapCell value={data.gdpGrowth} type="gdpGrowth" currency={country.code} indicator="gdpGrowth" lastUpdate={data.lastUpdate} />
-                                                        <HeatmapCell value={data.interestRate} type="interestRate" currency={country.code} indicator="interestRate" lastUpdate={data.lastUpdate} />
-                                                        <HeatmapCell value={data.inflation} type="inflation" currency={country.code} indicator="inflation" lastUpdate={data.lastUpdate} />
-                                                        <HeatmapCell value={data.unemployment} type="unemployment" currency={country.code} indicator="unemployment" lastUpdate={data.lastUpdate} />
-                                                        <HeatmapCell value={data.currentAccount} type="currentAccount" currency={country.code} indicator="currentAccount" lastUpdate={data.lastUpdate} />
-                                                        <HeatmapCell value={data.debt} type="debt" currency={country.code} indicator="debt" lastUpdate={data.lastUpdate} />
-                                                        <HeatmapCell value={data.tradeBalance} type="tradeBalance" currency={country.code} indicator="tradeBalance" lastUpdate={data.lastUpdate} />
-                                                        <HeatmapCell value={data.production} type="production" currency={country.code} indicator="production" lastUpdate={data.lastUpdate} />
-                                                        <HeatmapCell value={data.retailSales} type="retailSales" currency={country.code} indicator="retailSales" lastUpdate={data.lastUpdate} />
-                                                        <HeatmapCell value={data.wageGrowth} type="wageGrowth" currency={country.code} indicator="wageGrowth" lastUpdate={data.lastUpdate} />
-                                                        <HeatmapCell value={data.manufacturingPMI} type="manufacturingPMI" currency={country.code} indicator="manufacturingPMI" lastUpdate={data.lastUpdate} />
-                                                        <HeatmapCell value={data.cotPositioning} type="cotPositioning" currency={country.code} indicator="cotPositioning" lastUpdate={data.lastUpdate} />
+<HeatmapCell value={data.gdp} type="gdp" currency={country.code} indicator="gdp" lastUpdate={data.gdpDate} />
+<HeatmapCell value={data.gdpGrowth} type="gdpGrowth" currency={country.code} indicator="gdpGrowth" lastUpdate={data.gdpGrowthDate} />
+<HeatmapCell value={data.interestRate} type="interestRate" currency={country.code} indicator="interestRate" lastUpdate={data.interestRateDate} />
+<HeatmapCell value={data.inflation} type="inflation" currency={country.code} indicator="inflation" lastUpdate={data.inflationDate} />
+<HeatmapCell value={data.unemployment} type="unemployment" currency={country.code} indicator="unemployment" lastUpdate={data.unemploymentDate} />
+<HeatmapCell value={data.currentAccount} type="currentAccount" currency={country.code} indicator="currentAccount" lastUpdate={data.currentAccountDate} />
+<HeatmapCell value={data.debt} type="debt" currency={country.code} indicator="debt" lastUpdate={data.debtDate} />
+<HeatmapCell value={data.tradeBalance} type="tradeBalance" currency={country.code} indicator="tradeBalance" lastUpdate={data.tradeBalanceDate} />
+<HeatmapCell value={data.production} type="production" currency={country.code} indicator="production" lastUpdate={data.productionDate} />
+<HeatmapCell value={data.retailSales} type="retailSales" currency={country.code} indicator="retailSales" lastUpdate={data.retailSalesDate} />
+<HeatmapCell value={data.wageGrowth} type="wageGrowth" currency={country.code} indicator="wageGrowth" lastUpdate={data.wageGrowthDate} />
+<HeatmapCell value={data.manufacturingPMI} type="manufacturingPMI" currency={country.code} indicator="manufacturingPMI" lastUpdate={data.manufacturingPMIDate} />
+<HeatmapCell value={data.cotPositioning} type="cotPositioning" currency={country.code} indicator="cotPositioning" lastUpdate={data.cotPositioningDate} />
                                                     </tr>
                                                 );
                                             })}
