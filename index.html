@@ -410,9 +410,17 @@
             border-bottom: none;
         }
 
-        .heatmap-table tbody tr:hover td {
-            background: var(--bg-elevated);
-        }
+.heatmap-table tbody tr:hover td {
+    background: var(--bg-elevated);
+}
+
+.heatmap-table tbody tr:hover td:not(:first-child) {
+    color: var(--text-primary) !important;
+}
+
+.heatmap-table tbody tr:hover td .cell-value {
+    color: var(--text-primary) !important;
+}
 
         .heatmap-table tbody tr:hover td:first-child {
             background: var(--bg-elevated);
