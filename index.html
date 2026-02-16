@@ -2784,15 +2784,14 @@ const indicatorTooltips = {
 
 const HeatmapCell = ({ value, type, currency, indicator, lastUpdate }) => {
     const cellRef = React.useRef(null);
-    const tooltipRef = React.useRef(null);
+    const [showTooltip, setShowTooltip] = React.useState(false);
+    const [tooltipPosition, setTooltipPosition] = React.useState({ x: 0, y: 0 });
 
     const handleMouseEnter = (e) => {
-        if (!lastUpdate || !tooltipRef.current) return;
+        if (!lastUpdate) return;
         
         const rect = e.currentTarget.getBoundingClientRect();
-        const tooltip = tooltipRef.current;
         
-        // Posicionar el tooltip
         const tooltipWidth = 200;
         const tooltipHeight = 60;
         
@@ -2801,7 +2800,6 @@ const HeatmapCell = ({ value, type, currency, indicator, lastUpdate }) => {
         
         // Ajustar si se sale del viewport
         const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
         
         if (left + tooltipWidth / 2 > viewportWidth - 20) {
             left = viewportWidth - tooltipWidth / 2 - 20;
@@ -2813,20 +2811,14 @@ const HeatmapCell = ({ value, type, currency, indicator, lastUpdate }) => {
         // Si no hay espacio arriba, mostrar abajo
         if (top < 20) {
             top = rect.bottom + 10;
-            tooltip.style.transform = 'translate(-50%, 0)';
-        } else {
-            tooltip.style.transform = 'translate(-50%, 0)';
         }
         
-        tooltip.style.left = `${left}px`;
-        tooltip.style.top = `${top}px`;
-        tooltip.classList.add('visible');
+        setTooltipPosition({ x: left, y: top });
+        setShowTooltip(true);
     };
 
     const handleMouseLeave = () => {
-        if (tooltipRef.current) {
-            tooltipRef.current.classList.remove('visible');
-        }
+        setShowTooltip(false);
     };
 
     const formatDate = (dateString) => {
@@ -2863,52 +2855,75 @@ const HeatmapCell = ({ value, type, currency, indicator, lastUpdate }) => {
         'cotPositioning': 'COT Positioning'
     };
 
-    return (
-        <>
-            <td 
-                ref={cellRef}
-                style={{ background: getHeatmapColor(value, type) }}
-                data-has-date={lastUpdate ? "true" : "false"}
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
-            >
-                {type === 'gdp' ? (
-                    <>
-                        <span className="cell-value">{formatValue(value, 2)}</span>
-                        <span className="cell-suffix">T USD</span>
-                    </>
-                ) : type === 'gdpGrowth' || type === 'interestRate' || type === 'inflation' || type === 'unemployment' || type === 'production' || type === 'retailSales' || type === 'wageGrowth' ? (
-                    <span className="cell-value">{value > 0 && (type === 'production' || type === 'retailSales') ? '+' : ''}{formatValue(value, type === 'interestRate' ? 2 : 1)}%</span>
-                ) : type === 'currentAccount' || type === 'debt' ? (
-                    <span className="cell-value">{value > 0 && type === 'currentAccount' ? '+' : ''}{formatValue(value)}%</span>
-                ) : type === 'tradeBalance' ? (
-                    <span className="cell-value">{value > 0 ? '+' : ''}{(value / 1000).toFixed(1)}B</span>
-                ) : type === 'manufacturingPMI' ? (
-                    <span className="cell-value">{formatValue(value, 1)}</span>
-                ) : type === 'cotPositioning' ? (
-                    value !== null && value !== undefined ? (
-                        <span className="cell-value">
-                            {value > 0 ? '+' : ''}
-                            {(value / 1000).toFixed(1)}K
-                        </span>
-                    ) : (
-                        <span className="cell-value" style={{ color: 'var(--text-tertiary)' }}>N/A</span>
-                    )
-                ) : (
-                    <span className="cell-value">{formatValue(value)}</span>
-                )}
-            </td>
+    // Crear el contenido del tooltip
+    React.useEffect(() => {
+        if (showTooltip && lastUpdate) {
+            // Crear tooltip en el body
+            let tooltip = document.getElementById('global-heatmap-tooltip');
+            if (!tooltip) {
+                tooltip = document.createElement('div');
+                tooltip.id = 'global-heatmap-tooltip';
+                tooltip.className = 'heatmap-cell-tooltip';
+                document.body.appendChild(tooltip);
+            }
             
-            {lastUpdate && (
-                <div 
-                    ref={tooltipRef}
-                    className="heatmap-cell-tooltip"
-                >
-                    <span className="tooltip-date">📅 {formatDate(lastUpdate)}</span>
-                    <span className="tooltip-indicator">{currency} - {indicatorNames[indicator] || indicator}</span>
-                </div>
+            tooltip.innerHTML = `
+                <span class="tooltip-date">📅 ${formatDate(lastUpdate)}</span>
+                <span class="tooltip-indicator">${currency} - ${indicatorNames[indicator] || indicator}</span>
+            `;
+            tooltip.style.left = `${tooltipPosition.x}px`;
+            tooltip.style.top = `${tooltipPosition.y}px`;
+            tooltip.style.transform = 'translate(-50%, 0)';
+            tooltip.classList.add('visible');
+        } else {
+            const tooltip = document.getElementById('global-heatmap-tooltip');
+            if (tooltip) {
+                tooltip.classList.remove('visible');
+            }
+        }
+        
+        return () => {
+            const tooltip = document.getElementById('global-heatmap-tooltip');
+            if (tooltip) {
+                tooltip.classList.remove('visible');
+            }
+        };
+    }, [showTooltip, tooltipPosition, lastUpdate, currency, indicator]);
+
+    return (
+        <td 
+            ref={cellRef}
+            style={{ background: getHeatmapColor(value, type) }}
+            data-has-date={lastUpdate ? "true" : "false"}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+        >
+            {type === 'gdp' ? (
+                <>
+                    <span className="cell-value">{formatValue(value, 2)}</span>
+                    <span className="cell-suffix">T USD</span>
+                </>
+            ) : type === 'gdpGrowth' || type === 'interestRate' || type === 'inflation' || type === 'unemployment' || type === 'production' || type === 'retailSales' || type === 'wageGrowth' ? (
+                <span className="cell-value">{value > 0 && (type === 'production' || type === 'retailSales') ? '+' : ''}{formatValue(value, type === 'interestRate' ? 2 : 1)}%</span>
+            ) : type === 'currentAccount' || type === 'debt' ? (
+                <span className="cell-value">{value > 0 && type === 'currentAccount' ? '+' : ''}{formatValue(value)}%</span>
+            ) : type === 'tradeBalance' ? (
+                <span className="cell-value">{value > 0 ? '+' : ''}{(value / 1000).toFixed(1)}B</span>
+            ) : type === 'manufacturingPMI' ? (
+                <span className="cell-value">{formatValue(value, 1)}</span>
+            ) : type === 'cotPositioning' ? (
+                value !== null && value !== undefined ? (
+                    <span className="cell-value">
+                        {value > 0 ? '+' : ''}
+                        {(value / 1000).toFixed(1)}K
+                    </span>
+                ) : (
+                    <span className="cell-value" style={{ color: 'var(--text-tertiary)' }}>N/A</span>
+                )
+            ) : (
+                <span className="cell-value">{formatValue(value)}</span>
             )}
-        </>
+        </td>
     );
 };
             
