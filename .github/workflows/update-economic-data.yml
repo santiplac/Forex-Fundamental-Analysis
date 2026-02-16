@@ -1,4 +1,4 @@
-name: Update Economic Data - FINAL (TE Multi-source + COT)
+name: Update Economic Data - FINAL (TE Multi-source + COT + Dates)
 on:
   schedule:
     - cron: '0 6 * * *'  # Daily at 6 AM UTC
@@ -30,7 +30,7 @@ jobs:
           from bs4 import BeautifulSoup
           import json
           import re
-          from datetime import date
+          from datetime import date, datetime
           import time
           
           HEADERS = {
@@ -95,12 +95,63 @@ jobs:
               m = re.search(r'(-?\d+\.?\d*)', text)
               return float(m.group(1)) if m else None
           
+          def parse_te_date(date_text):
+              """Parse Trading Economics date formats to ISO date"""
+              if not date_text:
+                  return str(date.today())
+              
+              date_text = date_text.strip()
+              
+              try:
+                  # Format: "Feb 2026" or "Feb/26"
+                  if re.search(r'[A-Za-z]{3}\s*[/\s]\s*\d{2,4}', date_text):
+                      # Extract month and year
+                      match = re.search(r'([A-Za-z]{3})\s*[/\s]\s*(\d{2,4})', date_text)
+                      if match:
+                          month_str = match.group(1)
+                          year_str = match.group(2)
+                          
+                          # Convert 2-digit year to 4-digit
+                          if len(year_str) == 2:
+                              year_str = '20' + year_str
+                          
+                          # Parse month name
+                          dt = datetime.strptime(f"{month_str} {year_str}", '%b %Y')
+                          return dt.strftime('%Y-%m-15')
+                  
+                  # Format: "Q1/2026" or "Q4 2025"
+                  elif re.search(r'Q\d[/\s]\d{4}', date_text):
+                      match = re.search(r'Q(\d)[/\s](\d{4})', date_text)
+                      if match:
+                          quarter = int(match.group(1))
+                          year = int(match.group(2))
+                          # Use middle month of quarter
+                          month = (quarter - 1) * 3 + 2
+                          return f"{year}-{month:02d}-15"
+                  
+                  # Format: "2025" (year only)
+                  elif re.search(r'^\d{4}$', date_text):
+                      year = int(date_text)
+                      return f"{year}-06-15"  # Mid-year
+                  
+                  # Format: "Dec/25" without space
+                  elif re.search(r'[A-Za-z]{3}/\d{2}', date_text):
+                      dt = datetime.strptime(date_text, '%b/%y')
+                      return dt.strftime('%Y-%m-15')
+                      
+              except Exception as e:
+                  print(f"    ⚠️ Date parse error for '{date_text}': {e}")
+                  pass
+              
+              # Fallback to today
+              return str(date.today())
+          
           def scrape_country_page(country_slug, indicator_page, currency_code):
               url = f'https://tradingeconomics.com/{country_slug}/{indicator_page}'
               try:
                   r = requests.get(url, headers=HEADERS, timeout=20)
                   if not r.ok:
-                      return None
+                      return None, None
                   
                   soup = BeautifulSoup(r.content, 'lxml')
                   
@@ -108,18 +159,32 @@ jobs:
                   for table in soup.find_all('table'):
                       headers = [h.get_text(strip=True).lower() for h in table.find_all('th')]
                       if 'actual' in headers:
-                          idx = headers.index('actual')
+                          actual_idx = headers.index('actual')
+                          
+                          # Try to find "Reference" column for date
+                          date_idx = None
+                          if 'reference' in headers:
+                              date_idx = headers.index('reference')
+                          
                           rows = table.find_all('tr')[1:]
                           if rows:
                               cells = rows[0].find_all('td')
-                              if len(cells) > idx:
-                                  val = clean_num(cells[idx].get_text(strip=True))
+                              if len(cells) > actual_idx:
+                                  val = clean_num(cells[actual_idx].get_text(strip=True))
+                                  
+                                  # Extract date if available
+                                  data_date = str(date.today())
+                                  if date_idx and len(cells) > date_idx:
+                                      date_text = cells[date_idx].get_text(strip=True)
+                                      data_date = parse_te_date(date_text)
+                                  
                                   if val is not None:
-                                      print(f"    ✅ {currency_code}: {val} (country page)")
-                                      return val
-                  return None
-              except:
-                  return None
+                                      print(f"    ✅ {currency_code}: {val} (date: {data_date})")
+                                      return val, data_date
+                  return None, None
+              except Exception as e:
+                  print(f"    ❌ Error scraping {country_slug}: {e}")
+                  return None, None
           
           def parse_tb(cols):
               if len(cols) < 5:
@@ -147,9 +212,20 @@ jobs:
                   soup = BeautifulSoup(r.content, 'lxml')
                   
                   data = {}
+                  dates = {}
                   table = soup.find('table', {'class': 'table'})
                   if not table:
-                      return data
+                      return data, dates
+                  
+                  # Get header indices
+                  headers = [h.get_text(strip=True).lower() for h in table.find_all('th')]
+                  actual_idx = 1  # Default
+                  date_idx = None
+                  
+                  if 'actual' in headers:
+                      actual_idx = headers.index('actual')
+                  if 'reference' in headers:
+                      date_idx = headers.index('reference')
                   
                   for row in table.find_all('tr')[1:]:
                       cols = row.find_all('td')
@@ -160,19 +236,27 @@ jobs:
                       
                       for code, names in COUNTRY_NAMES.items():
                           if any(n.lower() in ctry.lower() for n in names):
-                              val = parse_tb(cols) if indicator == 'tradeBalance' else clean_num(cols[1].get_text(strip=True))
+                              val = parse_tb(cols) if indicator == 'tradeBalance' else clean_num(cols[actual_idx].get_text(strip=True))
+                              
+                              # Extract date
+                              data_date = str(date.today())
+                              if date_idx and len(cols) > date_idx:
+                                  date_text = cols[date_idx].get_text(strip=True)
+                                  data_date = parse_te_date(date_text)
+                              
                               if val is not None:
                                   data[code] = round(val, 2)
-                                  print(f"  ✓ {code}: {val}")
+                                  dates[code] = data_date
+                                  print(f"  ✓ {code}: {val} (date: {data_date})")
                               break
                   
-                  return data
+                  return data, dates
               except Exception as e:
                   print(f"  ❌ {e}")
-                  return {}
+                  return {}, {}
           
           def scrape_fallback(indicator, url):
-              data = scrape_te(url, indicator)
+              data, dates = scrape_te(url, indicator)
               missing = [c for c in CURRENCIES if c not in data]
               
               if missing and indicator in INDICATOR_PAGES:
@@ -182,12 +266,13 @@ jobs:
                   for code in missing:
                       slug = COUNTRY_URLS.get(code)
                       if slug:
-                          val = scrape_country_page(slug, page, code)
+                          val, data_date = scrape_country_page(slug, page, code)
                           if val is not None:
                               data[code] = val
+                              dates[code] = data_date if data_date else str(date.today())
                           time.sleep(1)
               
-              return data
+              return data, dates
           
           def load_cot():
               import os
@@ -206,29 +291,32 @@ jobs:
           
           # MAIN
           print("="*50)
-          print("ECONOMIC DATA SCRAPER - FINAL")
+          print("ECONOMIC DATA SCRAPER - WITH DATES")
           print("="*50)
           
           fetch_fx()
           all_data = {c: {} for c in CURRENCIES}
+          all_dates = {c: {} for c in CURRENCIES}
           
           for ind, url in TRADING_ECONOMICS_URLS.items():
-              ind_data = scrape_fallback(ind, url)
+              ind_data, ind_dates = scrape_fallback(ind, url)
               for code, val in ind_data.items():
                   all_data[code][ind] = val
+                  all_dates[code][ind] = ind_dates.get(code, str(date.today()))
               time.sleep(2)
           
           cot_data = load_cot()
           for code, val in cot_data.items():
               all_data[code]['cotPositioning'] = val
           
-          # Save
+          # Save with dates
           today = str(date.today())
           for curr in CURRENCIES:
               pkg = {
                   'lastUpdate': today,
                   'source': 'TradingEconomics + COT',
-                  'data': all_data[curr]
+                  'data': all_data[curr],
+                  'dates': all_dates[curr]  # ← NUEVO: Fechas individuales
               }
               with open(f'economic-data/{curr}.json', 'w') as f:
                   json.dump(pkg, f, indent=2)
@@ -237,7 +325,7 @@ jobs:
                         if all_data[curr].get(k) is None]
               print(f"{'✅' if not missing else '⚠️ '} {curr}: {'Complete' if not missing else 'Missing ' + ', '.join(missing)}")
           
-          print("\n✅ COMPLETED")
+          print("\n✅ COMPLETED WITH DATES")
           EOFPYTHON
       
       - name: Commit and push
@@ -248,7 +336,7 @@ jobs:
           if git diff --quiet && git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "📊 Economic data $(date +'%Y-%m-%d')"
+            git commit -m "📊 Economic data $(date +'%Y-%m-%d') + dates"
             git pull --rebase origin main || true
             git push
           fi
