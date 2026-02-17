@@ -1267,9 +1267,10 @@ const fetchInterestRate = async (country) => {
                             const value = parseFloat(latestObs.value);
                             
                             if (!isNaN(value) && value >= -1 && value < 25) {
-                                console.log(`✅ GitHub Pages rate for ${country.code}: ${value}%`);
-                                CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                                return value;
+                                console.log(`✅ GitHub Pages rate for ${country.code}: ${value}% (period: ${latestObs.date || 'N/A'})`);
+                                const result = { rate: value, date: latestObs.date || null };
+                                CacheManager.set(cacheKey, result, CACHE_CONFIG.ECONOMIC_DATA);
+                                return result;
                             }
                         }
                     }
@@ -1298,8 +1299,9 @@ if (country.code === 'USD') {
                                 const value = parseFloat(data.data[0].value);
                                 if (!isNaN(value) && value >= 0 && value < 25) {
                                     console.log(`✅ Alpha Vantage fallback rate for USD: ${value}%`);
-                                    CacheManager.set(cacheKey, value, CACHE_CONFIG.ECONOMIC_DATA);
-                                    return value;
+                                    const result = { rate: value, date: null };
+                                    CacheManager.set(cacheKey, result, CACHE_CONFIG.ECONOMIC_DATA);
+                                    return result;
                                 }
                             }
                         }
@@ -1847,8 +1849,18 @@ setDataLoadingStatus({
         status: `${country.name}: Tasa de Interés...`, 
         progress: Math.round((currentStep / totalSteps) * 100) 
     });
-    economicData[country.code].interestRate = await fetchInterestRate(country);
-    economicData[country.code].interestRateDate = scrapedData.lastUpdate; // ← Usar fecha del scraping
+    const interestRateResult = await fetchInterestRate(country);
+    if (interestRateResult && typeof interestRateResult === 'object') {
+        economicData[country.code].interestRate = interestRateResult.rate;
+        economicData[country.code].interestRateDate = interestRateResult.date || scrapedData.lastUpdate;
+    } else if (typeof interestRateResult === 'number') {
+        // Backwards compatibility: old cache may hold plain numbers
+        economicData[country.code].interestRate = interestRateResult;
+        economicData[country.code].interestRateDate = scrapedData.lastUpdate;
+    } else {
+        economicData[country.code].interestRate = null;
+        economicData[country.code].interestRateDate = scrapedData.lastUpdate;
+    }
     currentStep++;
     
     economicData[country.code].production = data.production || null;
@@ -2152,8 +2164,15 @@ const TRADING_WEIGHTS = {
     const contributions = {};
     let validIndicators = 0;
 
+    // NZD businessConfidence: ANZ Business Outlook is net balance centred at 0.
+    // Re-map to base-100 for uniform scoring: 0→50 (neutral), +100→100, -100→0
+    let scoringData = { ...data };
+    if (currency === 'NZD' && scoringData.businessConfidence !== null && scoringData.businessConfidence !== undefined) {
+        scoringData.businessConfidence = Math.max(0, Math.min(100, (scoringData.businessConfidence / 100) * 50 + 50));
+    }
+
     Object.keys(TRADING_WEIGHTS).forEach(indicator => {
-        const value = data[indicator];
+        const value = scoringData[indicator];
         if (value === null || value === undefined || isNaN(value)) {
             contributions[indicator] = 0;
             return;
@@ -3185,10 +3204,14 @@ if (data.cotPositioning !== null && data.cotPositioning !== undefined) {
 
     if (data.businessConfidence !== null && data.businessConfidence !== undefined) {
         const bcStr = fmt(data.businessConfidence, 1);
-        if (data.businessConfidence > 105) {
-            analysis.push(`Confianza empresarial elevada (índice ${bcStr}) anticipa expansión de inversión y contrataciones en los próximos trimestres.`);
-        } else if (data.businessConfidence < 95) {
-            analysis.push(`Confianza empresarial deteriorada (índice ${bcStr}) señala reducción esperada de inversión y posibles recortes de empleo.`);
+        const isNetBalance = (currency === 'NZD');
+        const bcHigh  = isNetBalance ? 30 : 105;
+        const bcLow   = isNetBalance ? -10 : 95;
+        const bcLabel = isNetBalance ? 'balance neto' : 'índice';
+        if (data.businessConfidence > bcHigh) {
+            analysis.push(`Confianza empresarial elevada (${bcLabel} ${bcStr}) anticipa expansión de inversión y contrataciones en los próximos trimestres.`);
+        } else if (data.businessConfidence < bcLow) {
+            analysis.push(`Confianza empresarial deteriorada (${bcLabel} ${bcStr}) señala reducción esperada de inversión y posibles recortes de empleo.`);
         }
     }
 
