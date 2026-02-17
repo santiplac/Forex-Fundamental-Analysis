@@ -1,10 +1,10 @@
 {
   "lastUpdate": "2026-02-17",
-  "source": "TradingEconomics \u2014 bonds+confidence fully normalized",
+  "source": "TradingEconomics (?continent=world) \u2014 bonds+confidence fully normalized",
   "data": {
-    "bond10y": 10.0,
+    "bond10y": 4.44,
     "consumerConfidence": 96.5,
-    "businessConfidence": null,
+    "businessConfidence": 164.1,
     "capitalFlows": 4653.0,
     "fdi": 620.0,
     "inflationExpectations": 2.37
@@ -12,7 +12,7 @@
   "dates": {
     "bond10y": "2026-02-17",
     "consumerConfidence": "2025-12-15",
-    "businessConfidence": "2026-02-17",
+    "businessConfidence": "2026-01-15",
     "capitalFlows": "2025-09-15",
     "fdi": "2025-09-15",
     "inflationExpectations": "2026-03-15"

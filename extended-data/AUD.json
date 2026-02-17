@@ -1,6 +1,6 @@
 {
   "lastUpdate": "2026-02-17",
-  "source": "TradingEconomics \u2014 bonds+confidence fully normalized",
+  "source": "TradingEconomics (?continent=world) \u2014 bonds+confidence fully normalized",
   "data": {
     "bond10y": 4.685,
     "consumerConfidence": 90.5,

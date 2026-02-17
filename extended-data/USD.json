@@ -1,8 +1,8 @@
 {
   "lastUpdate": "2026-02-17",
-  "source": "TradingEconomics \u2014 bonds+confidence fully normalized",
+  "source": "TradingEconomics (?continent=world) \u2014 bonds+confidence fully normalized",
   "data": {
-    "bond10y": 4.054,
+    "bond10y": 4.057,
     "consumerConfidence": 57.3,
     "businessConfidence": 52.6,
     "capitalFlows": 212000.0,
