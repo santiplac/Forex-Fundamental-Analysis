@@ -140,6 +140,7 @@ jobs:
           os.makedirs('cot-data', exist_ok=True)
 
           for currency, data in cot_data.items():
+              data['lastUpdate'] = str(date.today())  # ← Permite detección de staleness en el dashboard
               with open(f'cot-data/{currency}.json', 'w') as f:
                   json.dump(data, f, indent=2)
               print(f"{currency}: {data['netPosition']:+,} contracts")
@@ -168,6 +169,7 @@ jobs:
               print(f\"  Net Position: {data['netPosition']:+,} contracts\")
               print(f\"  Source: {data['source']}\")
               print(f\"  Report Date: {data['reportDate']}\")
+              print(f\"  Last Update: {data.get('lastUpdate', 'N/A')}\")
           "
               echo ""
             else
