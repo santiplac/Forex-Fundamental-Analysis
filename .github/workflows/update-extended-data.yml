@@ -1,4 +1,4 @@
-name: Update Extended Data (Bonds + Sentiment + Flows)
+name: Update Extended Data (Bonds + Sentiment + Flows) - FIXED
 on:
   schedule:
     - cron: '30 6 * * *'  # Daily at 6:30 AM UTC (runs AFTER economic data at 6:00)
@@ -83,25 +83,42 @@ jobs:
               return str(date.today())
 
           def normalize_confidence(value, currency, indicator):
-              """Normalize confidence indices to a comparable base-100 scale (100 = neutral).
-              
-              Different countries use incompatible scales:
-                EUR: European Commission scale -100 to +100 (0 = neutral)
-                JPY: Cabinet Office scale ~35-50 typical range (not 100-based)
-                Others: Base 100 scale (100 = neutral)
-              
-              All values are mapped to the base-100 convention so scoring
-              functions can apply uniform thresholds.
+              """
+              Normalize confidence indices to a comparable base-100 scale (100 = neutral).
+
+              Scale mapping:
+                EUR: European Commission -100/+100 → add 100 (0 becomes 100)
+                JPY: Cabinet Office ~35-50 range → mapped to 85-115
+                NZD: ANZ Business Outlook 0-100 → already percentile-like,
+                     remap so 0=50 (neutral), 100=150, -100=50 (index already 0-100
+                     but neutral is ~0 for net balance). ANZ reports net % balance
+                     (-100 to +100), same convention as EUR — so add 100.
+                GBP: CBI/GfK -100/+100 → add 100
+                Others: Base 100 scale (100 = neutral), pass through unchanged.
               """
               if value is None:
                   return None
-              # European Commission: -100/+100 → 0/200 (where 100 = neutral)
+
+              # European Commission scale: -100/+100 → shift to 0/200 (100 = neutral)
               if currency == 'EUR' and indicator in ['consumerConfidence', 'businessConfidence']:
                   return round(value + 100, 2)
-              # Japan Cabinet Office: typical range 35-50 → mapped to 85-115
+
+              # Japan Cabinet Office: typical range 35-50 → map to 85-115
               if currency == 'JPY' and indicator == 'consumerConfidence':
                   normalized = ((value - 40) / 10) * 15 + 100
                   return round(normalized, 2)
+
+              # ── FIX 1: NZD Business Confidence (ANZ Business Outlook) ──
+              # ANZ reports net balance % (-100 to +100), same sign convention as EUR.
+              # A reading of +64 means 64% more optimistic than pessimistic.
+              # Shift to base-100 so scoring functions work correctly.
+              if currency == 'NZD' and indicator == 'businessConfidence':
+                  return round(value + 100, 2)    # e.g. +64.1 → 164.1
+
+              # GBP uses CBI Industrial Trends / GfK: net balance -100/+100 → shift
+              if currency == 'GBP' and indicator in ['consumerConfidence', 'businessConfidence']:
+                  return round(value + 100, 2)    # e.g. -19 → 81
+
               return value
 
           def scrape_te_table(url, label):
@@ -109,7 +126,6 @@ jobs:
               data, dates = {}, {}
               try:
                   r = requests.get(url, headers=HEADERS, timeout=20)
-                  # Handle rate limiting
                   if r.status_code == 429:
                       print(f"  ⚠️ Rate limited by TE, waiting 30s...")
                       time.sleep(30)
@@ -134,7 +150,6 @@ jobs:
                               val = clean_num(cols[actual_idx].get_text(strip=True))
                               dt  = parse_te_date(cols[date_idx].get_text(strip=True)) if date_idx and len(cols) > date_idx else str(date.today())
                               if val is not None:
-                                  # Normalize confidence indices to comparable base-100 scale
                                   if label in ['consumerConfidence', 'businessConfidence']:
                                       val = normalize_confidence(val, code, label)
                                   data[code] = round(val, 4)
@@ -145,65 +160,198 @@ jobs:
                   print(f"  ❌ {e}")
               return data, dates
 
-          def scrape_worldgovernmentbonds():
-              """Primary bond source — public, no auth, clean table.
-              Note: EUR uses Germany (Bund) as proxy for the euro area.
+          # ── FIX 2: Bond yields — TE live-price widget (no class="table") ──────
+          #
+          # PROBLEM: The TE /country-list/government-bond-yield page does NOT render
+          # a <table class="table"> for the bond section when scraped server-side.
+          # Instead, bond yields appear in a plain <table> inside a widget block
+          # whose rows look like:
+          #
+          #   <td><a href="/united-states/...">United States</a></td>
+          #   <td>4.1120</td>   ← Actual yield %
+          #   <td>0.008</td>    ← Change
+          #   <td>0.01%</td>    ← % Change
+          #
+          # The scraper must scan ALL tables, not just class="table", and apply a
+          # sanity filter (0 < value < 20) to identify yield values.
+          #
+          # ALSO: worldgovernmentbonds.com fails silently in CI (dynamic JS content),
+          # so TE is now the ONLY source.  The country-page fallback below handles
+          # any individual currency that the widget table misses.
+
+          def scrape_bonds_from_te(soup):
               """
-              print(f"\n{'='*50}\nBOND YIELDS: worldgovernmentbonds.com\n{'='*50}")
-              WGB_NAMES = {
-                  'USD': ['U.S.', 'United States'],
-                  'EUR': ['Germany'],  # EUR proxy = German 10Y Bund
-                  'GBP': ['U.K.', 'United Kingdom'],
+              Extract bond yields from the TE bond page.
+              TE renders the bond table as a plain <table> (no class="table") with
+              columns: Country | Actual | Chg | %Chg
+              """
+              data, dates = {}, {}
+
+              # Map of currency → all possible country strings that TE might use
+              BOND_NAMES = {
+                  'USD': ['United States'],
+                  'EUR': ['Germany'],        # EUR proxy = German 10Y Bund
+                  'GBP': ['United Kingdom'],
                   'JPY': ['Japan'],
                   'CAD': ['Canada'],
                   'AUD': ['Australia'],
                   'CHF': ['Switzerland'],
-                  'NZD': ['New Zealand']
+                  'NZD': ['New Zealand'],
               }
-              data, dates = {}, {}
+
+              for table in soup.find_all('table'):
+                  rows = table.find_all('tr')
+                  for row in rows:
+                      cols = row.find_all('td')
+                      if len(cols) < 2:
+                          continue
+                      ctry_text = cols[0].get_text(strip=True)
+
+                      for code, names in BOND_NAMES.items():
+                          if code in data:
+                              continue
+                          if any(n.lower() in ctry_text.lower() for n in names):
+                              # Try columns 1, 2, 3 for the actual yield value
+                              for idx in [1, 2, 3]:
+                                  if idx >= len(cols):
+                                      continue
+                                  val = clean_num(cols[idx].get_text(strip=True))
+                                  if val is not None and 0 < val < 20:
+                                      data[code] = round(val, 3)
+                                      dates[code] = str(date.today())
+                                      print(f"  ✓ {code}: {val}% (TE widget table)")
+                                      break
+              return data, dates
+
+          def scrape_bond_country_page_fallback(code):
+              """
+              If the main TE page misses a currency, fetch its individual country page.
+              e.g. https://tradingeconomics.com/germany/government-bond-yield
+              Returns (value, date_str) or (None, None).
+              """
+              COUNTRY_SLUGS = {
+                  'USD': 'united-states',
+                  'EUR': 'germany',          # EUR proxy = Bund
+                  'GBP': 'united-kingdom',
+                  'JPY': 'japan',
+                  'CAD': 'canada',
+                  'AUD': 'australia',
+                  'CHF': 'switzerland',
+                  'NZD': 'new-zealand',
+              }
+              slug = COUNTRY_SLUGS.get(code)
+              if not slug:
+                  return None, None
+
+              url = f'https://tradingeconomics.com/{slug}/government-bond-yield'
               try:
-                  r = requests.get('https://www.worldgovernmentbonds.com/', headers=HEADERS, timeout=15)
+                  r = requests.get(url, headers=HEADERS, timeout=15)
                   r.raise_for_status()
                   soup = BeautifulSoup(r.content, 'lxml')
+
+                  # Look for the current value in the page header / card area
+                  # TE country pages show the latest value in a <span> or <div>
+                  # with class containing "symbol-last" or similar, or in a table.
                   for table in soup.find_all('table'):
                       for row in table.find_all('tr'):
                           cols = row.find_all('td')
-                          if len(cols) < 3: continue
-                          ctry = cols[0].get_text(strip=True)
-                          for code, names in WGB_NAMES.items():
-                              if code in data: continue
-                              if any(n.lower() in ctry.lower() for n in names):
-                                  for idx in [1, 2, 3]:
-                                      if idx < len(cols):
-                                          val = clean_num(cols[idx].get_text(strip=True))
-                                          if val and 0 < val < 20:
-                                              data[code] = round(val, 3)
-                                              dates[code] = str(date.today())
-                                              print(f"  ✓ {code}: {val}%")
-                                              break
+                          for col in cols:
+                              val = clean_num(col.get_text(strip=True))
+                              if val is not None and 0 < val < 20:
+                                  print(f"  ✓ {code}: {val}% (country page fallback)")
+                                  return round(val, 3), str(date.today())
               except Exception as e:
-                  print(f"  ❌ {e}")
+                  print(f"  ❌ Country page fallback for {code}: {e}")
+              return None, None
+
+          def scrape_bonds():
+              """
+              Primary bond scraping from TE /country-list/government-bond-yield.
+              Falls back to individual country pages for any missing currencies.
+              """
+              print(f"\n{'='*50}\nBOND YIELDS: TradingEconomics (Fixed)\n{'='*50}")
+              data, dates = {}, {}
+
+              try:
+                  r = requests.get(TE_URLS['bond10y'], headers=HEADERS, timeout=20)
+                  if r.status_code == 429:
+                      print(f"  ⚠️ Rate limited, waiting 30s...")
+                      time.sleep(30)
+                      r = requests.get(TE_URLS['bond10y'], headers=HEADERS, timeout=20)
+                  r.raise_for_status()
+
+                  soup = BeautifulSoup(r.content, 'lxml')
+
+                  # Step 1: Try standard class="table" parser (works if TE renders it)
+                  std_table = soup.find('table', {'class': 'table'})
+                  if std_table:
+                      print("  Found class='table' — trying standard parser...")
+                      headers_row = [h.get_text(strip=True).lower() for h in std_table.find_all('th')]
+                      actual_idx = headers_row.index('actual') if 'actual' in headers_row else 1
+                      date_idx   = headers_row.index('reference') if 'reference' in headers_row else None
+
+                      BOND_NAMES = {
+                          'USD': ['United States'],
+                          'EUR': ['Germany'],
+                          'GBP': ['United Kingdom'],
+                          'JPY': ['Japan'],
+                          'CAD': ['Canada'],
+                          'AUD': ['Australia'],
+                          'CHF': ['Switzerland'],
+                          'NZD': ['New Zealand'],
+                      }
+                      for row in std_table.find_all('tr')[1:]:
+                          cols = row.find_all('td')
+                          if len(cols) < 2: continue
+                          ctry = cols[0].get_text(strip=True)
+                          for code, names in BOND_NAMES.items():
+                              if any(n.lower() in ctry.lower() for n in names):
+                                  val = clean_num(cols[actual_idx].get_text(strip=True))
+                                  dt  = parse_te_date(cols[date_idx].get_text(strip=True)) if date_idx and len(cols) > date_idx else str(date.today())
+                                  if val is not None and 0 < val < 20:
+                                      data[code] = round(val, 3)
+                                      dates[code] = dt
+                                      print(f"  ✓ {code}: {val}% (standard table)")
+                                  break
+
+                  # Step 2: If class="table" missing or incomplete, scan ALL tables
+                  missing = [c for c in CURRENCIES if c not in data]
+                  if missing:
+                      print(f"  Scanning all tables for: {', '.join(missing)}")
+                      widget_data, widget_dates = scrape_bonds_from_te(soup)
+                      for code in missing:
+                          if code in widget_data:
+                              data[code]  = widget_data[code]
+                              dates[code] = widget_dates[code]
+
+              except Exception as e:
+                  print(f"  ❌ TE bond page error: {e}")
+
+              # Step 3: Country-page fallback for still-missing currencies
+              still_missing = [c for c in CURRENCIES if c not in data]
+              if still_missing:
+                  print(f"\n  Country-page fallback for: {', '.join(still_missing)}")
+                  for code in still_missing:
+                      val, dt = scrape_bond_country_page_fallback(code)
+                      if val is not None:
+                          data[code]  = val
+                          dates[code] = dt
+                      time.sleep(1)
+
               return data, dates
 
           # ── MAIN ──────────────────────────────────────
           all_data  = {c: {} for c in CURRENCIES}
           all_dates = {c: {} for c in CURRENCIES}
 
-          # 1. Bond yields (primary: worldgovernmentbonds, fallback: TE)
-          bond_data, bond_dates = scrape_worldgovernmentbonds()
-          missing = [c for c in CURRENCIES if c not in bond_data]
-          if missing:
-              te_b, te_bd = scrape_te_table(TE_URLS['bond10y'], 'bond10y_fallback')
-              for c in missing:
-                  if c in te_b:
-                      bond_data[c]  = te_b[c]
-                      bond_dates[c] = te_bd.get(c, str(date.today()))
+          # 1. Bond yields (fixed scraper)
+          bond_data, bond_dates = scrape_bonds()
           for c in CURRENCIES:
               all_data[c]['bond10y']  = bond_data.get(c)
               all_dates[c]['bond10y'] = bond_dates.get(c, str(date.today()))
           time.sleep(2)
 
-          # 2-6. Remaining indicators (confidence, flows, FDI, inflation expectations)
+          # 2-6. Remaining indicators
           for key, url in {k: v for k, v in TE_URLS.items() if k != 'bond10y'}.items():
               d, dt = scrape_te_table(url, key)
               for c in CURRENCIES:
@@ -215,7 +363,7 @@ jobs:
           for curr in CURRENCIES:
               pkg = {
                   'lastUpdate': str(date.today()),
-                  'source': 'worldgovernmentbonds.com + TradingEconomics',
+                  'source': 'TradingEconomics (bonds fixed + NZD/GBP confidence normalized)',
                   'data':   all_data[curr],
                   'dates':  all_dates[curr]
               }
@@ -235,7 +383,7 @@ jobs:
           if git diff --quiet && git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "📊 Extended data $(date +'%Y-%m-%d') — bonds/sentiment/flows"
+            git commit -m "📊 Extended data $(date +'%Y-%m-%d') — bonds fixed + NZD/GBP confidence"
             git pull --rebase origin main || true
             git push
           fi
