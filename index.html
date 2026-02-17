@@ -2442,7 +2442,7 @@ const checkDataHealth = (economicData) => {
             'currentAccount', 'debt', 'tradeBalance', 'production',
             'retailSales', 'wageGrowth', 'manufacturingPMI', 'cotPositioning',
             'bond10y', 'consumerConfidence', 'businessConfidence',
-            'capitalFlows', 'inflationExpectations'
+            'capitalFlows', 'inflationExpectations', 'termsOfTrade'
         ];
         
         const available = indicators.filter(ind => 
@@ -4300,8 +4300,8 @@ const sentiment = getSentiment(strength);
 <div className="footer">
     <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>DASHBOARD DE ANÁLISIS FUNDAMENTAL FOREX - DATA-DRIVEN</div>
 <div style={{ marginBottom: '1rem' }}>
-        Metodología: Modelo cuantitativo 100% basado en datos económicos reales • 17 indicadores ponderados<br/>
-        Balance Externo (28%) • Tasas & Carry (28%) • Crecimiento (20%) • Consumo & Salarios (9%) • Sentimiento (15%)<br/>
+        Metodología: Modelo cuantitativo 100% basado en datos económicos reales • 18 indicadores ponderados<br/>
+        Balance Externo (27%) • Tasas & Carry (28%) • Crecimiento (20%) • Consumo & Salarios (9%) • Sentimiento (15%)<br/>
         Datos actualizados diariamente desde Trading Economics, FRED y CFTC
     </div>
 
@@ -4331,7 +4331,7 @@ const sentiment = getSentiment(strength);
     © {new Date().getFullYear()} Santiago Plá · Global Investing. Todos los derechos reservados.
 </div>
 <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-    Dashboard v4.7.0
+    Dashboard v4.8.0
 </div>
     </div>
 </div>
