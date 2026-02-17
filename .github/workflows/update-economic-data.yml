@@ -47,7 +47,8 @@ jobs:
               'unemployment': 'https://tradingeconomics.com/country-list/unemployment-rate?continent=world',
               'debt': 'https://tradingeconomics.com/country-list/government-debt-to-gdp',
               'currentAccount': 'https://tradingeconomics.com/country-list/current-account-to-gdp?continent=world',
-              'production': 'https://tradingeconomics.com/country-list/industrial-production?continent=world',
+              # ✅ FIX 1: Use MoM (month-over-month) instead of annual for more timely data
+              'production': 'https://tradingeconomics.com/country-list/industrial-production-mom?continent=world',
               'tradeBalance': 'https://tradingeconomics.com/country-list/balance-of-trade',
               'retailSales': 'https://tradingeconomics.com/country-list/retail-sales-mom',
               'wageGrowth': 'https://tradingeconomics.com/country-list/wage-growth',
@@ -180,6 +181,66 @@ jobs:
                   print(f"    ❌ Error scraping {country_slug}: {e}")
                   return None, None
           
+          # ✅ FIX 2: Capital Flows — parse Unit column (currency + scale) and convert to USD millions
+          def parse_capital_flows(cols):
+              """
+              Parse a Capital Flows table row with proper unit handling.
+              
+              The TE 'Unit' column contains strings like:
+                - "USD Million"       → multiply by 1
+                - "EUR Billion"       → multiply by 1000, then convert EUR→USD
+                - "AUD Million"       → convert AUD→USD at spot rate
+                - "JPY Hundred Million" → multiply by 100 (so "7219 JPY Hundred Million"
+                                           = 721,900 JPY Million), then convert JPY→USD
+              
+              Returns value in USD millions, or None if parsing fails.
+              """
+              if len(cols) < 5:
+                  return None
+              
+              raw_val  = clean_num(cols[1].get_text(strip=True))
+              unit_str = cols[4].get_text(strip=True)   # e.g. "AUD Million", "JPY Hundred Million"
+              
+              if raw_val is None or not unit_str:
+                  return None
+              
+              unit_upper = unit_str.upper()
+              
+              # --- Determine scale multiplier (to millions) ---
+              if 'HUNDRED MILLION' in unit_upper:
+                  # "JPY Hundred Million": 1 unit = 100 millions
+                  scale = 100.0
+              elif 'BILLION' in unit_upper:
+                  scale = 1000.0
+              elif 'MILLION' in unit_upper:
+                  scale = 1.0
+              elif 'TRILLION' in unit_upper:
+                  scale = 1_000_000.0
+              else:
+                  # Unknown unit — treat as millions and warn
+                  print(f"    ⚠️ Unknown scale in unit '{unit_str}', treating as millions")
+                  scale = 1.0
+              
+              # --- Determine currency ---
+              # Unit string starts with the ISO currency code (3 uppercase letters)
+              currency_match = re.match(r'^([A-Z]{3})\s', unit_upper)
+              currency_code  = currency_match.group(1) if currency_match else 'USD'
+              
+              # --- Convert to USD millions ---
+              val_in_native_millions = raw_val * scale
+              
+              if currency_code == 'USD':
+                  val_usd_millions = val_in_native_millions
+              else:
+                  fx_rate = exchange_rates.get(currency_code)   # units of foreign per 1 USD
+                  if fx_rate and fx_rate > 0:
+                      val_usd_millions = val_in_native_millions / fx_rate
+                  else:
+                      print(f"    ⚠️ No FX rate for {currency_code}, keeping native value")
+                      val_usd_millions = val_in_native_millions
+              
+              return round(val_usd_millions, 2)
+          
           def parse_tb(cols):
               if len(cols) < 5:
                   return None
@@ -223,6 +284,8 @@ jobs:
                   
                   if 'actual' in headers:
                       actual_idx = headers.index('actual')
+                  if 'last' in headers and actual_idx == 1:
+                      actual_idx = headers.index('last')
                   if 'reference' in headers:
                       date_idx = headers.index('reference')
                   
