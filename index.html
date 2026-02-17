@@ -1934,7 +1934,7 @@ if (cotResponse.ok) {
         economicData[country.code].cotPositioning = cotData.netPosition;
         
         // ✅ Guardar la fecha específica del reporte COT
-        economicData[country.code].cotPositioningDate = cotData.reportDate || cotData.lastUpdate || scrapedData.lastUpdate;
+economicData[country.code].cotPositioningDate = cotData.reportDate || cotData.lastUpdate || economicData[country.code].lastUpdate || new Date().toISOString();
         
         // ✅ Actualizar timestamp si COT es más reciente
         if (cotData.lastUpdate) {
@@ -1947,7 +1947,7 @@ if (cotResponse.ok) {
             }
         }
         
-        console.log(`✅ Loaded COT for ${country.code}: ${cotData.positioning}`);
+console.log(`✅ Loaded COT for ${country.code}: ${cotData.positioning}`);
     }
 }
                     } catch (error) {
