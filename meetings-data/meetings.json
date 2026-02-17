@@ -1,0 +1,167 @@
+{
+  "lastUpdate": "2026-02-17",
+  "source": "cbrates.com (International Central Banks)",
+  "sourceUrl": "https://www.cbrates.com/meetings.htm",
+  "meetings": {
+    "USD": {
+      "nextMeeting": "18 Mar",
+      "nextMeetingISO": "2026-03-18",
+      "allMeetings": [
+        "2026-03-18",
+        "2026-04-29",
+        "2026-09-16",
+        "2026-10-28"
+      ],
+      "allMeetingsFormatted": [
+        "18 Mar",
+        "29 Abr",
+        "16 Sep",
+        "28 Oct"
+      ]
+    },
+    "EUR": {
+      "nextMeeting": "19 Mar",
+      "nextMeetingISO": "2026-03-19",
+      "allMeetings": [
+        "2026-03-19",
+        "2026-04-30",
+        "2026-06-11",
+        "2026-07-23",
+        "2026-09-10",
+        "2026-10-29",
+        "2026-12-17"
+      ],
+      "allMeetingsFormatted": [
+        "19 Mar",
+        "30 Abr",
+        "11 Jun",
+        "23 Jul",
+        "10 Sep",
+        "29 Oct",
+        "17 Dic"
+      ]
+    },
+    "GBP": {
+      "nextMeeting": "19 Mar",
+      "nextMeetingISO": "2026-03-19",
+      "allMeetings": [
+        "2026-03-19",
+        "2026-04-30",
+        "2026-06-18",
+        "2026-07-30",
+        "2026-09-17",
+        "2026-11-05",
+        "2026-12-17"
+      ],
+      "allMeetingsFormatted": [
+        "19 Mar",
+        "30 Abr",
+        "18 Jun",
+        "30 Jul",
+        "17 Sep",
+        "5 Nov",
+        "17 Dic"
+      ]
+    },
+    "JPY": {
+      "nextMeeting": "28 Abr",
+      "nextMeetingISO": "2026-04-28",
+      "allMeetings": [
+        "2026-04-28",
+        "2026-06-16",
+        "2026-07-31",
+        "2026-09-18",
+        "2026-10-30"
+      ],
+      "allMeetingsFormatted": [
+        "28 Abr",
+        "16 Jun",
+        "31 Jul",
+        "18 Sep",
+        "30 Oct"
+      ]
+    },
+    "AUD": {
+      "nextMeeting": "17 Mar",
+      "nextMeetingISO": "2026-03-17",
+      "allMeetings": [
+        "2026-03-17",
+        "2026-05-05",
+        "2026-06-16",
+        "2026-08-11",
+        "2026-09-29",
+        "2026-11-03",
+        "2026-12-08"
+      ],
+      "allMeetingsFormatted": [
+        "17 Mar",
+        "5 May",
+        "16 Jun",
+        "11 Ago",
+        "29 Sep",
+        "3 Nov",
+        "8 Dic"
+      ]
+    },
+    "CAD": {
+      "nextMeeting": "18 Mar",
+      "nextMeetingISO": "2026-03-18",
+      "allMeetings": [
+        "2026-03-18",
+        "2026-04-29",
+        "2026-06-10",
+        "2026-07-15",
+        "2026-09-02",
+        "2026-10-28",
+        "2026-12-09"
+      ],
+      "allMeetingsFormatted": [
+        "18 Mar",
+        "29 Abr",
+        "10 Jun",
+        "15 Jul",
+        "2 Sep",
+        "28 Oct",
+        "9 Dic"
+      ]
+    },
+    "CHF": {
+      "nextMeeting": "19 Mar",
+      "nextMeetingISO": "2026-03-19",
+      "allMeetings": [
+        "2026-03-19",
+        "2026-06-18",
+        "2026-09-24",
+        "2026-12-10"
+      ],
+      "allMeetingsFormatted": [
+        "19 Mar",
+        "18 Jun",
+        "24 Sep",
+        "10 Dic"
+      ]
+    },
+    "NZD": {
+      "nextMeeting": "18 Feb",
+      "nextMeetingISO": "2026-02-18",
+      "allMeetings": [
+        "2026-02-18",
+        "2026-04-08",
+        "2026-05-26",
+        "2026-07-08",
+        "2026-09-02",
+        "2026-10-28",
+        "2026-12-09"
+      ],
+      "allMeetingsFormatted": [
+        "18 Feb",
+        "8 Abr",
+        "26 May",
+        "8 Jul",
+        "2 Sep",
+        "28 Oct",
+        "9 Dic"
+      ]
+    }
+  }
+}
