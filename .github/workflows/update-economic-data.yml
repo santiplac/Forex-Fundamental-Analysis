@@ -47,7 +47,7 @@ jobs:
               'unemployment': 'https://tradingeconomics.com/country-list/unemployment-rate?continent=world',
               'debt': 'https://tradingeconomics.com/country-list/government-debt-to-gdp',
               'currentAccount': 'https://tradingeconomics.com/country-list/current-account-to-gdp?continent=world',
-              # ✅ FIX 1: Use MoM (month-over-month) instead of annual for more timely data
+              # MoM (month-over-month) for more timely data
               'production': 'https://tradingeconomics.com/country-list/industrial-production-mom?continent=world',
               'tradeBalance': 'https://tradingeconomics.com/country-list/balance-of-trade',
               'retailSales': 'https://tradingeconomics.com/country-list/retail-sales-mom',
@@ -61,10 +61,16 @@ jobs:
               'CHF': 'switzerland', 'NZD': 'new-zealand'
           }
           
+          # ✅ FIX: Added 'production' so NZD (and any other currency missing from the
+          #         global MoM list) falls back to its individual country page automatically.
+          #         NZD publishes industrial production quarterly at:
+          #         https://tradingeconomics.com/new-zealand/industrial-production
+          #         parse_te_date() already handles "Q3/2025" → "2025-08-15" correctly.
           INDICATOR_PAGES = {
               'retailSales': 'retail-sales',
               'wageGrowth': 'wage-growth',
-              'manufacturingPMI': 'manufacturing-pmi'
+              'manufacturingPMI': 'manufacturing-pmi',
+              'production': 'industrial-production',   # ← NEW: fallback for NZD et al.
           }
           
           COUNTRY_NAMES = {
@@ -115,7 +121,7 @@ jobs:
                           dt = datetime.strptime(f"{month_str} {year_str}", '%b %Y')
                           return dt.strftime('%Y-%m-15')
                   
-                  # Format: "Q1/2026" or "Q4 2025"
+                  # Format: "Q1/2026" or "Q4 2025" — used by NZD industrial production
                   elif re.search(r'Q\d[/\s]\d{4}', date_text):
                       match = re.search(r'Q(\d)[/\s](\d{4})', date_text)
                       if match:
@@ -181,17 +187,15 @@ jobs:
                   print(f"    ❌ Error scraping {country_slug}: {e}")
                   return None, None
           
-          # ✅ FIX 2: Capital Flows — parse Unit column (currency + scale) and convert to USD millions
           def parse_capital_flows(cols):
               """
               Parse a Capital Flows table row with proper unit handling.
               
               The TE 'Unit' column contains strings like:
-                - "USD Million"       → multiply by 1
-                - "EUR Billion"       → multiply by 1000, then convert EUR→USD
-                - "AUD Million"       → convert AUD→USD at spot rate
-                - "JPY Hundred Million" → multiply by 100 (so "7219 JPY Hundred Million"
-                                           = 721,900 JPY Million), then convert JPY→USD
+                - "USD Million"         → multiply by 1
+                - "EUR Billion"         → multiply by 1000, then convert EUR→USD
+                - "AUD Million"         → convert AUD→USD at spot rate
+                - "JPY Hundred Million" → multiply by 100, then convert JPY→USD
               
               Returns value in USD millions, or None if parsing fails.
               """
@@ -199,16 +203,14 @@ jobs:
                   return None
               
               raw_val  = clean_num(cols[1].get_text(strip=True))
-              unit_str = cols[4].get_text(strip=True)   # e.g. "AUD Million", "JPY Hundred Million"
+              unit_str = cols[4].get_text(strip=True)
               
               if raw_val is None or not unit_str:
                   return None
               
               unit_upper = unit_str.upper()
               
-              # --- Determine scale multiplier (to millions) ---
               if 'HUNDRED MILLION' in unit_upper:
-                  # "JPY Hundred Million": 1 unit = 100 millions
                   scale = 100.0
               elif 'BILLION' in unit_upper:
                   scale = 1000.0
@@ -217,22 +219,18 @@ jobs:
               elif 'TRILLION' in unit_upper:
                   scale = 1_000_000.0
               else:
-                  # Unknown unit — treat as millions and warn
                   print(f"    ⚠️ Unknown scale in unit '{unit_str}', treating as millions")
                   scale = 1.0
               
-              # --- Determine currency ---
-              # Unit string starts with the ISO currency code (3 uppercase letters)
               currency_match = re.match(r'^([A-Z]{3})\s', unit_upper)
               currency_code  = currency_match.group(1) if currency_match else 'USD'
               
-              # --- Convert to USD millions ---
               val_in_native_millions = raw_val * scale
               
               if currency_code == 'USD':
                   val_usd_millions = val_in_native_millions
               else:
-                  fx_rate = exchange_rates.get(currency_code)   # units of foreign per 1 USD
+                  fx_rate = exchange_rates.get(currency_code)
                   if fx_rate and fx_rate > 0:
                       val_usd_millions = val_in_native_millions / fx_rate
                   else:
@@ -263,7 +261,6 @@ jobs:
               
               try:
                   r = requests.get(url, headers=HEADERS, timeout=20)
-                  # Handle rate limiting
                   if r.status_code == 429:
                       print(f"  ⚠️ Rate limited by TE, waiting 30s...")
                       time.sleep(30)
@@ -318,6 +315,9 @@ jobs:
               data, dates = scrape_te(url, indicator)
               missing = [c for c in CURRENCIES if c not in data]
               
+              # ✅ FIX: 'production' is now in INDICATOR_PAGES, so NZD (and any other
+              #         currency absent from the global MoM list) will automatically
+              #         fall back to its individual country page.
               if missing and indicator in INDICATOR_PAGES:
                   print(f"\n  → Country page fallback for: {', '.join(missing)}")
                   page = INDICATOR_PAGES[indicator]
