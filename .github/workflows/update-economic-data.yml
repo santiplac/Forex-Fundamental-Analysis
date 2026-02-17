@@ -105,17 +105,12 @@ jobs:
               try:
                   # Format: "Feb 2026" or "Feb/26"
                   if re.search(r'[A-Za-z]{3}\s*[/\s]\s*\d{2,4}', date_text):
-                      # Extract month and year
                       match = re.search(r'([A-Za-z]{3})\s*[/\s]\s*(\d{2,4})', date_text)
                       if match:
                           month_str = match.group(1)
                           year_str = match.group(2)
-                          
-                          # Convert 2-digit year to 4-digit
                           if len(year_str) == 2:
                               year_str = '20' + year_str
-                          
-                          # Parse month name
                           dt = datetime.strptime(f"{month_str} {year_str}", '%b %Y')
                           return dt.strftime('%Y-%m-15')
                   
@@ -125,14 +120,13 @@ jobs:
                       if match:
                           quarter = int(match.group(1))
                           year = int(match.group(2))
-                          # Use middle month of quarter
                           month = (quarter - 1) * 3 + 2
                           return f"{year}-{month:02d}-15"
                   
                   # Format: "2025" (year only)
                   elif re.search(r'^\d{4}$', date_text):
                       year = int(date_text)
-                      return f"{year}-06-15"  # Mid-year
+                      return f"{year}-06-15"
                   
                   # Format: "Dec/25" without space
                   elif re.search(r'[A-Za-z]{3}/\d{2}', date_text):
@@ -140,36 +134,31 @@ jobs:
                       return dt.strftime('%Y-%m-15')
                       
               except Exception as e:
-                  print(f"    ⚠️ Date parse error for '{date_text}': {e}")
+                  print(f"    Warning: Date parse error for '{date_text}': {e}")
                   pass
               
-              # Fallback to today
               return str(date.today())
           
           def scrape_country_page(country_slug, indicator_page, currency_code):
               url = f'https://tradingeconomics.com/{country_slug}/{indicator_page}'
               try:
                   r = requests.get(url, headers=HEADERS, timeout=20)
-
-# Handle rate limiting
-              if r.status_code == 429:
-                  print(f"  ⚠️ Rate limited by TE, waiting 30s...")
-                  time.sleep(30)
-                  r = requests.get(url, headers=HEADERS, timeout=20)
-              r.raise_for_status()
+                  # Handle rate limiting
+                  if r.status_code == 429:
+                      print(f"  ⚠️ Rate limited by TE, waiting 30s...")
+                      time.sleep(30)
+                      r = requests.get(url, headers=HEADERS, timeout=20)
+                  r.raise_for_status()
                   
                   if not r.ok:
                       return None, None
                   
                   soup = BeautifulSoup(r.content, 'lxml')
                   
-                  # Find table with "Actual" column
                   for table in soup.find_all('table'):
                       headers = [h.get_text(strip=True).lower() for h in table.find_all('th')]
                       if 'actual' in headers:
                           actual_idx = headers.index('actual')
-                          
-                          # Try to find "Reference" column for date
                           date_idx = None
                           if 'reference' in headers:
                               date_idx = headers.index('reference')
@@ -179,13 +168,10 @@ jobs:
                               cells = rows[0].find_all('td')
                               if len(cells) > actual_idx:
                                   val = clean_num(cells[actual_idx].get_text(strip=True))
-                                  
-                                  # Extract date if available
                                   data_date = str(date.today())
                                   if date_idx and len(cells) > date_idx:
                                       date_text = cells[date_idx].get_text(strip=True)
                                       data_date = parse_te_date(date_text)
-                                  
                                   if val is not None:
                                       print(f"    ✅ {currency_code}: {val} (date: {data_date})")
                                       return val, data_date
@@ -216,7 +202,13 @@ jobs:
               
               try:
                   r = requests.get(url, headers=HEADERS, timeout=20)
+                  # Handle rate limiting
+                  if r.status_code == 429:
+                      print(f"  ⚠️ Rate limited by TE, waiting 30s...")
+                      time.sleep(30)
+                      r = requests.get(url, headers=HEADERS, timeout=20)
                   r.raise_for_status()
+                  
                   soup = BeautifulSoup(r.content, 'lxml')
                   
                   data = {}
@@ -225,9 +217,8 @@ jobs:
                   if not table:
                       return data, dates
                   
-                  # Get header indices
                   headers = [h.get_text(strip=True).lower() for h in table.find_all('th')]
-                  actual_idx = 1  # Default
+                  actual_idx = 1
                   date_idx = None
                   
                   if 'actual' in headers:
@@ -245,13 +236,10 @@ jobs:
                       for code, names in COUNTRY_NAMES.items():
                           if any(n.lower() in ctry.lower() for n in names):
                               val = parse_tb(cols) if indicator == 'tradeBalance' else clean_num(cols[actual_idx].get_text(strip=True))
-                              
-                              # Extract date
                               data_date = str(date.today())
                               if date_idx and len(cols) > date_idx:
                                   date_text = cols[date_idx].get_text(strip=True)
                                   data_date = parse_te_date(date_text)
-                              
                               if val is not None:
                                   data[code] = round(val, 2)
                                   dates[code] = data_date
@@ -297,7 +285,7 @@ jobs:
                           pass
               return cot
           
-          # MAIN
+          # ── MAIN ──────────────────────────────────────
           print("="*50)
           print("ECONOMIC DATA SCRAPER - WITH DATES")
           print("="*50)
@@ -324,7 +312,7 @@ jobs:
                   'lastUpdate': today,
                   'source': 'TradingEconomics + COT',
                   'data': all_data[curr],
-                  'dates': all_dates[curr]  # ← NUEVO: Fechas individuales
+                  'dates': all_dates[curr]
               }
               with open(f'economic-data/{curr}.json', 'w') as f:
                   json.dump(pkg, f, indent=2)
