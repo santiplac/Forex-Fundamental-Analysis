@@ -1,0 +1,20 @@
+{
+  "lastUpdate": "2026-02-17",
+  "source": "worldgovernmentbonds.com + TradingEconomics",
+  "data": {
+    "bond10y": null,
+    "consumerConfidence": -16.0,
+    "businessConfidence": -19.0,
+    "capitalFlows": 15529.0,
+    "fdi": 23370.0,
+    "inflationExpectations": 3.8
+  },
+  "dates": {
+    "bond10y": "2026-02-17",
+    "consumerConfidence": "2026-01-15",
+    "businessConfidence": "2026-03-15",
+    "capitalFlows": "2025-09-15",
+    "fdi": "2025-09-15",
+    "inflationExpectations": "2026-01-15"
+  }
+}
