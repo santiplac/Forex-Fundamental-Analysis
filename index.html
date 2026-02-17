@@ -2527,8 +2527,7 @@ const indicatorTooltips = {
     wageGrowth: "Crecimiento salarial anual. >3.5% presiona inflación al alza.",
     manufacturingPMI: "Índice de actividad manufacturera. >50 = expansión, <50 = contracción.",
     cotPositioning: "Posicionamiento neto de traders especulativos según reporte CFTC. Valores positivos indican contratos largos netos (bullish), valores negativos indican cortos netos (bearish). >20K o <-20K pueden indicar extremos de mercado.",
-    bond10y: "Rendimiento del bono soberano a 10 años. Refleja las expectativas del mercado sobre tasas futuras e inflación. Diferencial vs. otros países es el 'yield spread' que mueve grandes flujos de capital.",
-    consumerConfidence: "Índice de confianza del consumidor. Base 100. >100 = optimismo, <100 = pesimismo. Indicador adelantado del gasto doméstico y crecimiento futuro.",
+    bond10y: "Rendimiento del bono soberano a 10 años. Para EUR se usa el Bund alemán como proxy de la zona euro (referencia de mayor calidad crediticia). Refleja expectativas de tasas futuras e inflación. El diferencial de yields entre países es el 'yield spread' que mueve grandes flujos de capital.",    consumerConfidence: "Índice de confianza del consumidor. Base 100. >100 = optimismo, <100 = pesimismo. Indicador adelantado del gasto doméstico y crecimiento futuro.",
     businessConfidence: "Índice de confianza empresarial. Base 100. >100 = expansión esperada, <100 = contracción. Predice inversión, contrataciones y actividad futura.",
     capitalFlows: "Flujos netos de capital (cuenta financiera de la balanza de pagos). Positivo = entrada neta de inversión extranjera → demanda estructural de la divisa. Millones USD.",
     inflationExpectations: "Expectativas de inflación a 1-2 años. Si superan el objetivo del BC (2%), presionan al alza las tasas futuras → hawkish implícito."
@@ -3184,6 +3183,25 @@ if (data.cotPositioning !== null && data.cotPositioning !== undefined) {
         analysis.push(`Posicionamiento bajista extremo (${cotK}K contratos) sugiere posible capitulación; podría catalizar rebote técnico si fundamentos cambian.`);
     }
 }
+
+    // 8B. ANÁLISIS DE BONOS Y FLUJOS (NUEVOS INDICADORES)
+    if (data.bond10y !== null && data.bond10y !== undefined) {
+        const b10y = fmt(data.bond10y, 2);
+        if (data.bond10y >= 4.0) {
+            analysis.push(`Yield del bono soberano a 10 años en ${b10y}% atrae flujos de carry trade internacionales.`);
+        } else if (data.bond10y < 1.0) {
+            analysis.push(`Yield a 10 años en niveles bajos (${b10y}%) reduce atractivo para inversores de renta fija extranjeros.`);
+        }
+    }
+    
+    if (data.capitalFlows !== null && data.capitalFlows !== undefined) {
+        const flowsB = (data.capitalFlows / 1000).toFixed(1);
+        if (data.capitalFlows > 20000) {
+            analysis.push(`Flujos netos de capital positivos (+${flowsB}B) reflejan demanda estructural de inversores extranjeros por activos en ${currency}.`);
+        } else if (data.capitalFlows < -20000) {
+            analysis.push(`Salida neta de capitales (${flowsB}B) genera presión vendedora estructural sobre ${currency}.`);
+        }
+    }
     
     // 9. CONCLUSIÓN PROSPECTIVA
     if (sentiment === 'alcista') {
