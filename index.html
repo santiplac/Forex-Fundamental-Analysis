@@ -2816,6 +2816,18 @@ const HeatmapCell = ({ value, type, currency, indicator, lastUpdate }) => {
                 ) : (
                     <span className="cell-value" style={{ color: 'var(--text-tertiary)' }}>N/A</span>
                 )
+) : type === 'bond10y' || type === 'inflationExpectations' ? (
+                <span className="cell-value">{formatValue(value, 2)}%</span>
+            ) : type === 'consumerConfidence' || type === 'businessConfidence' ? (
+                <span className="cell-value">{formatValue(value, 1)}</span>
+            ) : type === 'capitalFlows' ? (
+                value !== null && value !== undefined ? (
+                    <span className="cell-value">
+                        {value > 0 ? '+' : ''}{(value / 1000).toFixed(1)}B
+                    </span>
+                ) : (
+                    <span className="cell-value" style={{ color: 'var(--text-tertiary)' }}>N/A</span>
+                )
             ) : (
                 <span className="cell-value">{formatValue(value)}</span>
             )}
@@ -4172,8 +4184,8 @@ const sentiment = getSentiment(strength);
 <div className="footer">
     <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>DASHBOARD DE ANÁLISIS FUNDAMENTAL FOREX - DATA-DRIVEN</div>
 <div style={{ marginBottom: '1rem' }}>
-        Metodología: Modelo cuantitativo 100% basado en datos económicos reales • 13 indicadores ponderados<br/>
-        Balance Externo (30%) • Tasas (30%) • Crecimiento (20%) • Consumo & Salarios (10%) • Sentimiento (10%)<br/>
+        Metodología: Modelo cuantitativo 100% basado en datos económicos reales • 17 indicadores ponderados<br/>
+        Balance Externo (28%) • Tasas & Carry (28%) • Crecimiento (20%) • Consumo & Salarios (9%) • Sentimiento (15%)<br/>
         Datos actualizados diariamente desde Trading Economics, FRED y CFTC
     </div>
 
