@@ -121,8 +121,8 @@
             <p>Nuestro modelo está diseñado específicamente para trading de divisas y se basa en factores económicos que históricamente han mostrado correlación con movimientos en el mercado forex:</p>
 
             <!-- ✅ CORREGIDO: Tabla actualizada con pesos reales del modelo (v4.7.0) -->
-            <h3>Sistema de Ponderación — 17 Indicadores (100% Data-Driven)</h3>
-            <p>Cada indicador económico contribuye al score final según su relevancia para el trading de divisas. El modelo organiza los 17 indicadores en 5 tiers temáticos que suman exactamente 100%:</p>
+            <h3>Sistema de Ponderación — 18 Indicadores (100% Data-Driven)</h3>
+<p>Cada indicador económico contribuye al score final según su relevancia para el trading de divisas. El modelo organiza los 18 indicadores en 5 tiers temáticos que suman ~99% (normalizado automáticamente por el motor de scoring):</p>
 
             <table>
                 <thead>
@@ -245,7 +245,7 @@
             </table>
 
             <h3>Ajustes Contextuales Dinámicos</h3>
-            <p>Además de los 17 indicadores ponderados, el modelo aplica modificadores contextuales (±15 puntos máximo) basados en condiciones macroeconómicas específicas:</p>
+            <p>Además de los 18 indicadores ponderados, el modelo aplica modificadores contextuales (±15 puntos máximo) basados en condiciones macroeconómicas específicas:</p>
             <ul>
                 <li><strong>Activo Refugio (Safe Haven):</strong> Evalúa deuda baja, superávit externo y estabilidad de precios. Se amplifica en entornos de aversión al riesgo (COT promedio negativo). Beneficia principalmente a CHF, JPY y USD.</li>
                 <li><strong>Exposición a Materias Primas:</strong> Aplicable solo a AUD, CAD y NZD. Ajusta según crecimiento económico global y superávit comercial. Positivo en ciclos de expansión global, negativo en contracción.</li>
@@ -273,7 +273,7 @@
 
             <h3>Proceso de Selección</h3>
             <ol style="margin-left: 2rem; color: var(--text-secondary);">
-                <li><strong>Cálculo de Fortaleza Individual:</strong> Se calcula el score fundamental (20–80) para cada una de las 8 divisas principales usando los 17 indicadores ponderados</li>
+                <li><strong>Cálculo de Fortaleza Individual:</strong> Se calcula el score fundamental (20–80) para cada una de las 8 divisas principales usando los 18 indicadores ponderados</li>
                 <li><strong>Ranking y Clasificación:</strong> Las divisas se ordenan de mayor a menor fortaleza fundamental</li>
                 <li><strong>Identificación de Extremos:</strong> Se extraen las 3 divisas más fuertes (top 30%) y las 3 más débiles (bottom 30%)</li>
                 <li><strong>Generación de Combinaciones LONG:</strong> Se crean pares comprando la divisa fuerte contra la débil (ej: <code>EUR/JPY</code> si EUR es fuerte y JPY débil)</li>
@@ -298,7 +298,7 @@
                     <tr><td><strong>Confianza</strong></td><td>Alta (&gt;20) / Media (12–20) / Baja (&lt;12)</td><td>Basada en amplitud del diferencial de scores</td></tr>
                     <tr><td><strong>Factores Positivos</strong></td><td>Top 3 contribuciones a fortaleza</td><td>Razones fundamentales que sostienen la fortaleza</td></tr>
                     <tr><td><strong>Factores Negativos</strong></td><td>Top 3 contribuciones negativas</td><td>Razones fundamentales que explican la debilidad</td></tr>
-                    <tr><td><strong>Calidad de Datos</strong></td><td>% de los 17 indicadores disponibles</td><td>Fiabilidad del análisis (≥70% es bueno)</td></tr>
+                    <tr><td><strong>Calidad de Datos</strong></td><td>% de los 18 indicadores disponibles</td><td>Fiabilidad del análisis (≥70% es bueno)</td></tr>
                 </tbody>
             </table>
 
@@ -321,7 +321,7 @@
                     <li>Inflación: −5.7 (peso 8%)</li>
                 </ul>
                 <p><strong>Análisis:</strong> EUR muestra fundamentos superiores con un índice de fortaleza de 72.3 puntos, superando a JPY (39.8) por un diferencial de 32.5 puntos. Este diferencial sugiere una oportunidad de compra (LONG) en EUR/JPY.</p>
-                <p style="margin-top: 1rem; margin-bottom: 0;"><strong>Calidad de Datos:</strong> 85% (≈14 de 17 indicadores disponibles para ambas divisas)</p>
+                <p style="margin-top: 1rem; margin-bottom: 0;"><strong>Calidad de Datos:</strong> 85% (≈15 de 18 indicadores disponibles para ambas divisas)</p>
             </div>
 
             <h3>Limitaciones y Consideraciones</h3>
@@ -383,7 +383,7 @@
                 <li><strong>Antigüedad de Datos:</strong> Alerta si algún país tiene datos con más de 7 días de antigüedad</li>
                 <li><strong>Staleness de COT:</strong> Si el scraping del viernes falla, el timestamp COT más antiguo se propaga como referencia, permitiendo detectar que los datos de posicionamiento están desactualizados</li>
                 <li><strong>Indicadores Críticos Faltantes:</strong> Verifica que tasa, inflación, PIB y desempleo estén disponibles para cada país</li>
-                <li><strong>Completitud General:</strong> Score de completitud por divisa (% de 17 indicadores disponibles). Alerta si &lt; 50%, aviso si &lt; 70%</li>
+                <li><strong>Completitud General:</strong> Score de completitud por divisa (% de 18 indicadores disponibles). Alerta si &lt; 50%, aviso si &lt; 70%</li>
                 <li><strong>Rango de Valores:</strong> Detecta valores fuera de rango que podrían indicar errores de scraping</li>
             </ul>
 
@@ -419,7 +419,7 @@
             <h2>Transparencia Metodológica</h2>
             <p>Nuestro sistema es transparente en cuanto a:</p>
             <ul>
-                <li><strong>Pesos Explícitos:</strong> Cada uno de los 17 factores muestra su contribución exacta al score</li>
+                <li><strong>Pesos Explícitos:</strong> Cada uno de los 18 factores muestra su contribución exacta al score</li>
                 <li><strong>Cálculos Visibles:</strong> La lógica de scoring está disponible en el código fuente del dashboard</li>
                 <li><strong>Datos Verificables:</strong> Todas las métricas pueden ser confirmadas en fuentes oficiales</li>
                 <li><strong>Limitaciones Claras:</strong> Reconocemos qué no incluimos (Net Foreign Assets — descartado por datos con 2-3 años de retraso, yield curves completas, etc.)</li>
