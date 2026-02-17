@@ -150,6 +150,14 @@ jobs:
               url = f'https://tradingeconomics.com/{country_slug}/{indicator_page}'
               try:
                   r = requests.get(url, headers=HEADERS, timeout=20)
+
+# Handle rate limiting
+              if r.status_code == 429:
+                  print(f"  ⚠️ Rate limited by TE, waiting 30s...")
+                  time.sleep(30)
+                  r = requests.get(url, headers=HEADERS, timeout=20)
+              r.raise_for_status()
+                  
                   if not r.ok:
                       return None, None
                   
