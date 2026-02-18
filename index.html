@@ -1786,7 +1786,7 @@ const loadAllEconomicData = async (setEconomicData, setDataLoadingStatus) => {
                         const cacheKey = 'all_economic_data';
             // ⚠️ IMPORTANTE: Actualizar DASHBOARD_VERSION cada vez que modifiques el código
             // El formato es 'vX.Y.Z-YYYY-MM-DD' — la fecha garantiza invalidación automática del caché
-            const DASHBOARD_VERSION = '4.9.1-2026-02-17'; // ✅ Fix: Low-rate safe haven premium para CHF/JPY
+            const DASHBOARD_VERSION = '4.9.2-2026-02-18'; // ✅ Fix: EUR bond10y usa GEUGB10Y (EA aggregate) en lugar de Bund alemán
             
             // ✅ Verificar versión del caché
             const cachedVersion = localStorage.getItem('forex_dashboard_version');
@@ -2570,7 +2570,7 @@ const indicatorTooltips = {
     wageGrowth: "Crecimiento salarial anual. >3.5% presiona inflación al alza.",
     manufacturingPMI: "Índice de actividad manufacturera. >50 = expansión, <50 = contracción.",
     cotPositioning: "Posicionamiento neto de traders especulativos según reporte CFTC. Valores positivos indican contratos largos netos (bullish), valores negativos indican cortos netos (bearish). >20K o <-20K pueden indicar extremos de mercado.",
-    bond10y: "Rendimiento del bono soberano a 10 años. Para EUR se usa el Bund alemán como proxy de la zona euro (referencia de mayor calidad crediticia). Refleja expectativas de tasas futuras e inflación. El diferencial de yields entre países es el 'yield spread' que mueve grandes flujos de capital.",    consumerConfidence: "Índice de confianza del consumidor. Base 100. >100 = optimismo, <100 = pesimismo. Indicador adelantado del gasto doméstico y crecimiento futuro.",
+    bond10y: "Rendimiento del bono soberano a 10 años. Para EUR se usa el yield oficial de la Zona Euro (GEUGB10Y — agregado publicado directamente por Trading Economics), que refleja el costo de financiamiento soberano del conjunto de la eurozona. Refleja expectativas de tasas futuras e inflación. El diferencial de yields entre países es el 'yield spread' que mueve grandes flujos de capital.",
     businessConfidence: "Índice de confianza empresarial. Base 100. >100 = expansión esperada, <100 = contracción. Predice inversión, contrataciones y actividad futura.",
     capitalFlows: "Flujos netos de capital (cuenta financiera de la balanza de pagos). Positivo = entrada neta de inversión extranjera → demanda estructural de la divisa. Millones USD.",
     inflationExpectations: "Expectativas de inflación a 1-2 años. Si superan el objetivo del BC (2%), presionan al alza las tasas futuras → hawkish implícito.",
@@ -4366,7 +4366,7 @@ const sentiment = getSentiment(strength);
     © {new Date().getFullYear()} Santiago Plá · Global Investing. Todos los derechos reservados.
 </div>
 <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-    Dashboard v4.9.0
+    Dashboard v4.9.2
 </div>
     </div>
 </div>
