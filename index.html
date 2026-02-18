@@ -1786,7 +1786,7 @@ const loadAllEconomicData = async (setEconomicData, setDataLoadingStatus) => {
                         const cacheKey = 'all_economic_data';
             // ⚠️ IMPORTANTE: Actualizar DASHBOARD_VERSION cada vez que modifiques el código
             // El formato es 'vX.Y.Z-YYYY-MM-DD' — la fecha garantiza invalidación automática del caché
-            const DASHBOARD_VERSION = '4.9.0-2026-02-17'; // ✅ EUR ToT: TE export/import price ratio (v9)
+            const DASHBOARD_VERSION = '4.9.0-2026-02-17'; // ✅ EUR ToT: TE export/import price ratio (v9) | about.html sincronizado
             
             // ✅ Verificar versión del caché
             const cachedVersion = localStorage.getItem('forex_dashboard_version');
@@ -2509,14 +2509,14 @@ const isCacheStale = (economicData) => {
         }
 
         const countries = [
-            { code: 'USD', name: 'Estados Unidos', currency: 'Dólar Estadounidense', flag: '🇺🇸', centralBank: 'Reserva Federal', nextMeeting: 'Por definir', outlook: 'Neutral' },
-            { code: 'EUR', name: 'Eurozona', currency: 'Euro', flag: '🇪🇺', centralBank: 'Banco Central Europeo', nextMeeting: 'Por definir', outlook: 'Hawkish' },
-            { code: 'GBP', name: 'Reino Unido', currency: 'Libra Esterlina', flag: '🇬🇧', centralBank: 'Banco de Inglaterra', nextMeeting: 'Por definir', outlook: 'Neutral' },
-            { code: 'JPY', name: 'Japón', currency: 'Yen Japonés', flag: '🇯🇵', centralBank: 'Banco de Japón', nextMeeting: 'Por definir', outlook: 'Hawkish' },
-            { code: 'AUD', name: 'Australia', currency: 'Dólar Australiano', flag: '🇦🇺', centralBank: 'Banco de la Reserva de Australia', nextMeeting: 'Por definir', outlook: 'Hawkish' },
-            { code: 'CAD', name: 'Canadá', currency: 'Dólar Canadiense', flag: '🇨🇦', centralBank: 'Banco de Canadá', nextMeeting: 'Por definir', outlook: 'Dovish' },
-            { code: 'CHF', name: 'Suiza', currency: 'Franco Suizo', flag: '🇨🇭', centralBank: 'Banco Nacional Suizo', nextMeeting: 'Por definir', outlook: 'Neutral' },
-            { code: 'NZD', name: 'Nueva Zelanda', currency: 'Dólar Neozelandés', flag: '🇳🇿', centralBank: 'Banco de la Reserva de Nueva Zelanda', nextMeeting: 'Por definir', outlook: 'Neutral' }
+            { code: 'USD', name: 'Estados Unidos', currency: 'Dólar Estadounidense', flag: '🇺🇸', centralBank: 'Reserva Federal', nextMeeting: 'Por definir', outlook: 'Calculando...' },
+            { code: 'EUR', name: 'Eurozona', currency: 'Euro', flag: '🇪🇺', centralBank: 'Banco Central Europeo', nextMeeting: 'Por definir', outlook: 'Calculando...' },
+            { code: 'GBP', name: 'Reino Unido', currency: 'Libra Esterlina', flag: '🇬🇧', centralBank: 'Banco de Inglaterra', nextMeeting: 'Por definir', outlook: 'Calculando...' },
+            { code: 'JPY', name: 'Japón', currency: 'Yen Japonés', flag: '🇯🇵', centralBank: 'Banco de Japón', nextMeeting: 'Por definir', outlook: 'Calculando...' },
+            { code: 'AUD', name: 'Australia', currency: 'Dólar Australiano', flag: '🇦🇺', centralBank: 'Banco de la Reserva de Australia', nextMeeting: 'Por definir', outlook: 'Calculando...' },
+            { code: 'CAD', name: 'Canadá', currency: 'Dólar Canadiense', flag: '🇨🇦', centralBank: 'Banco de Canadá', nextMeeting: 'Por definir', outlook: 'Calculando...' },
+            { code: 'CHF', name: 'Suiza', currency: 'Franco Suizo', flag: '🇨🇭', centralBank: 'Banco Nacional Suizo', nextMeeting: 'Por definir', outlook: 'Calculando...' },
+            { code: 'NZD', name: 'Nueva Zelanda', currency: 'Dólar Neozelandés', flag: '🇳🇿', centralBank: 'Banco de la Reserva de Nueva Zelanda', nextMeeting: 'Por definir', outlook: 'Calculando...' }
         ];
 
 const indicatorTooltips = {
@@ -4331,7 +4331,7 @@ const sentiment = getSentiment(strength);
     © {new Date().getFullYear()} Santiago Plá · Global Investing. Todos los derechos reservados.
 </div>
 <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-    Dashboard v4.8.0
+    Dashboard v4.9.0
 </div>
     </div>
 </div>
