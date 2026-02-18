@@ -1,4 +1,4 @@
-name: Update Economic Data - FINAL v6 (TE + ONS scraping + multi-fallback ToT)
+name: Update Economic Data - v7 (TE + ONS + ECB calc + WorldBank)
 on:
   schedule:
     - cron: '0 6 * * *'
@@ -36,7 +36,7 @@ jobs:
           }
           JSON_HEADERS = {
               'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-              'Accept': 'application/json',
+              'Accept': 'application/json, text/csv, */*',
           }
 
           CURRENCIES = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'NZD']
@@ -75,8 +75,6 @@ jobs:
               'CHF': ['Switzerland'],   'NZD': ['New Zealand'],
           }
 
-          # ── Terms of Trade valid range ────────────────────────────────────────
-          # NZD Stats NZ uses base 2002Q2=1000 → ~1500 → correctly rejected
           TOT_MIN, TOT_MAX = 50.0, 200.0
 
           exchange_rates = {}
@@ -126,117 +124,193 @@ jobs:
                   pass
               return str(date.today())
 
-          def te_get(url, rate_limit_wait=30):
-              """GET from Trading Economics with rate-limit handling."""
+          def te_get(url):
               r = requests.get(url, headers=HEADERS, timeout=20)
               if r.status_code == 429:
-                  print(f"  ⚠ Rate limited, waiting {rate_limit_wait}s...")
-                  time.sleep(rate_limit_wait)
+                  print(f"  ⚠ Rate limited, waiting 30s...")
+                  time.sleep(30)
                   r = requests.get(url, headers=HEADERS, timeout=20)
               r.raise_for_status()
               return r
 
           # ═══════════════════════════════════════════════════════════════════
-          # TERMS OF TRADE — dedicated scrapers per source
+          # TERMS OF TRADE — source chain
           # ═══════════════════════════════════════════════════════════════════
-
-          def scrape_tot_te_country_page(currency_code):
-              """
-              Scrape the TE country-specific Terms of Trade page.
-              These pages show the actual index value even when the country-list
-              page uses a different scale (e.g. Euro Area).
-              URL pattern: tradingeconomics.com/{slug}/terms-of-trade
-              The data table has: Actual | Previous | Highest | Lowest | Dates | Unit | Frequency | Notes
-              """
-              slug = COUNTRY_URLS[currency_code]
-              url  = f"https://tradingeconomics.com/{slug}/terms-of-trade"
-              print(f"    → Scraping TE country page: {url}")
-              try:
-                  r = te_get(url)
-                  soup = BeautifulSoup(r.content, 'lxml')
-
-                  # The stats table on TE country indicator pages has class "table"
-                  # and a row with: Actual | Previous | Highest | Lowest | Dates | Unit | Frequency
-                  for table in soup.find_all('table'):
-                      headers = [th.get_text(strip=True).lower() for th in table.find_all('th')]
-                      if 'actual' in headers and ('unit' in headers or 'frequency' in headers):
-                          actual_idx = headers.index('actual')
-                          date_idx   = headers.index('dates') if 'dates' in headers else None
-                          rows = table.find_all('tr')[1:]
-                          if rows:
-                              cells = rows[0].find_all('td')
-                              if len(cells) > actual_idx:
-                                  val = clean_num(cells[actual_idx].get_text(strip=True))
-                                  data_date = str(date.today())
-                                  if date_idx and len(cells) > date_idx:
-                                      # Dates column often shows "1957 - 2025" range, not the latest date
-                                      # Try to find the reference date from another column
-                                      pass
-                                  if val is not None and TOT_MIN <= val <= TOT_MAX:
-                                      print(f"    ✓ {currency_code} [TE country page]: {val}")
-                                      return val, data_date
-                                  elif val is not None:
-                                      print(f"    ✗ {currency_code} [TE country page]: {val} out of range (scale mismatch)")
-                                      return None, None
-              except Exception as e:
-                  print(f"    ✗ {currency_code} TE country page error: {e}")
-              return None, None
 
           def scrape_tot_ons_gbp():
               """
-              ONS (Office for National Statistics) JSON API for UK Terms of Trade.
-              Series: CTSL (Trade in Goods: Total Terms of Trade, BOP, SA)
-              Dataset: MRET (UK Trade time series)
-              API:     https://api.ons.gov.uk/v1/timeseries/{series}/dataset/{dataset}/data
-              Returns quarterly data; we take the latest quarter.
+              ONS API: Series CTSL (Trade in Goods Total Terms of Trade, SA)
+              Dataset MRET. Returns quarterly data.
+              Correct API path: api.ons.gov.uk/v1/datasets/MRET/timeseries/CTSL/data
+              (Note: path order is /datasets/{dataset}/timeseries/{series}/data)
               """
-              url = "https://api.ons.gov.uk/v1/timeseries/CTSL/dataset/MRET/data"
-              print(f"    → ONS API: {url}")
-              try:
-                  r = requests.get(url, headers=JSON_HEADERS, timeout=20)
-                  r.raise_for_status()
-                  data = r.json()
+              # Try both path orderings — ONS changed their API structure
+              urls = [
+                  "https://api.ons.gov.uk/v1/datasets/MRET/timeseries/CTSL/data",
+                  "https://api.ons.gov.uk/v1/timeseries/CTSL/dataset/MRET/data",
+                  "https://api.ons.gov.uk/dataset/MRET/timeseries/CTSL/data",
+              ]
+              for url in urls:
+                  print(f"    → ONS: {url}")
+                  try:
+                      r = requests.get(url, headers=JSON_HEADERS, timeout=20)
+                      if r.status_code == 404:
+                          continue
+                      r.raise_for_status()
+                      data = r.json()
+                      quarters = data.get('quarters', [])
+                      if not quarters:
+                          # Try 'years' or other keys if quarters not present
+                          print(f"    ✗ ONS: no quarters in response. Keys: {list(data.keys())[:5]}")
+                          continue
 
-                  quarters = data.get('quarters', [])
-                  if not quarters:
-                      print("    ✗ ONS: no quarterly data found")
-                      return None, None
+                      def qsort(q):
+                          m = re.match(r'(\d{4})\s+Q(\d)', q.get('date',''))
+                          return int(m.group(1))*10+int(m.group(2)) if m else 0
 
-                  # quarters is a list of {date: "2025 Q4", value: "100.4", ...}
-                  # Sort by date string descending and take the first non-empty value
-                  def sort_key(q):
-                      d = q.get('date','')
-                      m = re.match(r'(\d{4})\s+Q(\d)', d)
-                      if m:
-                          return int(m.group(1)) * 10 + int(m.group(2))
-                      return 0
-
-                  quarters_sorted = sorted(quarters, key=sort_key, reverse=True)
-                  for q in quarters_sorted:
-                      val = clean_num(q.get('value',''))
-                      date_str = q.get('date','')
-                      if val is not None and TOT_MIN <= val <= TOT_MAX:
-                          # Parse "2025 Q4" → "2025-11-15"
-                          m = re.match(r'(\d{4})\s+Q(\d)', date_str)
-                          if m:
-                              yr, qnum = int(m.group(1)), int(m.group(2))
-                              data_date = f"{yr}-{(qnum-1)*3+2:02d}-15"
-                          else:
-                              data_date = str(date.today())
-                          print(f"    ✓ GBP [ONS CTSL]: {val} ({date_str} → {data_date})")
-                          return round(val, 2), data_date
-
-                  print("    ✗ ONS: no valid quarterly value in range found")
-              except Exception as e:
-                  print(f"    ✗ ONS API error: {e}")
+                      for q in sorted(quarters, key=qsort, reverse=True):
+                          val = clean_num(q.get('value',''))
+                          date_str = q.get('date','')
+                          if val is not None and TOT_MIN <= val <= TOT_MAX:
+                              m = re.match(r'(\d{4})\s+Q(\d)', date_str)
+                              if m:
+                                  yr, qn = int(m.group(1)), int(m.group(2))
+                                  d = f"{yr}-{(qn-1)*3+2:02d}-15"
+                              else:
+                                  d = str(date.today())
+                              print(f"    ✓ GBP [ONS CTSL]: {val} ({date_str})")
+                              return round(val, 2), d
+                  except Exception as e:
+                      print(f"    ✗ ONS {url}: {e}")
               return None, None
 
-          def scrape_tot_wb(currency_code):
+          def calc_tot_eur_ecb():
               """
-              World Bank API fallback: TT.PRI.MRCH.XD.WD (net barter ToT, base 2015=100).
-              Annual data with 2-3 year lag. Last resort only.
+              Calculate EUR ToT = (Export price deflator / Import price deflator) × 100
+              using the ECB Data Portal API (data-api.ecb.europa.eu).
+
+              ECB dataflow MNA (Quarterly National Accounts) contains:
+              - Export deflator: Q.Y.I8.W2.S1.S1.B.P6.D.L40.VZ.E.AV
+              - Import deflator: Q.Y.I8.W2.S1.S1.B.P7.D.L40.VZ.E.AV
+              Where:
+                Q      = quarterly
+                Y      = neither seasonally nor calendar adjusted
+                I8     = Euro Area (20)
+                W2     = rest of the world (partner)
+                S1.S1  = total economy
+                B      = net / balance
+                P6/P7  = exports / imports of goods and services
+                D      = deflator
+                L40    = price index, period average
+                VZ     = not applicable
+                E      = euro
+                AV     = average of period
+
+              We try multiple candidate series keys since the exact dimensions
+              may differ slightly across ECB API versions.
               """
-              # World Bank country codes
+              # Base URL for ECB API
+              ecb_base = "https://data-api.ecb.europa.eu/service/data/MNA/"
+
+              # Candidate export/import deflator series keys for Euro Area
+              # Format: (export_key, import_key)
+              candidates = [
+                  # Primary candidate
+                  ("Q.Y.I8.W2.S1.S1.B.P6.D.L40.VZ.E.AV",
+                   "Q.Y.I8.W2.S1.S1.B.P7.D.L40.VZ.E.AV"),
+                  # Seasonally adjusted variant
+                  ("Q.Y.I8.W2.S1.S1.B.P6.D.L40.VZ.E.CA",
+                   "Q.Y.I8.W2.S1.S1.B.P7.D.L40.VZ.E.CA"),
+                  # Try with EA instead of I8
+                  ("Q.Y.U2.W2.S1.S1.B.P6.D.L40.VZ.E.AV",
+                   "Q.Y.U2.W2.S1.S1.B.P7.D.L40.VZ.E.AV"),
+              ]
+
+              def fetch_ecb_series(key):
+                  """Fetch a single ECB series, return list of (period, value) sorted ascending."""
+                  url = f"{ecb_base}{key}?format=csvdata&startPeriod=2020-Q1"
+                  try:
+                      r = requests.get(url, headers=JSON_HEADERS, timeout=20)
+                      if not r.ok:
+                          return None
+                      lines = r.text.strip().splitlines()
+                      if len(lines) < 2:
+                          return None
+                      header = [h.strip().strip('"') for h in lines[0].split(',')]
+                      # Find TIME_PERIOD and OBS_VALUE columns
+                      header_lower = [h.lower() for h in header]
+                      ti = next((i for i, h in enumerate(header_lower) if 'time_period' in h), None)
+                      vi = next((i for i, h in enumerate(header_lower) if 'obs_value' in h), None)
+                      if ti is None or vi is None:
+                          return None
+                      results = []
+                      for line in lines[1:]:
+                          cols = [c.strip().strip('"') for c in line.split(',')]
+                          if len(cols) <= max(ti, vi):
+                              continue
+                          val = clean_num(cols[vi])
+                          period = cols[ti]
+                          if val is not None and period:
+                              results.append((period, val))
+                      return sorted(results, key=lambda x: x[0]) if results else None
+                  except Exception as e:
+                      print(f"    ECB series error ({key[:30]}...): {e}")
+                      return None
+
+              print("    → ECB API: calculating EUR ToT from export/import deflators")
+              for exp_key, imp_key in candidates:
+                  exp_data = fetch_ecb_series(exp_key)
+                  imp_data = fetch_ecb_series(imp_key)
+
+                  if not exp_data or not imp_data:
+                      print(f"    ✗ ECB: no data for {exp_key[:25]}...")
+                      continue
+
+                  # Match periods and compute ratio
+                  exp_dict = dict(exp_data)
+                  imp_dict = dict(imp_data)
+                  common_periods = sorted(set(exp_dict.keys()) & set(imp_dict.keys()), reverse=True)
+
+                  if not common_periods:
+                      continue
+
+                  # Find base year (2020) values to normalize to 100
+                  # Use the first available period in 2020 as base
+                  base_exp = next((exp_dict[p] for p in sorted(exp_dict.keys()) if '2020' in p), None)
+                  base_imp = next((imp_dict[p] for p in sorted(imp_dict.keys()) if '2020' in p), None)
+
+                  if base_exp is None or base_imp is None or base_exp == 0 or base_imp == 0:
+                      # Can't normalize — use raw ratio, multiply by 100 if needed
+                      base_exp = base_imp = 1.0
+                      scale = 100.0
+                  else:
+                      scale = 1.0
+
+                  for period in common_periods:
+                      exp_v = exp_dict[period]
+                      imp_v = imp_dict[period]
+                      if imp_v == 0:
+                          continue
+                      # ToT normalized to 2020=100
+                      base_ratio = base_exp / base_imp if base_imp != 0 else 1.0
+                      current_ratio = exp_v / imp_v
+                      tot_val = (current_ratio / base_ratio) * 100.0 * scale
+
+                      if TOT_MIN <= tot_val <= TOT_MAX:
+                          m = re.match(r'^(\d{4})-Q(\d)$', period)
+                          if m:
+                              yr, qn = int(m.group(1)), int(m.group(2))
+                              d = f"{yr}-{(qn-1)*3+2:02d}-15"
+                          else:
+                              d = str(date.today())
+                          print(f"    ✓ EUR [ECB deflator ratio]: {round(tot_val,2)} ({period})")
+                          return round(tot_val, 2), d
+
+              print("    ✗ ECB MNA: all candidates failed")
+              return None, None
+
+          def scrape_tot_wb(currency_code, timeout=30):
+              """World Bank fallback: TT.PRI.MRCH.XD.WD (net barter ToT, base 2015=100)."""
               wb_map = {
                   'USD':'US','GBP':'GB','JPY':'JP','CAD':'CA',
                   'AUD':'AU','CHF':'CH','NZD':'NZ','EUR':'XC',
@@ -247,7 +321,7 @@ jobs:
               url = (f"https://api.worldbank.org/v2/country/{wb}"
                      f"/indicator/TT.PRI.MRCH.XD.WD?format=json&mrv=5&per_page=5")
               try:
-                  r = requests.get(url, headers=JSON_HEADERS, timeout=25)
+                  r = requests.get(url, headers=JSON_HEADERS, timeout=timeout)
                   r.raise_for_status()
                   data = r.json()
                   if not data or len(data) < 2 or not data[1]:
@@ -257,58 +331,61 @@ jobs:
                       if val is None:
                           continue
                       val = float(val)
-                      if not (TOT_MIN <= val <= TOT_MAX):
-                          continue
-                      yr = obs.get('date', str(date.today().year))
-                      print(f"    ✓ {currency_code} [World Bank ToT {yr}]: {val}")
-                      return round(val, 2), f"{yr}-06-15"
+                      if TOT_MIN <= val <= TOT_MAX:
+                          yr = obs.get('date', str(date.today().year))
+                          print(f"    ✓ {currency_code} [World Bank ToT {yr}]: {val}")
+                          return round(val, 2), f"{yr}-06-15"
               except Exception as e:
                   print(f"    ✗ World Bank ToT {currency_code}: {e}")
               return None, None
 
           def fetch_all_tot(te_list_data, te_list_dates):
               """
-              Complete Terms of Trade resolution with prioritized source chain:
-
-              1. TE country-list values in range (already filtered by scrape_te)
-              2. Per-currency specialist scrapers:
-                 - GBP → ONS API (CTSL, quarterly, most current)
-                 - EUR → TE country page (euro-area/terms-of-trade)
-                 - Others with bad scale → TE country page
-              3. World Bank annual (last resort, ~2yr lag)
+              ToT resolution chain:
+                1. TE list values within valid range
+                2. GBP → ONS API (CTSL quarterly, most current)
+                3. EUR → ECB deflator calculation (export/import price ratio)
+                4. Others → World Bank annual (last resort)
               """
-              data  = dict(te_list_data)
-              dates = dict(te_list_dates)
+              data  = {}
+              dates = {}
+
+              # Step 1: accept valid TE values
+              for curr, val in te_list_data.items():
+                  if TOT_MIN <= val <= TOT_MAX:
+                      data[curr]  = val
+                      dates[curr] = te_list_dates.get(curr, str(date.today()))
+                  else:
+                      print(f"  ✗ {curr} [TE list]: {val} out of range → specialist scraper")
 
               missing = [c for c in CURRENCIES if c not in data]
               if not missing:
                   return data, dates
 
-              print(f"\n  → Specialist ToT scrapers for: {', '.join(missing)}")
+              print(f"\n  → Specialist ToT for: {', '.join(missing)}")
 
-              for curr in list(missing):
-                  val, d = None, None
-
-                  if curr == 'GBP':
-                      val, d = scrape_tot_ons_gbp()
-                  elif curr in ('EUR', 'NZD'):
-                      # TE country page (NZD page shows 2002Q2=1000 base, will be rejected)
-                      val, d = scrape_tot_te_country_page(curr)
-                  else:
-                      val, d = scrape_tot_te_country_page(curr)
-
+              # Step 2: GBP via ONS
+              if 'GBP' in missing:
+                  val, d = scrape_tot_ons_gbp()
                   if val is not None:
-                      data[curr]  = val
-                      dates[curr] = d or str(date.today())
-                      missing.remove(curr)
-                  time.sleep(1)
+                      data['GBP']  = val
+                      dates['GBP'] = d
+                      missing.remove('GBP')
 
-              # Last resort: World Bank for any still missing
+              # Step 3: EUR via ECB calculated ratio
+              if 'EUR' in missing:
+                  val, d = calc_tot_eur_ecb()
+                  if val is not None:
+                      data['EUR']  = val
+                      dates['EUR'] = d
+                      missing.remove('EUR')
+
+              # Step 4: World Bank for anything still missing (including EUR/GBP if above failed)
               still_missing = [c for c in CURRENCIES if c not in data]
               if still_missing:
                   print(f"\n  → World Bank ToT fallback for: {', '.join(still_missing)}")
                   for curr in still_missing:
-                      val, d = scrape_tot_wb(curr)
+                      val, d = scrape_tot_wb(curr, timeout=30)
                       if val is not None:
                           data[curr]  = val
                           dates[curr] = d
@@ -401,9 +478,8 @@ jobs:
                               if di and len(cols) > di:
                                   d = parse_te_date(cols[di].get_text(strip=True))
                               if val is not None:
-                                  # Filter out-of-range ToT values from the list
                                   if indicator == 'termsOfTrade' and not (TOT_MIN <= val <= TOT_MAX):
-                                      print(f"  ✗ {code}: {val} (out of range — needs specialist scraper)")
+                                      print(f"  ✗ {code}: {val} (out of range)")
                                       break
                                   data[code]  = round(val, 2)
                                   dates[code] = d
@@ -451,8 +527,8 @@ jobs:
           # MAIN
           # ═══════════════════════════════════════════════════════════════════
           print("="*60)
-          print("ECONOMIC DATA SCRAPER v6")
-          print("ToT: TE list → ONS (GBP) / TE country page → World Bank")
+          print("ECONOMIC DATA SCRAPER v7")
+          print("ToT: TE list → ONS (GBP) → ECB calc (EUR) → World Bank")
           print("="*60)
 
           fetch_fx()
@@ -474,7 +550,7 @@ jobs:
           for curr in CURRENCIES:
               pkg = {
                   'lastUpdate': today,
-                  'source': 'TradingEconomics + ONS (GBP ToT) + WorldBank fallback + COT',
+                  'source': 'TradingEconomics + ONS (GBP ToT) + ECB calc (EUR ToT) + WorldBank + COT',
                   'data':   all_data[curr],
                   'dates':  all_dates[curr],
               }
@@ -497,7 +573,7 @@ jobs:
           if git diff --quiet && git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Economic data $(date +'%Y-%m-%d') - ToT v6"
+            git commit -m "Economic data $(date +'%Y-%m-%d') - ToT v7"
             git pull --rebase origin main || true
             git push
           fi
