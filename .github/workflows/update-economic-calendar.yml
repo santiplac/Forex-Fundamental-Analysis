@@ -1,0 +1,577 @@
+name: Update Economic Calendar (TE Scraping) - v1
+
+on:
+  schedule:
+    # Runs 3x/day: 00:00, 08:00, 16:00 UTC
+    # Calendar events can be added/revised throughout the day
+    - cron: '0 0 * * *'
+    - cron: '0 8 * * *'
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+
+jobs:
+  update-calendar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4 lxml --break-system-packages
+
+      - name: Create directory
+        run: mkdir -p calendar-data
+
+      - name: Scrape economic calendar
+        run: |
+          python3 << 'EOFPYTHON'
+          import requests
+          from bs4 import BeautifulSoup
+          import json, re, time
+          from datetime import date, datetime, timedelta
+
+          HEADERS = {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.9',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+              'Referer': 'https://tradingeconomics.com/',
+          }
+
+          # ── CURRENCIES WE TRACK ───────────────────────────────────────────────────
+          TRACKED_CURRENCIES = {'USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'NZD'}
+
+          COUNTRY_TO_CURRENCY = {
+              'united states': 'USD',
+              'us':            'USD',
+              'usa':           'USD',
+              'euro area':     'EUR',
+              'european union': 'EUR',
+              'eurozone':      'EUR',
+              'germany':       'EUR',
+              'france':        'EUR',
+              'italy':         'EUR',
+              'spain':         'EUR',
+              'united kingdom': 'GBP',
+              'uk':            'GBP',
+              'japan':         'JPY',
+              'australia':     'AUD',
+              'canada':        'CAD',
+              'switzerland':   'CHF',
+              'new zealand':   'NZD',
+          }
+
+          # Country flags
+          CURRENCY_FLAGS = {
+              'USD': '🇺🇸',
+              'EUR': '🇪🇺',
+              'GBP': '🇬🇧',
+              'JPY': '🇯🇵',
+              'AUD': '🇦🇺',
+              'CAD': '🇨🇦',
+              'CHF': '🇨🇭',
+              'NZD': '🇳🇿',
+          }
+
+          # ── IMPACT KEYWORDS ──────────────────────────────────────────────────────
+          # High impact: rate decisions, GDP, CPI, NFP, PMI, unemployment
+          HIGH_IMPACT_KEYWORDS = [
+              'interest rate', 'rate decision', 'fed funds', 'bank rate',
+              'gdp', 'gross domestic product',
+              'cpi', 'consumer price', 'inflation',
+              'nonfarm payrolls', 'nonfarm', 'employment change',
+              'unemployment rate', 'jobless rate',
+              'central bank', 'monetary policy', 'fomc', 'ecb', 'boe', 'boj',
+              'rba', 'boc', 'snb', 'rbnz',
+              'trade balance',
+              'retail sales',
+              'pmi', 'purchasing managers',
+              'current account',
+          ]
+
+          MEDIUM_IMPACT_KEYWORDS = [
+              'manufacturing', 'industrial production', 'factory orders',
+              'housing', 'building permits', 'housing starts',
+              'consumer confidence', 'business confidence',
+              'ppi', 'producer price',
+              'wage', 'earnings',
+              'ism', 'empire state',
+              'durable goods',
+              'job openings', 'jolts',
+              'import price', 'export price',
+          ]
+
+          def classify_impact(event_name, te_importance=None):
+              """
+              Classify event impact based on event name keywords and TE importance flag.
+              TE importance: 1=low, 2=medium, 3=high (when available from HTML class)
+              """
+              name_lower = event_name.lower()
+
+              # Use TE's own importance rating if available
+              if te_importance == 3:
+                  return 'high'
+              if te_importance == 1:
+                  return 'low'
+
+              # Keyword-based classification
+              for kw in HIGH_IMPACT_KEYWORDS:
+                  if kw in name_lower:
+                      return 'high'
+              for kw in MEDIUM_IMPACT_KEYWORDS:
+                  if kw in name_lower:
+                      return 'medium'
+
+              # TE importance == 2 maps to medium
+              if te_importance == 2:
+                  return 'medium'
+
+              return 'low'
+
+          def resolve_currency(country_text):
+              """Map a country name string to its tracked currency code."""
+              if not country_text: return None
+              ct = country_text.lower().strip()
+              for key, curr in COUNTRY_TO_CURRENCY.items():
+                  if key in ct:
+                      return curr
+              return None
+
+          def format_event_date(dt_obj):
+              """Return a human-readable date string like '14 Feb'."""
+              months = ['Ene','Feb','Mar','Abr','May','Jun',
+                        'Jul','Ago','Sep','Oct','Nov','Dic']
+              return f"{dt_obj.day} {months[dt_obj.month - 1]}"
+
+          def parse_te_calendar_html(html_content, target_dates):
+              """
+              Parse the TE calendar HTML.
+              TE calendar page structure (as of 2025/2026):
+                <table id="calendar" class="table table-hover">
+                  <thead>...</thead>
+                  <tbody>
+                    <tr class="calendar-header"><td colspan="7">Monday February 17 2025</td></tr>
+                    <tr data-importance="3" data-country="United States" ...>
+                      <td class="datecol">10:00 AM</td>
+                      <td class="event"><a>...</a></td>
+                      <td class="actual">...</td>
+                      <td class="previous">...</td>
+                      <td class="forecast">...</td>
+                      <td class="unit">...</td>
+                    </tr>
+                    ...
+                  </tbody>
+                </table>
+              """
+              events = []
+              soup = BeautifulSoup(html_content, 'lxml')
+
+              # Try the main calendar table
+              cal_table = soup.find('table', {'id': 'calendar'})
+              if not cal_table:
+                  # Fallback: any table with calendar class
+                  cal_table = soup.find('table', class_=re.compile('calendar'))
+              if not cal_table:
+                  print("  ⚠️ No calendar table found — trying full page scan")
+                  cal_table = soup.find('table')
+
+              if not cal_table:
+                  print("  ❌ No table found in calendar page")
+                  return events
+
+              current_date_obj = None
+
+              for row in cal_table.find_all('tr'):
+                  row_classes = row.get('class', [])
+                  row_class_str = ' '.join(row_classes).lower()
+
+                  # ── Date header row ───────────────────────────────────────────────
+                  if 'calendar-header' in row_class_str or 'datecol' in row_class_str:
+                      date_text = row.get_text(strip=True)
+                      # Parse "Monday February 17 2025" or "Feb 17 2025" etc.
+                      try:
+                          # Try multiple date formats
+                          for fmt in ['%A %B %d %Y', '%B %d %Y', '%b %d %Y',
+                                      '%A, %B %d, %Y', '%d %B %Y']:
+                              try:
+                                  # Remove day-of-week prefix if present
+                                  clean = re.sub(r'^[A-Za-z]+day,?\s*', '', date_text)
+                                  current_date_obj = datetime.strptime(clean.strip(), fmt).date()
+                                  break
+                              except: pass
+                          if current_date_obj is None:
+                              # Try regex extraction
+                              m = re.search(r'(\w+ \d{1,2}[,\s]+\d{4})', date_text)
+                              if m:
+                                  for fmt in ['%B %d, %Y', '%B %d %Y', '%b %d, %Y']:
+                                      try:
+                                          current_date_obj = datetime.strptime(m.group(1).strip(), fmt).date()
+                                          break
+                                      except: pass
+                      except Exception as e:
+                          pass
+                      continue
+
+                  # ── Data rows ─────────────────────────────────────────────────────
+                  # Get data attributes from the row
+                  data_country    = row.get('data-country', '')
+                  data_importance = row.get('data-importance', '')
+                  data_event      = row.get('data-event', '')
+                  data_date       = row.get('data-date', '')  # ISO datetime string
+
+                  # Parse date from data-date attribute if available
+                  event_date_obj = current_date_obj
+                  if data_date:
+                      try:
+                          # "2025-02-17T10:00:00"
+                          event_date_obj = datetime.fromisoformat(data_date.replace('Z','')).date()
+                      except: pass
+
+                  if event_date_obj is None:
+                      continue
+
+                  # Filter to target date range
+                  if event_date_obj not in target_dates:
+                      continue
+
+                  # Resolve currency
+                  currency = resolve_currency(data_country)
+                  if not currency:
+                      # Try from row cells
+                      flag_cell = row.find('td', class_=re.compile('flag|country'))
+                      if flag_cell:
+                          currency = resolve_currency(flag_cell.get_text(strip=True))
+
+                  if currency not in TRACKED_CURRENCIES:
+                      continue
+
+                  # Get event name
+                  cols = row.find_all('td')
+                  if not cols:
+                      continue
+
+                  event_name = data_event
+                  if not event_name:
+                      event_col = row.find('td', class_=re.compile('event'))
+                      if event_col:
+                          event_name = event_col.get_text(strip=True)
+                      elif len(cols) > 1:
+                          event_name = cols[1].get_text(strip=True)
+
+                  if not event_name or len(event_name) < 3:
+                      continue
+
+                  # Get time
+                  time_text = ''
+                  time_col = row.find('td', class_=re.compile('date|time'))
+                  if time_col:
+                      time_text = time_col.get_text(strip=True)
+                  elif cols:
+                      time_text = cols[0].get_text(strip=True)
+
+                  # Normalize time to HH:MM
+                  if time_text:
+                      # "10:00 AM" → "10:00" / "02:30 PM" → "14:30"
+                      m = re.match(r'(\d{1,2}):(\d{2})\s*([AP]M)?', time_text, re.IGNORECASE)
+                      if m:
+                          hour = int(m.group(1))
+                          minute = m.group(2)
+                          ampm = (m.group(3) or '').upper()
+                          if ampm == 'PM' and hour != 12:
+                              hour += 12
+                          elif ampm == 'AM' and hour == 12:
+                              hour = 0
+                          time_text = f"{hour:02d}:{minute}"
+                      else:
+                          time_text = time_text[:5]  # Take first 5 chars as HH:MM
+
+                  # Get actual/forecast/previous
+                  actual   = ''
+                  forecast = ''
+                  previous = ''
+                  actual_col = row.find('td', class_=re.compile('actual'))
+                  if actual_col: actual = actual_col.get_text(strip=True)
+                  forecast_col = row.find('td', class_=re.compile('forecast'))
+                  if forecast_col: forecast = forecast_col.get_text(strip=True)
+                  previous_col = row.find('td', class_=re.compile('previous'))
+                  if previous_col: previous = previous_col.get_text(strip=True)
+
+                  # Importance
+                  try:
+                      importance_int = int(data_importance) if data_importance else None
+                  except:
+                      importance_int = None
+
+                  impact = classify_impact(event_name, importance_int)
+
+                  events.append({
+                      'date':      format_event_date(event_date_obj),
+                      'dateISO':   event_date_obj.isoformat(),
+                      'time':      time_text,
+                      'country':   data_country or currency,
+                      'currency':  currency,
+                      'flag':      CURRENCY_FLAGS.get(currency, ''),
+                      'event':     event_name,
+                      'impact':    impact,
+                      'actual':    actual,
+                      'forecast':  forecast,
+                      'previous':  previous,
+                  })
+
+              return events
+
+          # ── SCRAPING STRATEGIES ──────────────────────────────────────────────────
+
+          def fetch_te_calendar_page(from_date, to_date):
+              """
+              Fetch TE calendar for a date range.
+              TE calendar URL: https://tradingeconomics.com/calendar
+              With date filter:  ?from=2025-02-17&to=2025-03-14
+              The page returns a full HTML page with the calendar table.
+              """
+              url = f"https://tradingeconomics.com/calendar?from={from_date}&to={to_date}"
+              print(f"  Fetching: {url}")
+              try:
+                  r = requests.get(url, headers=HEADERS, timeout=25)
+                  if r.status_code == 429:
+                      print("  ⚠️ Rate limited, waiting 45s...")
+                      time.sleep(45)
+                      r = requests.get(url, headers=HEADERS, timeout=25)
+                  if r.ok:
+                      print(f"  ✅ Got {len(r.content)} bytes (status {r.status_code})")
+                      return r.text
+                  else:
+                      print(f"  ❌ HTTP {r.status_code}")
+                      return None
+              except Exception as e:
+                  print(f"  ❌ Error: {e}")
+                  return None
+
+          def fetch_te_calendar_api(from_date, to_date):
+              """
+              Fallback: TE has an internal API endpoint used by the calendar widget.
+              This returns JSON directly.
+              """
+              # TE internal API (undocumented, may change)
+              api_url = f"https://tradingeconomics.com/api/calendar?from={from_date}&to={to_date}"
+              print(f"  Trying TE API: {api_url}")
+              try:
+                  headers = {**HEADERS, 'X-Requested-With': 'XMLHttpRequest'}
+                  r = requests.get(api_url, headers=headers, timeout=20)
+                  if r.ok:
+                      try:
+                          data = r.json()
+                          if isinstance(data, list) and len(data) > 0:
+                              print(f"  ✅ TE API returned {len(data)} events")
+                              return data
+                      except: pass
+              except Exception as e:
+                  print(f"  ⚠️ TE API: {e}")
+              return None
+
+          def parse_te_api_events(api_data, target_dates):
+              """Parse events from the TE JSON API response."""
+              events = []
+              for item in api_data:
+                  if not isinstance(item, dict): continue
+
+                  # Extract fields
+                  country    = item.get('Country', item.get('country', ''))
+                  event_name = item.get('Event',   item.get('event',   item.get('Indicator', '')))
+                  date_str   = item.get('Date',    item.get('date',    ''))
+                  importance = item.get('Importance', item.get('importance', 0))
+                  actual     = str(item.get('Actual',   item.get('actual',   '')))
+                  forecast   = str(item.get('Forecast', item.get('forecast', '')))
+                  previous   = str(item.get('Previous', item.get('previous', '')))
+
+                  # Parse date
+                  event_date_obj = None
+                  for fmt in ['%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d']:
+                      try:
+                          event_date_obj = datetime.strptime(date_str[:19], fmt)
+                          break
+                      except: pass
+
+                  if event_date_obj is None: continue
+                  if event_date_obj.date() not in target_dates: continue
+
+                  currency = resolve_currency(country)
+                  if currency not in TRACKED_CURRENCIES: continue
+
+                  time_text = event_date_obj.strftime('%H:%M')
+                  impact = classify_impact(event_name, int(importance) if importance else None)
+
+                  events.append({
+                      'date':     format_event_date(event_date_obj.date()),
+                      'dateISO':  event_date_obj.date().isoformat(),
+                      'time':     time_text,
+                      'country':  country,
+                      'currency': currency,
+                      'flag':     CURRENCY_FLAGS.get(currency, ''),
+                      'event':    event_name,
+                      'impact':   impact,
+                      'actual':   actual if actual not in ('None', '') else '',
+                      'forecast': forecast if forecast not in ('None', '') else '',
+                      'previous': previous if previous not in ('None', '') else '',
+                  })
+              return events
+
+          # ── MAIN SCRAPING FLOW ───────────────────────────────────────────────────
+
+          print("=" * 60)
+          print("ECONOMIC CALENDAR SCRAPER v1")
+          print("Source: tradingeconomics.com/calendar")
+          print("=" * 60)
+
+          today = date.today()
+          # Scrape 2 days back (to catch "actual" values just released) + 30 days ahead
+          from_date = today - timedelta(days=2)
+          to_date   = today + timedelta(days=30)
+
+          from_str = from_date.isoformat()
+          to_str   = to_date.isoformat()
+
+          # Build set of target dates
+          target_dates = set()
+          d = from_date
+          while d <= to_date:
+              target_dates.add(d)
+              d += timedelta(days=1)
+
+          print(f"\nTarget range: {from_str} → {to_str} ({len(target_dates)} days)")
+          print(f"Tracking currencies: {sorted(TRACKED_CURRENCIES)}")
+
+          all_events = []
+
+          # ── Strategy 1: HTML page scraping ───────────────────────────────────────
+          print(f"\n{'='*50}\nSTRATEGY 1: TE Calendar HTML Page\n{'='*50}")
+          html = fetch_te_calendar_page(from_str, to_str)
+          if html:
+              parsed = parse_te_calendar_html(html, target_dates)
+              print(f"  Parsed {len(parsed)} events from HTML")
+              all_events.extend(parsed)
+          time.sleep(2)
+
+          # ── Strategy 2: TE JSON API (if HTML yielded nothing) ────────────────────
+          if len(all_events) == 0:
+              print(f"\n{'='*50}\nSTRATEGY 2: TE JSON API fallback\n{'='*50}")
+              api_data = fetch_te_calendar_api(from_str, to_str)
+              if api_data:
+                  parsed = parse_te_api_events(api_data, target_dates)
+                  print(f"  Parsed {len(parsed)} events from API")
+                  all_events.extend(parsed)
+              time.sleep(2)
+
+          # ── Strategy 3: Fetch week by week if range fetch failed ─────────────────
+          if len(all_events) == 0:
+              print(f"\n{'='*50}\nSTRATEGY 3: Week-by-week fallback\n{'='*50}")
+              # Fetch in 7-day chunks to avoid rate limiting / large responses
+              current = from_date
+              while current <= to_date:
+                  chunk_end = min(current + timedelta(days=6), to_date)
+                  html = fetch_te_calendar_page(current.isoformat(), chunk_end.isoformat())
+                  if html:
+                      chunk_dates = set()
+                      d = current
+                      while d <= chunk_end:
+                          chunk_dates.add(d)
+                          d += timedelta(days=1)
+                      parsed = parse_te_calendar_html(html, chunk_dates)
+                      print(f"  Chunk {current} → {chunk_end}: {len(parsed)} events")
+                      all_events.extend(parsed)
+                  current = chunk_end + timedelta(days=1)
+                  time.sleep(3)
+
+          # ── Deduplicate ──────────────────────────────────────────────────────────
+          seen = set()
+          unique_events = []
+          for ev in all_events:
+              key = (ev['dateISO'], ev['currency'], ev['event'][:30])
+              if key not in seen:
+                  seen.add(key)
+                  unique_events.append(ev)
+
+          # ── Sort by date + time ──────────────────────────────────────────────────
+          def sort_key(ev):
+              dt_str = ev['dateISO'] + 'T' + (ev['time'] or '00:00')
+              try:
+                  return datetime.fromisoformat(dt_str)
+              except:
+                  return datetime(2099, 1, 1)
+
+          unique_events.sort(key=sort_key)
+
+          # ── Filter: keep only upcoming + today (with actual values) ──────────────
+          final_events = []
+          for ev in unique_events:
+              try:
+                  ev_date = date.fromisoformat(ev['dateISO'])
+                  # Keep events from today onwards, or past events with actual data
+                  if ev_date >= today:
+                      final_events.append(ev)
+                  elif ev_date >= today - timedelta(days=2) and ev.get('actual'):
+                      # Recent past with actual released — useful for context
+                      final_events.append(ev)
+              except: pass
+
+          # ── Build summary stats ──────────────────────────────────────────────────
+          currency_counts = {}
+          impact_counts   = {'high': 0, 'medium': 0, 'low': 0}
+          for ev in final_events:
+              c = ev['currency']
+              currency_counts[c] = currency_counts.get(c, 0) + 1
+              impact_counts[ev['impact']] = impact_counts.get(ev['impact'], 0) + 1
+
+          # ── Output ───────────────────────────────────────────────────────────────
+          output = {
+              'lastUpdate':     today.isoformat(),
+              'generatedAt':    datetime.utcnow().isoformat() + 'Z',
+              'source':         'tradingeconomics.com/calendar',
+              'rangeFrom':      from_str,
+              'rangeTo':        to_str,
+              'totalEvents':    len(final_events),
+              'currencyCounts': currency_counts,
+              'impactCounts':   impact_counts,
+              'events':         final_events,
+          }
+
+          with open('calendar-data/calendar.json', 'w', encoding='utf-8') as f:
+              json.dump(output, f, indent=2, ensure_ascii=False)
+
+          print(f"\n{'='*60}")
+          print(f"✅ CALENDAR SAVED: calendar-data/calendar.json")
+          print(f"   Total events: {len(final_events)}")
+          print(f"   Impact breakdown: {impact_counts}")
+          print(f"   By currency: {dict(sorted(currency_counts.items()))}")
+
+          # Show sample (next 5 high-impact)
+          high_events = [e for e in final_events if e['impact'] == 'high'][:5]
+          if high_events:
+              print(f"\n   Next high-impact events:")
+              for ev in high_events:
+                  print(f"   {ev['dateISO']} {ev['time']:5s} [{ev['currency']}] {ev['event']}")
+          else:
+              print("\n   ⚠️ No high-impact events found — check scraping output above")
+
+          print("=" * 60)
+          EOFPYTHON
+
+      - name: Commit and push
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add calendar-data/
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "No changes to calendar data"
+          else
+            git commit -m "📅 Economic calendar $(date +'%Y-%m-%d %H:%M') — TE scraping v1"
+            git pull --rebase origin main || true
+            git push
+          fi
