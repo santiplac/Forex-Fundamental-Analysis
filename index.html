@@ -1820,7 +1820,7 @@ const loadAllEconomicData = async (setEconomicData, setDataLoadingStatus) => {
                         const cacheKey = 'all_economic_data';
             // ⚠️ IMPORTANTE: Actualizar DASHBOARD_VERSION cada vez que modifiques el código
             // El formato es 'vX.Y.Z-YYYY-MM-DD' — la fecha garantiza invalidación automática del caché
-            const DASHBOARD_VERSION = '5.0.1-2026-02-18';
+            const DASHBOARD_VERSION = '5.0.2-2026-02-18';
             
             // ✅ Verificar versión del caché
             const cachedVersion = localStorage.getItem('forex_dashboard_version');
@@ -2200,10 +2200,13 @@ if (isSafeHavenFunder) {
                     else score = Math.max(0, 20 + ((value + 30000) / 15000) * 20);
                 } else {
                     // currentAccount (%PIB)
+                    // Para economías commodity-exportadoras (AUD, NZD), el déficit estructural
+                    // es normal y el mercado lo descuenta. Floor más alto para déficits históricos.
                     if (value > 5)        score = 100;
                     else if (value > 0)   score = 70 + (value / 5) * 30;
                     else if (value > -3)  score = 50 + (value / 3) * 20;
-                    else                  score = Math.max(0, 50 + ((value + 3) / 7) * 50);
+                    else if (value > -4)  score = 25 + ((value + 4) / 1) * 5;   // suavizado: 25-30
+                    else                  score = Math.max(15, 25 - ((value + 4) / -3) * 10); // floor 15
                 }
             }
             break;
@@ -2459,6 +2462,23 @@ if (effectiveOutlook) {
     if (currency === 'NZD' && scoringData.businessConfidence !== null && scoringData.businessConfidence !== undefined) {
         scoringData.businessConfidence = Math.max(0, Math.min(100, (scoringData.businessConfidence / 100) * 50 + 50));
     }
+
+ // USD businessConfidence: ISM Manufacturing PMI, base 50 (>50=expansión, <50=contracción)
+// Rango histórico 40-65. Mapear: 50→95 (neutral), 60→110, 40→70
+if (currency === 'USD' && scoringData.businessConfidence !== null && scoringData.businessConfidence !== undefined) {
+    if (scoringData.businessConfidence < 70) {
+        // Es escala ISM (40-65) → mapear a base 100 equivalente
+        scoringData.businessConfidence = ((scoringData.businessConfidence - 40) / 25) * 45 + 70;
+    }
+}
+
+// CAD businessConfidence: Ivey PMI, base 50 (>50=expansión)
+// Idéntica lógica al ISM americano
+if (currency === 'CAD' && scoringData.businessConfidence !== null && scoringData.businessConfidence !== undefined) {
+    if (scoringData.businessConfidence < 70) {
+        scoringData.businessConfidence = ((scoringData.businessConfidence - 40) / 25) * 45 + 70;
+    }
+}   
 
 // JPY consumerConfidence: Japan index ronda 33-40, no base 100
 // Normalizar: rango histórico 25-50 → mapeado a 75-115 (equivalente base 100)
@@ -4825,7 +4845,7 @@ const sentiment = getSentiment(strength);
             © {new Date().getFullYear()} Santiago Plá · Global Investing. Todos los derechos reservados.
         </div>
         <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-            Dashboard v5.0.1
+            Dashboard v5.0.2
         </div>
     </div>
 </div>
