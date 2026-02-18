@@ -1819,7 +1819,7 @@ const loadAllEconomicData = async (setEconomicData, setDataLoadingStatus) => {
                         const cacheKey = 'all_economic_data';
             // ⚠️ IMPORTANTE: Actualizar DASHBOARD_VERSION cada vez que modifiques el código
             // El formato es 'vX.Y.Z-YYYY-MM-DD' — la fecha garantiza invalidación automática del caché
-            const DASHBOARD_VERSION = '4.9.3-2026-02-18'; // ✅ Fix: outlookScore(6%), COT contrarian, yield curve proxy, rateMomentum upgrade/downgrade
+            const DASHBOARD_VERSION = '4.9.4-2026-02-18'; // ✅ Fix: calendario real TE (3x/día), rateMomentum scraping, filter bar calendario
             
             // ✅ Verificar versión del caché
             const cachedVersion = localStorage.getItem('forex_dashboard_version');
@@ -2281,13 +2281,13 @@ case 'outlook_direction':
         }
     }
 
-    if (effectiveOutlook) {
-        scoringData.outlookScore = effectiveOutlook;
-    }
+// NZD businessConfidence: ANZ Business Outlook is net balance centred at 0.
+// Re-map to base-100 for uniform scoring: 0→50 (neutral), +100→100, -100→0
+let scoringData = { ...data };
 
-    // NZD businessConfidence: ANZ Business Outlook is net balance centred at 0.
-    // Re-map to base-100 for uniform scoring: 0→50 (neutral), +100→100, -100→0
-    let scoringData = { ...data };
+if (effectiveOutlook) {
+    scoringData.outlookScore = effectiveOutlook;
+}
     if (currency === 'NZD' && scoringData.businessConfidence !== null && scoringData.businessConfidence !== undefined) {
         scoringData.businessConfidence = Math.max(0, Math.min(100, (scoringData.businessConfidence / 100) * 50 + 50));
     }
