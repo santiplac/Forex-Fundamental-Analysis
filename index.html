@@ -1820,7 +1820,7 @@ const loadAllEconomicData = async (setEconomicData, setDataLoadingStatus) => {
                         const cacheKey = 'all_economic_data';
             // ⚠️ IMPORTANTE: Actualizar DASHBOARD_VERSION cada vez que modifiques el código
             // El formato es 'vX.Y.Z-YYYY-MM-DD' — la fecha garantiza invalidación automática del caché
-            const DASHBOARD_VERSION = '5.0.3-2026-02-18';
+            const DASHBOARD_VERSION = '5.0.4-2026-02-18';
             
             // ✅ Verificar versión del caché
             const cachedVersion = localStorage.getItem('forex_dashboard_version');
@@ -2432,9 +2432,9 @@ if (isSafeHavenFunder) {
             effectiveOutlook = 'Neutral';
         }
         // Downgrade: BC recortando agresivamente pero nivel alto → Hawkish injusto
-        if (data.rateMomentum < -1.0 && effectiveOutlook === 'Hawkish') {
-            effectiveOutlook = 'Neutral';
-        }
+if (data.rateMomentum < -1.5 && effectiveOutlook === 'Hawkish') {
+    effectiveOutlook = 'Neutral';
+}
     }
 
     // P-4 v4.9.6 — Umbral safe haven relativo al régimen de tasas (DENTRO del scope correcto)
@@ -4861,7 +4861,7 @@ const sentiment = getSentiment(strength);
             © {new Date().getFullYear()} Santiago Plá · Global Investing. Todos los derechos reservados.
         </div>
         <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-            Dashboard v5.0.3
+            Dashboard v5.0.4
         </div>
     </div>
 </div>
