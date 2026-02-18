@@ -245,19 +245,42 @@ jobs:
                       except Exception as e:
                           print(f"    ❌ {code}: {e}")
 
-              # ── Estrategia 3: Bootstrap ───────────────────────────────────────────
-              BOOTSTRAP_RATES_12M_AGO = {
+              # ── Estrategia 3: Bootstrap con alerta de antigüedad ──────────────────
+              # CORRECCIÓN: El bootstrap hardcodeado puede quedarse desactualizado.
+              # Ahora se emite una advertencia cuando la referencia supera los 400 días,
+              # indicando que BOOTSTRAP_FALLBACK debe actualizarse manualmente.
+              # Nota: los valores son correctos para calcular rateMomentum 12M
+              # (se restan a la tasa actual), pero solo si reflejan la tasa real
+              # de hace ~12 meses. Si cambian las tasas, actualizar estos valores.
+              BOOTSTRAP_FALLBACK = {
                   'CAD': (3.00, '2025-02-01'),
                   'AUD': (4.35, '2025-02-01'),
                   'CHF': (0.50, '2025-02-01'),
                   'NZD': (3.75, '2025-02-01'),
               }
 
-              bootstrap_candidates = [c for c in CURRENCIES if c not in momentum and c in BOOTSTRAP_RATES_12M_AGO]
+              bootstrap_candidates = [c for c in CURRENCIES if c not in momentum and c in BOOTSTRAP_FALLBACK]
               if bootstrap_candidates:
-                  print(f"\n  Estrategia 3: Bootstrap tasas Feb 2025 para {', '.join(bootstrap_candidates)}")
+                  print(f"\n  Estrategia 3: Bootstrap dinámico para {', '.join(bootstrap_candidates)}")
+
                   for code in bootstrap_candidates:
-                      old_rate, old_date_str = BOOTSTRAP_RATES_12M_AGO[code]
+                      old_rate, old_date_str = BOOTSTRAP_FALLBACK[code]
+
+                      # Verificar antigüedad de la referencia hardcodeada
+                      try:
+                          ref_date = datetime.strptime(old_date_str, '%Y-%m-%d')
+                          age_days = (datetime.today() - ref_date).days
+                          if age_days > 400:
+                              print(f"    ⚠️ {code}: referencia bootstrap tiene {age_days}d de antigüedad")
+                              print(f"       → Actualizar BOOTSTRAP_FALLBACK con la tasa real de hace ~12 meses")
+                          elif age_days > 340:
+                              print(f"    ℹ️ {code}: referencia bootstrap tiene {age_days}d — pronto necesitará actualización")
+                          else:
+                              print(f"    ✓ {code}: referencia bootstrap tiene {age_days}d — dentro del rango válido (≤400d)")
+                      except Exception as e:
+                          print(f"    ⚠️ {code}: no se pudo verificar antigüedad del bootstrap: {e}")
+
+                      # Leer tasa actual del archivo rates/{code}.json
                       try:
                           rates_path = f'rates/{code}.json'
                           current_rate = None
@@ -278,7 +301,7 @@ jobs:
                           momentum_dates[code]  = str(date.today())
                           momentum_source[code] = 'bootstrap-feb2025'
                           direction = '↑' if m_val > 0.001 else ('↓' if m_val < -0.001 else '→')
-                          print(f"    ✓ {code} [bootstrap]: {current_rate}% - {old_rate}% (Feb 2025) = {m_val:+.4f}% {direction}")
+                          print(f"    ✓ {code} [bootstrap]: {current_rate}% - {old_rate}% ({old_date_str}) = {m_val:+.4f}% {direction}")
 
                       except Exception as e:
                           print(f"    ❌ {code} bootstrap: {e}")
@@ -367,10 +390,8 @@ jobs:
                 CHF      → SECO Consumer Climate (rango -40 a +10) → +130
 
               Divisas que pasan el valor crudo SIN transformar (RAW_PASSTHROUGH):
-                CAD → Conference Board Canada (~40-130, actual ~49).
-                      El index.html normaliza valores <80 internamente.
-                      No aplicar validación de rango aquí: 49 es un valor
-                      legítimo en escala nativa y el index lo maneja.
+                CAD → Conference Board Canada (~40-130, típicamente ~49-100).
+                      El index.html aplica su propia normalización para CAD.
                 NZD → ANZ Business Outlook: balance neto centrado en 0.
                       El index.html lo re-mapea a base-100.
                 USD → Michigan Consumer Sentiment (~50-100): el index normaliza.
@@ -385,8 +406,8 @@ jobs:
 
               VALID_RANGE = (50, 200)
 
-              # Divisas que pasan el valor crudo al JSON sin transformación.
-              # El index.html se encarga de mapearlos a escala comparable.
+              # Divisas que pasan el valor crudo al JSON sin transformación aquí.
+              # El index.html se encarga de normalizarlos según su escala nativa.
               RAW_PASSTHROUGH = {'CAD', 'NZD', 'USD', 'AUD'}
 
               result = None
@@ -417,8 +438,7 @@ jobs:
                   result = value
 
               # Validación de rango: solo para divisas que normalizamos aquí.
-              # RAW_PASSTHROUGH se excluye para no rechazar valores legítimos
-              # como CAD=49.3 (Conference Board Canada en escala nativa).
+              # RAW_PASSTHROUGH se excluye para no rechazar valores legítimos.
               if result is not None and currency not in RAW_PASSTHROUGH:
                   if not (VALID_RANGE[0] <= result <= VALID_RANGE[1]):
                       print(f"    ⚠️ {currency} {indicator} normalizado fuera de rango: {result} (raw={value}) → null")
@@ -520,7 +540,7 @@ jobs:
           }
 
           def _fetch_eur_bond_from_market_page():
-              print(f"\n  → Fetching EUR bond desde TE /bonds...")
+              print(f"\n  → Fetching EUR bond desde TE /bonds (GEUGB10Y — EA aggregate)...")
               try:
                   r = requests.get(BONDS_MARKET_PAGE, headers=HEADERS, timeout=20)
                   if r.status_code == 429:
@@ -540,9 +560,12 @@ jobs:
                           if date_td:
                               dt = parse_te_date(date_td.get_text(strip=True))
                           if val is not None and 2.0 <= val <= 4.5:
-                              print(f"  ✓ EUR [/bonds GEUGB10Y]: {val}% ({dt})")
+                              print(f"  ✓ EUR [/bonds GEUGB10Y — EA aggregate]: {val}% ({dt})")
                               return round(val, 3), dt
+                          elif val is not None:
+                              print(f"  ⚠️ EUR GEUGB10Y={val}% fuera de rango esperado (2.0-4.5%) — descartando")
 
+                  # Fallback: búsqueda por texto "euro area" en la página de bonds
                   for row in soup.find_all('tr'):
                       cells = row.find_all('td')
                       if len(cells) < 3: continue
@@ -601,15 +624,17 @@ jobs:
               return None, None
 
           def scrape_bonds():
-              print(f"\n{'='*50}\nBOND YIELDS (EUR via /bonds market page)\n{'='*50}")
+              print(f"\n{'='*50}\nBOND YIELDS (EUR via /bonds market page — GEUGB10Y EA aggregate)\n{'='*50}")
               data, dates = {}, {}
 
+              # EUR: siempre intentar primero desde /bonds para obtener el agregado EA
               eur_val, eur_dt = _fetch_eur_bond_from_market_page()
               if eur_val is not None:
                   data['EUR']  = eur_val
                   dates['EUR'] = eur_dt
               time.sleep(1)
 
+              # Resto de divisas: desde country-list
               try:
                   r = requests.get(TE_URLS['bond10y'], headers=HEADERS, timeout=20)
                   if r.status_code == 429:
@@ -631,7 +656,7 @@ jobs:
                           if len(cols) < 2: continue
                           ctry = cols[0].get_text(strip=True)
                           for code, names in BOND_COUNTRY_MAP.items():
-                              if code == 'EUR': continue
+                              if code == 'EUR': continue   # EUR ya cargado desde /bonds
                               if any(n.lower() in ctry.lower() for n in names):
                                   val = clean_num(cols[actual_idx].get_text(strip=True))
                                   dt  = parse_te_date(cols[date_idx].get_text(strip=True)) if date_idx and len(cols) > date_idx else str(date.today())
@@ -640,6 +665,9 @@ jobs:
                                       data[code] = round(val, 3)
                                       dates[code] = dt
                                       print(f"  ✓ {code}: {val}% ({dt})")
+                                  elif val is not None:
+                                      # CORRECCIÓN: loguear explícitamente cuando se rechaza un valor
+                                      print(f"  ✗ {code}: {val}% rechazado (fuera de rango esperado {min_v}-{max_v}%)")
                                   break
 
                   missing_non_eur = [c for c in CURRENCIES if c != 'EUR' and c not in data]
@@ -667,6 +695,24 @@ jobs:
                           data[code]  = val
                           dates[code] = dt
                       time.sleep(1)
+
+              # CORRECCIÓN: Validación cruzada EUR bond
+              # Verificar que se obtuvo el agregado EA (GEUGB10Y ~2.5-3.0%)
+              # y no el yield alemán/Bund (~2.3-2.5%) que puede filtrarse en scrapers genéricos
+              if 'EUR' in data:
+                  eur_yield = data['EUR']
+                  if eur_yield < 2.3:
+                      print(f"\n  ⚠️ EUR bond10y={eur_yield}% SOSPECHOSAMENTE BAJO")
+                      print(f"     Posible captura del Bund alemán en lugar del agregado EA (GEUGB10Y)")
+                      print(f"     El yield EA oficial suele estar 15-25bp por encima del Bund")
+                      print(f"     Revisar el scraper de /bonds si este valor persiste")
+                  elif eur_yield > 3.5:
+                      print(f"\n  ⚠️ EUR bond10y={eur_yield}% SOSPECHOSAMENTE ALTO para zona euro")
+                      print(f"     Rango esperado: 2.0-3.5%. Revisar fuente del dato.")
+                  else:
+                      print(f"\n  ✓ EUR bond10y={eur_yield}% dentro del rango esperado para EA aggregate")
+              else:
+                  print(f"\n  ⚠️ EUR bond10y: NO SE PUDO OBTENER — será null en el dashboard")
 
               print(f"\n  Found:   {[c for c in CURRENCIES if c in data]}")
               print(f"  Missing: {[c for c in CURRENCIES if c not in data]}")
