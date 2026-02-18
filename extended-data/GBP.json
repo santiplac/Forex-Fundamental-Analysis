@@ -2,10 +2,10 @@
   "lastUpdate": "2026-02-18",
   "source": "TradingEconomics \u2014 v10: rateMomentum via TE API guest + FRED + bootstrap",
   "data": {
-    "bond10y": 4.383,
+    "bond10y": 4.375,
     "consumerConfidence": 84.0,
     "businessConfidence": 81.0,
-    "capitalFlows": 21028.9,
+    "capitalFlows": 21084.57,
     "fdi": 23370.0,
     "inflationExpectations": 3.8,
     "rateMomentum": -0.25
