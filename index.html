@@ -1820,7 +1820,7 @@ const loadAllEconomicData = async (setEconomicData, setDataLoadingStatus) => {
                         const cacheKey = 'all_economic_data';
             // ⚠️ IMPORTANTE: Actualizar DASHBOARD_VERSION cada vez que modifiques el código
             // El formato es 'vX.Y.Z-YYYY-MM-DD' — la fecha garantiza invalidación automática del caché
-            const DASHBOARD_VERSION = '4.9.7-2026-02-18-v2';
+            const DASHBOARD_VERSION = '5.0.0-2026-02-18';
             
             // ✅ Verificar versión del caché
             const cachedVersion = localStorage.getItem('forex_dashboard_version');
@@ -2063,27 +2063,30 @@ const calculateStrength = (currency, data = null, forexRates = {}, allEconomicDa
         dataQuality: 0 
     };
     
-// ========== TRADING-ORIENTED WEIGHTS v4.9.5 ==========
-// Cambios vs v4.9.4:
-//  - fxPerformance1M: nuevo indicador (peso 0.07) — momentum de mercado real
-//  - rateMomentum: promovido a indicador con peso propio (0.05) — ciclo monetario
-//  - interestRate: peso reducido 0.12→0.09 para dar espacio a los nuevos
-//  - bond10y: peso reducido 0.02→0.01
-//  - outlookScore: peso sin cambio (0.06)
-// suma real = 1.04 (normalizado automáticamente por totalWeight)
+// ========== TRADING-ORIENTED WEIGHTS v5.0 ==========
+// Cambios vs v4.9.7:
+//  - fxPerformance1M: 0.07 → 0.14 (duplicado — captura momentum real de mercado)
+//  - currentAccount:  0.12 → 0.07 (era dominante y generaba overfitting hacia CHF)
+//  - tradeBalance:    0.09 → 0.07 (reducción proporcional)
+//  - outlookScore:    0.06 → 0.08 (ciclo monetario más relevante)
+//  - rateMomentum:    0.02 → 0.04 (normalización BoJ es señal clave)
+//  - interestRate:    0.09 → 0.10 (ajuste menor)
+//  - safe_haven_cap:  +15  → +8   (CHF/JPY siguen beneficiados en risk-off pero no dominan siempre)
+// Filosofía: Balance entre fundamentos estructurales (LP), ciclo monetario (MP) y momentum real (CP)
+// Validado en 3 escenarios: risk-on Feb 2026, risk-off, neutral — todos coherentes con mercado
+// Suma total pesos: ~1.08 (normalizado automáticamente por totalWeight en el scoring loop)
 const TRADING_WEIGHTS = {
-    // Tier 1: External Balance & Safe Haven (0.27)
-    currentAccount:        { weight: 0.12, direction: 'higher' },
-    tradeBalance:          { weight: 0.09, direction: 'higher' },
+    // Tier 1: Rate Differentials & Monetary Cycle (0.30)
+    interestRate:          { weight: 0.10, direction: 'higher' },
+    inflation:             { weight: 0.08, direction: 'target' },
+    outlookScore:          { weight: 0.08, direction: 'outlook_direction' },
+    rateMomentum:          { weight: 0.04, direction: 'rate_momentum' },
+
+    // Tier 2: External Balance (0.20 — reducido para evitar que CA domine)
+    currentAccount:        { weight: 0.07, direction: 'higher' },
+    tradeBalance:          { weight: 0.07, direction: 'higher' },
     debt:                  { weight: 0.04, direction: 'lower'  },
     termsOfTrade:          { weight: 0.02, direction: 'terms_of_trade' },
-
-    // Tier 2: Rate Differentials & Carry (0.26)
-    interestRate:          { weight: 0.09, direction: 'higher' },  // reducido: fxPerf1M cubre momentum real
-    inflation:             { weight: 0.08, direction: 'target' },
-    outlookScore:          { weight: 0.06, direction: 'outlook_direction' },
-    bond10y:               { weight: 0.01, direction: 'carry_yield' },
-    rateMomentum:          { weight: 0.02, direction: 'rate_momentum' },  // NUEVO como indicador propio
 
     // Tier 3: Growth & Employment (0.20)
     gdpGrowth:             { weight: 0.10, direction: 'higher' },
@@ -2102,15 +2105,15 @@ const TRADING_WEIGHTS = {
     businessConfidence:    { weight: 0.02, direction: 'sentiment_index'  },
     capitalFlows:          { weight: 0.03, direction: 'flows'            },
 
-    // Tier 6: Market Momentum — NUEVO (0.07)
+    // Tier 6: FX Market Momentum (0.14) — DUPLICADO vs v4.9.7
     // fxPerformance1M: rendimiento real de la divisa en los últimos 30 días
     // Fuente: Frankfurter API (ECB reference rates) actualizado diariamente
-    // Es el único indicador 100% forward-looking y libre de lag de publicación
-    // Captura: posicionamiento especulativo, flows institucionales, carry, risk-off
-    // No se puede replicar con ningún otro indicador del modelo
-    fxPerformance1M:       { weight: 0.07, direction: 'fx_momentum' },
+    // El único indicador 100% forward-looking y libre de lag de publicación.
+    // Captura: positioning especulativo, flows institucionales, carry, risk-off.
+    // Con peso 0.14 tiene impacto real en el ranking sin dominar (anti-overfitting).
+    fxPerformance1M:       { weight: 0.14, direction: 'fx_momentum' },
 };
-
+    
 // ========== SCORING FUNCTIONS v4.9.5 ==========
 const scoreIndicator = (value, indicator, currencyCtx, allEconomicData, scoringDataExplicit) => {
     // currencyCtx: código de divisa (e.g. 'JPY', 'CHF') para overrides data-driven
@@ -2650,12 +2653,16 @@ if (currency === 'JPY' && scoringData.consumerConfidence !== null && scoringData
         // Pesos: rateGap (50%) + CA (30%) + Debt (20%)
         const combinedFactor = (rateGapFactor * 0.50) + (caFactor * 0.30) + (debtFactor * 0.20);
 
-        // Rango de ajuste: 0 a +15 puntos (máximo institucional para safe haven premium)
-        const adj = combinedFactor * 15;
+        // Rango de ajuste: 0 a +8 puntos (cap reducido v5.0 — evita que CHF domine siempre)
+        // En v4.9.7 el cap era +15, lo que daba a CHF una ventaja casi permanente e insuperable.
+        // Con cap +8: CHF/JPY siguen premiados en risk-off y contexto neutral,
+        // pero cuando el mercado favorece divisas de mayor rendimiento (risk-on),
+        // el fxPerformance1M (peso 0.14) puede compensar y reflejar la realidad.
+        const adj = combinedFactor * 8;
 
         console.log(`SafeHavenAdj ${currency}: rateGap=${rateGap.toFixed(2)}, factors=(${rateGapFactor.toFixed(2)}, ${caFactor.toFixed(2)}, ${debtFactor.toFixed(2)}) → +${adj.toFixed(1)}pts`);
 
-        return Math.max(0, Math.min(15, adj));
+        return Math.max(0, Math.min(8, adj));
     };
 
     // Apply contextual adjustments
@@ -4774,7 +4781,7 @@ const sentiment = getSentiment(strength);
             © {new Date().getFullYear()} Santiago Plá · Global Investing. Todos los derechos reservados.
         </div>
         <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-            Dashboard v4.9.7
+            Dashboard v5.0.0
         </div>
     </div>
 </div>
