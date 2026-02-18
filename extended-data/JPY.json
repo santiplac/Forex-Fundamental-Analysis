@@ -1,13 +1,14 @@
 {
   "lastUpdate": "2026-02-18",
-  "source": "TradingEconomics \u2014 v6: EUR bond10y via /bonds GEUGB10Y:GOV (EA aggregate)",
+  "source": "TradingEconomics \u2014 v7: +rateMomentum (current_rate - rate_12M_ago); EUR bond10y via /bonds GEUGB10Y:GOV",
   "data": {
-    "bond10y": 2.116,
+    "bond10y": 2.144,
     "consumerConfidence": 96.85,
     "businessConfidence": 115.0,
     "capitalFlows": 4715.22,
     "fdi": 11098.0,
-    "inflationExpectations": 2.4
+    "inflationExpectations": 2.4,
+    "rateMomentum": null
   },
   "dates": {
     "bond10y": "2026-02-18",
@@ -15,6 +16,7 @@
     "businessConfidence": "2025-12-15",
     "capitalFlows": "2025-12-15",
     "fdi": "2025-12-15",
-    "inflationExpectations": "2025-12-15"
+    "inflationExpectations": "2025-12-15",
+    "rateMomentum": "2026-02-18"
   }
 }
