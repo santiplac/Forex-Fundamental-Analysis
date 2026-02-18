@@ -2697,6 +2697,7 @@ const indicatorTooltips = {
             const [economicData, setEconomicData] = useState({});
             const [dynamicAlerts, setDynamicAlerts] = useState([]);
             const [economicCalendar, setEconomicCalendar] = useState({ events: [], lastUpdate: null, source: null, impactCounts: {}, currencyCounts: {} });
+            const [calFilter, setCalFilter] = useState('all');
             const [lastUpdate, setLastUpdate] = useState(null);
             const [historicalData, setHistoricalData] = useState({});
             const [dataLoadingStatus, setDataLoadingStatus] = useState({ status: 'Inicializando...', progress: 0 });
@@ -4205,14 +4206,13 @@ const sentiment = getSentiment(strength);
 
                                 {/* Filter bar */}
                                 {(() => {
-                                    const [calFilter, setCalFilter] = React.useState('all');
-                                    const events = (economicCalendar.events || []);
-                                    const filtered = calFilter === 'all'
-                                        ? events
-                                        : events.filter(e => e.impact === calFilter);
+    const events = (economicCalendar.events || []);
+    const filtered = calFilter === 'all'
+        ? events
+        : events.filter(e => e.impact === calFilter);
 
-                                    return (
-                                        <>
+    return (
+        <>
                                             <div style={{
                                                 display: 'flex',
                                                 gap: '0.5rem',
