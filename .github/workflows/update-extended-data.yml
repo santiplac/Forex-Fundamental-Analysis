@@ -1,4 +1,4 @@
-name: Update Extended Data (Bonds + Sentiment + Flows) - FINAL v5
+name: Update Extended Data (Bonds + Sentiment + Flows) - FINAL v6
 on:
   schedule:
     - cron: '30 6 * * *'
@@ -57,6 +57,14 @@ jobs:
               'inflationExpectations': 'https://tradingeconomics.com/country-list/inflation-expectations?continent=world',
           }
 
+          # ── FIX v6: EUR bond10y now uses the dedicated TE /bonds page ─────────────
+          # TE bonds page (https://tradingeconomics.com/bonds) explicitly lists
+          # "Euro area" with symbol GEUGB10Y:GOV (3.10 as of Feb 2026).
+          # The country-list/government-bond-yield page lists Germany (GDBR10, 2.74)
+          # under the Euro Area country group. Using the /bonds page for EUR avoids
+          # the Germany-proxy entirely and gives the correct EA aggregate yield.
+          BONDS_MARKET_PAGE = 'https://tradingeconomics.com/bonds'
+
           # ── FX RATES (needed for Capital Flows conversion) ─────────────────────
           exchange_rates = {}
 
@@ -109,41 +117,24 @@ jobs:
           def parse_capital_flows_row(cols):
               """
               Parse a Capital Flows row respecting the Unit column.
-
-              TE reports capital flows in each country's local currency and scale:
-                "USD Million"          value is already USD millions
-                "EUR Billion"          multiply by 1000, then divide by EUR/USD rate
-                "AUD Million"          divide by AUD/USD rate
-                "JPY Hundred Million"  multiply by 100 (-> JPY millions), then divide by JPY/USD rate
-                "GBP Million"          divide by GBP/USD rate
-                etc.
-
-              Scale reference:
-                Trillion        -> x 1 000 000
-                Billion         -> x 1 000
-                Hundred Million -> x 100
-                Million         -> x 1   (baseline)
-
               Returns value in USD millions, or None on failure.
               """
               if len(cols) < 5:
                   return None
 
               raw_val  = clean_num(cols[1].get_text(strip=True))
-              unit_str = cols[4].get_text(strip=True)   # e.g. "AUD Million"
+              unit_str = cols[4].get_text(strip=True)
 
               if raw_val is None or not unit_str:
                   return None
 
               unit_upper = unit_str.upper()
 
-              # --- Scale multiplier (result = native millions) ---
               if 'TRILLION' in unit_upper:
                   scale = 1_000_000.0
               elif 'BILLION' in unit_upper:
                   scale = 1_000.0
               elif 'HUNDRED MILLION' in unit_upper:
-                  # "JPY Hundred Million": 7219 units * 100 = 721 900 JPY million
                   scale = 100.0
               elif 'MILLION' in unit_upper:
                   scale = 1.0
@@ -151,17 +142,14 @@ jobs:
                   print(f"    ⚠️ Unknown scale in unit '{unit_str}' — treating as millions")
                   scale = 1.0
 
-              # --- Source currency (first 3-letter token) ---
               m = re.match(r'^([A-Z]{3})\b', unit_upper)
               src_currency = m.group(1) if m else 'USD'
 
-              # --- Convert to USD millions ---
               val_native_millions = raw_val * scale
 
               if src_currency == 'USD':
                   val_usd_millions = val_native_millions
               else:
-                  # exchange_rates[X] = X per 1 USD, so divide to get USD
                   fx = exchange_rates.get(src_currency)
                   if fx and fx > 0:
                       val_usd_millions = val_native_millions / fx
@@ -175,9 +163,8 @@ jobs:
           def normalize_confidence(value, currency, indicator):
               """
               Normalize confidence indices to base-100 scale (100 = neutral).
-              See normalization table in workflow comments.
               NZD businessConfidence (ANZ Business Outlook) is a net balance
-              reported as-is by TE (e.g. 64.1) — do NOT add +100.
+              reported as-is by TE — do NOT add +100.
               """
               if value is None:
                   return None
@@ -189,14 +176,14 @@ jobs:
                       return round(((value - 40) / 10) * 15 + 100, 2)
                   if currency == 'CHF':
                       return round(value + 130, 2)
-                  return value  # USD, AUD, CAD, NZD: already ~100-based
+                  return value
 
               if indicator == 'businessConfidence':
                   if currency in ('EUR', 'GBP', 'JPY', 'AUD'):
                       return round(value + 100, 2)
                   if currency == 'NZD':
-                      return round(value, 2)   # pass-through — net balance centred at 0
-                  return value  # USD (ISM), CAD (Ivey), CHF (KOF): pass-through
+                      return round(value, 2)
+                  return value
 
               return value
 
@@ -234,7 +221,6 @@ jobs:
                           if any(n.lower() in ctry.lower() for n in names):
                               dt = parse_te_date(cols[date_idx].get_text(strip=True)) if date_idx and len(cols) > date_idx else str(date.today())
 
-                              # ✅ Capital Flows: unit-aware parser (currency + scale -> USD millions)
                               if label == 'capitalFlows':
                                   val_usd = parse_capital_flows_row(cols)
                                   if val_usd is not None:
@@ -244,7 +230,6 @@ jobs:
                                       data[code]  = val_usd
                                       dates[code] = dt
 
-                              # Confidence: normalize to base-100
                               elif label in ('consumerConfidence', 'businessConfidence'):
                                   raw_val = clean_num(cols[actual_idx].get_text(strip=True))
                                   if raw_val is not None:
@@ -253,7 +238,6 @@ jobs:
                                       data[code]  = round(normalized, 4) if normalized is not None else None
                                       dates[code] = dt
 
-                              # All other indicators: plain numeric
                               else:
                                   raw_val = clean_num(cols[actual_idx].get_text(strip=True))
                                   if raw_val is not None:
@@ -267,23 +251,99 @@ jobs:
               return data, dates
 
           # ── BOND YIELDS ─────────────────────────────────────────────────────────
+          # v6 FIX: EUR now uses "Euro area" row from TE /bonds market page (GEUGB10Y:GOV)
+          # instead of the Germany row (GDBR10) from the country-list page.
+          # All other currencies still use the country-list page first, with fallback.
           BOND_COUNTRY_MAP = {
-              'USD': ['United States'], 'EUR': ['Germany'],
-              'GBP': ['United Kingdom'], 'JPY': ['Japan'],
-              'CAD': ['Canada'], 'AUD': ['Australia'],
-              'CHF': ['Switzerland'], 'NZD': ['New Zealand'],
+              'USD': ['United States'],
+              'EUR': ['Euro area'],        # FIX v6: was 'Germany' — now uses EA aggregate
+              'GBP': ['United Kingdom'],
+              'JPY': ['Japan'],
+              'CAD': ['Canada'],
+              'AUD': ['Australia'],
+              'CHF': ['Switzerland'],
+              'NZD': ['New Zealand'],
           }
           BOND_COUNTRY_SLUGS = {
-              'USD': 'united-states', 'EUR': 'germany',
-              'GBP': 'united-kingdom', 'JPY': 'japan',
-              'CAD': 'canada', 'AUD': 'australia',
-              'CHF': 'switzerland', 'NZD': 'new-zealand',
+              'USD': 'united-states',
+              'EUR': 'euro-area',          # FIX v6: was 'germany'
+              'GBP': 'united-kingdom',
+              'JPY': 'japan',
+              'CAD': 'canada',
+              'AUD': 'australia',
+              'CHF': 'switzerland',
+              'NZD': 'new-zealand',
           }
+          # Updated range for EUR: EA yield (GEUGB10Y) is ~2.5-4.5 historically
           BOND_EXPECTED_RANGES = {
-              'USD': (3.0, 6.0), 'EUR': (1.5, 4.0), 'GBP': (3.5, 5.5),
-              'JPY': (0.5, 3.5), 'CAD': (2.5, 5.0), 'AUD': (3.5, 6.0),
-              'CHF': (0.0, 2.0), 'NZD': (3.5, 6.0),
+              'USD': (3.0, 6.0),
+              'EUR': (2.0, 4.5),    # FIX v6: was (1.5, 4.0) — widened for EA aggregate
+              'GBP': (3.5, 5.5),
+              'JPY': (0.5, 3.5),
+              'CAD': (2.5, 5.0),
+              'AUD': (3.5, 6.0),
+              'CHF': (0.0, 2.0),
+              'NZD': (3.5, 6.0),
           }
+
+          def _fetch_eur_bond_from_market_page():
+              """
+              FIX v6: Fetch EUR bond yield directly from the TE /bonds market page,
+              which explicitly lists "Euro area" (GEUGB10Y:GOV) — the official
+              Euro Area 10Y government bond yield aggregate published by Trading Economics.
+
+              This avoids the country-list page where Germany (GDBR10) appears under
+              the Euro Area country group. Germany Bund (2.74%) ≠ Euro Area yield (3.10%).
+
+              The /bonds page table has columns: Country | Price | Change | %1D | %1W | %1M | %1Y | Date
+              """
+              print(f"\n  → Fetching EUR bond from TE /bonds market page...")
+              try:
+                  r = requests.get(BONDS_MARKET_PAGE, headers=HEADERS, timeout=20)
+                  if r.status_code == 429:
+                      print("  ⚠️ Rate limited on /bonds, waiting 30s...")
+                      time.sleep(30)
+                      r = requests.get(BONDS_MARKET_PAGE, headers=HEADERS, timeout=20)
+                  r.raise_for_status()
+                  soup = BeautifulSoup(r.content, 'lxml')
+
+                  # The /bonds page uses data-symbol attribute on <tr> elements
+                  # EUR EA row has data-symbol="GEUGB10Y:GOV"
+                  ea_row = soup.find('tr', {'data-symbol': 'GEUGB10Y:GOV'})
+                  if ea_row:
+                      # Price column has id="p"
+                      price_td = ea_row.find('td', {'id': 'p'})
+                      date_td  = ea_row.find('td', {'id': 'date'})
+                      if price_td:
+                          val = clean_num(price_td.get_text(strip=True))
+                          dt  = str(date.today())
+                          if date_td:
+                              dt = parse_te_date(date_td.get_text(strip=True))
+                          if val is not None and 2.0 <= val <= 4.5:
+                              print(f"  ✓ EUR [/bonds EA GEUGB10Y]: {val}% ({dt})")
+                              return round(val, 3), dt
+
+                  # Fallback: scan all rows for "Euro area" text
+                  for row in soup.find_all('tr'):
+                      cells = row.find_all('td')
+                      if len(cells) < 3:
+                          continue
+                      ctry = cells[0].get_text(strip=True).lower() if cells else ''
+                      # Skip the flag cell, check the name cell
+                      for i, cell in enumerate(cells):
+                          if 'euro area' in cell.get_text(strip=True).lower():
+                              # Next td with id="p" or just index 2
+                              for price_cell in cells[i+1:]:
+                                  val = clean_num(price_cell.get_text(strip=True))
+                                  if val is not None and 2.0 <= val <= 4.5:
+                                      print(f"  ✓ EUR [/bonds text search]: {val}%")
+                                      return round(val, 3), str(date.today())
+                              break
+
+              except Exception as e:
+                  print(f"  ✗ EUR /bonds market page: {e}")
+
+              return None, None
 
           def _extract_bonds_from_all_tables(soup):
               data, dates = {}, {}
@@ -320,15 +380,24 @@ jobs:
                           for col in cols:
                               val = clean_num(col.get_text(strip=True))
                               if val is not None and min_val <= val <= max_val:
-                                  print(f"  ✓ {code}: {val}% (country page)")
+                                  print(f"  ✓ {code}: {val}% (country page fallback)")
                                   return round(val, 3), str(date.today())
               except Exception as e:
                   print(f"  ❌ Country page fallback {code}: {e}")
               return None, None
 
           def scrape_bonds():
-              print(f"\n{'='*50}\nBOND YIELDS (3-level fallback)\n{'='*50}")
+              print(f"\n{'='*50}\nBOND YIELDS (v6 — EUR via /bonds market page)\n{'='*50}")
               data, dates = {}, {}
+
+              # ── STEP 1: EUR — dedicated /bonds market page (GEUGB10Y:GOV) ──────────
+              eur_val, eur_dt = _fetch_eur_bond_from_market_page()
+              if eur_val is not None:
+                  data['EUR']  = eur_val
+                  dates['EUR'] = eur_dt
+              time.sleep(1)
+
+              # ── STEP 2: All other currencies — country-list page ──────────────────
               try:
                   r = requests.get(TE_URLS['bond10y'], headers=HEADERS, timeout=20)
                   if r.status_code == 429:
@@ -350,6 +419,8 @@ jobs:
                           if len(cols) < 2: continue
                           ctry = cols[0].get_text(strip=True)
                           for code, names in BOND_COUNTRY_MAP.items():
+                              if code == 'EUR':
+                                  continue  # EUR already handled above — skip Germany row
                               if any(n.lower() in ctry.lower() for n in names):
                                   val = clean_num(cols[actual_idx].get_text(strip=True))
                                   dt  = parse_te_date(cols[date_idx].get_text(strip=True)) if date_idx and len(cols) > date_idx else str(date.today())
@@ -360,11 +431,12 @@ jobs:
                                       print(f"  ✓ {code}: {val}% ({dt})")
                                   break
 
-                  missing = [c for c in CURRENCIES if c not in data]
-                  if missing:
-                      print(f"  Scanning all tables for: {', '.join(missing)}")
+                  # Scan all tables for any still-missing (non-EUR) currencies
+                  missing_non_eur = [c for c in CURRENCIES if c != 'EUR' and c not in data]
+                  if missing_non_eur:
+                      print(f"  Scanning all tables for: {', '.join(missing_non_eur)}")
                       w_data, w_dates = _extract_bonds_from_all_tables(soup)
-                      for code in missing:
+                      for code in missing_non_eur:
                           if code in w_data:
                               min_v, max_v = BOND_EXPECTED_RANGES.get(code, (0, 20))
                               if min_v <= w_data[code] <= max_v:
@@ -374,8 +446,9 @@ jobs:
                                   print(f"  ⚠️ {code}: {w_data[code]}% out of range → discarded")
 
               except Exception as e:
-                  print(f"  ❌ TE bond page error: {e}")
+                  print(f"  ❌ TE bond country-list page error: {e}")
 
+              # ── STEP 3: Country-page fallback for any still-missing ───────────────
               still_missing = [c for c in CURRENCIES if c not in data]
               if still_missing:
                   print(f"\n  Country-page fallback for: {', '.join(still_missing)}")
@@ -391,7 +464,6 @@ jobs:
               return data, dates
 
           # ── MAIN ─────────────────────────────────────────────────────────────────
-          # ✅ Load FX rates first — required for Capital Flows currency conversion
           print(f"\n{'='*50}\nFETCHING FX RATES\n{'='*50}")
           fetch_fx()
 
@@ -415,7 +487,7 @@ jobs:
           for curr in CURRENCIES:
               pkg = {
                   'lastUpdate': str(date.today()),
-                  'source': 'TradingEconomics — v5 capitalFlows FX fix + NZD businessConf pass-through',
+                  'source': 'TradingEconomics — v6: EUR bond10y via /bonds GEUGB10Y:GOV (EA aggregate)',
                   'data':   all_data[curr],
                   'dates':  all_dates[curr]
               }
@@ -425,7 +497,8 @@ jobs:
               missing   = [k for k in ['bond10y','consumerConfidence','businessConfidence',
                                         'capitalFlows','inflationExpectations'] if all_data[curr].get(k) is None]
               status = '✅' if not missing else '⚠️ '
-              print(f"{status} {curr}: {', '.join(available) or 'NO DATA'}")
+              eur_note = f" [EUR bond: {all_data['EUR'].get('bond10y', 'N/A')}% EA agg]" if curr == 'EUR' else ''
+              print(f"{status} {curr}: {', '.join(available) or 'NO DATA'}{eur_note}")
               if missing:
                   print(f"   Missing: {', '.join(missing)}")
 
@@ -440,7 +513,7 @@ jobs:
           if git diff --quiet && git diff --staged --quiet; then
             echo "No changes"
           else
-            git commit -m "📊 Extended data $(date +'%Y-%m-%d') — v5 capitalFlows FX fix"
+            git commit -m "📊 Extended data $(date +'%Y-%m-%d') — v6 EUR bond10y via GEUGB10Y EA aggregate"
             git pull --rebase origin main || true
             git push
           fi
