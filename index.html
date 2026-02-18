@@ -2059,7 +2059,10 @@ setDataLoadingStatus({ status: 'Procesando outlook de bancos centrales...', prog
             }
 
             setDataLoadingStatus({ status: 'Datos cargados exitosamente', progress: 100 });
-            CacheManager.set(cacheKey, economicData, CACHE_CONFIG.ECONOMIC_DATA);
+            // Deep copy para garantizar que fxPerformance1M esté incluido en el caché
+            const economicDataToCache = JSON.parse(JSON.stringify(economicData));
+            console.log('🔍 Pre-cache check AUD fxPerf1M:', economicDataToCache.AUD?.fxPerformance1M);
+            CacheManager.set(cacheKey, economicDataToCache, CACHE_CONFIG.ECONOMIC_DATA);
             setEconomicData(economicData);
             return economicData;
         };
