@@ -1084,6 +1084,22 @@
         padding: 1rem;
     }
 }
+
+@media (max-width: 480px) {
+    .card-header {
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    .card-title-section {
+        flex: 1;
+        min-width: 0;
+    }
+    .card-strength {
+        width: 100%;
+        align-items: flex-start;
+        flex-shrink: 0;
+    }
+}
     </style>
 </head>
 <body>
@@ -1683,6 +1699,102 @@ const baseStrength = strengthObj.score || 50;  // ✅
             CacheManager.set(cacheKey, historical, CACHE_CONFIG.HISTORICAL_DATA);
             return historical;
         };
+
+    // ── SCORE ESTRUCTURAL (3-12 meses): fundamentos macro sin momentum de mercado ──
+const calculateStructuralScore = (currency, data = null, forexRates = {}, allEconomicData = {}) => {
+    if (!data) return 50;
+    
+    // Indicadores puramente fundamentales (sin fxPerformance1M ni cotPositioning)
+    const STRUCTURAL_WEIGHTS = {
+        currentAccount:        { weight: 0.16, direction: 'higher' },
+        tradeBalance:          { weight: 0.12, direction: 'higher' },
+        debt:                  { weight: 0.06, direction: 'lower'  },
+        termsOfTrade:          { weight: 0.03, direction: 'terms_of_trade' },
+        interestRate:          { weight: 0.12, direction: 'higher' },
+        inflation:             { weight: 0.10, direction: 'target' },
+        outlookScore:          { weight: 0.08, direction: 'outlook_direction' },
+        rateMomentum:          { weight: 0.05, direction: 'rate_momentum' },
+        gdpGrowth:             { weight: 0.13, direction: 'higher' },
+        unemployment:          { weight: 0.08, direction: 'lower'  },
+        production:            { weight: 0.05, direction: 'stable' },
+        wageGrowth:            { weight: 0.04, direction: 'stable' },
+        inflationExpectations: { weight: 0.03, direction: 'target' },
+        bond10y:               { weight: 0.02, direction: 'carry_yield' },
+        capitalFlows:          { weight: 0.04, direction: 'flows' },
+    };
+
+    let weightedSum = 0;
+    let totalWeight = 0;
+    
+    const countryObj = (typeof countries !== 'undefined') ? countries.find(c => c.code === currency) : null;
+    let effectiveOutlook = (countryObj && countryObj.outlook && countryObj.outlook !== 'Calculando...') ? countryObj.outlook : null;
+    if (effectiveOutlook && data.rateMomentum !== null && data.rateMomentum !== undefined) {
+        if (data.rateMomentum > 0.3 && effectiveOutlook === 'Dovish') effectiveOutlook = 'Neutral';
+        if (data.rateMomentum < -1.0 && effectiveOutlook === 'Hawkish') effectiveOutlook = 'Neutral';
+    }
+    
+    const allRates = Object.values(allEconomicData).map(d => d.interestRate).filter(v => v != null && !isNaN(v));
+    const avgRate = allRates.length > 0 ? allRates.reduce((a,b) => a+b, 0) / allRates.length : 3.0;
+    const safeHavenThreshold = Math.max(1.0, avgRate - 1.5);
+    
+    let scoringData = { ...data, outlookScore: effectiveOutlook };
+
+    Object.keys(STRUCTURAL_WEIGHTS).forEach(indicator => {
+        const value = scoringData[indicator];
+        if (value === null || value === undefined || isNaN(value)) return;
+        const config = STRUCTURAL_WEIGHTS[indicator];
+        // Reutilizar scoreIndicator del scope exterior (closure)
+        const raw = scoreIndicator(value, indicator, currency, allEconomicData, scoringData);
+        weightedSum += raw * config.weight;
+        totalWeight += config.weight;
+    });
+
+    const base = totalWeight > 0 ? (weightedSum / totalWeight) : 50;
+    const compressed = 20 + (base * 0.58);
+    return Math.max(20, Math.min(82, parseFloat(compressed.toFixed(1))));
+};
+
+// ── SCORE MOMENTUM (1-4 semanas): señales de mercado en tiempo real ──
+const calculateMomentumScore = (currency, data = null, forexRates = {}, allEconomicData = {}) => {
+    if (!data) return 50;
+    
+    const MOMENTUM_WEIGHTS = {
+        fxPerformance1M:   { weight: 0.45, direction: 'fx_momentum' },
+        cotPositioning:    { weight: 0.30, direction: 'moderate_bullish' },
+        manufacturingPMI:  { weight: 0.15, direction: 'expansion' },
+        consumerConfidence:{ weight: 0.05, direction: 'sentiment_index' },
+        businessConfidence:{ weight: 0.05, direction: 'sentiment_index' },
+    };
+
+    let weightedSum = 0;
+    let totalWeight = 0;
+
+    const allRates = Object.values(allEconomicData).map(d => d.interestRate).filter(v => v != null && !isNaN(v));
+    const avgRate = allRates.length > 0 ? allRates.reduce((a,b) => a+b, 0) / allRates.length : 3.0;
+    const safeHavenThreshold = Math.max(1.0, avgRate - 1.5);
+    
+    let scoringData = { ...data };
+    if (currency === 'NZD' && scoringData.businessConfidence !== null && scoringData.businessConfidence !== undefined) {
+        scoringData.businessConfidence = Math.max(0, Math.min(100, (scoringData.businessConfidence / 100) * 50 + 50));
+    }
+    if (currency === 'JPY' && scoringData.consumerConfidence !== null && scoringData.consumerConfidence !== undefined && scoringData.consumerConfidence < 60) {
+        scoringData.consumerConfidence = ((scoringData.consumerConfidence - 25) / 30) * 40 + 85;
+    }
+
+    Object.keys(MOMENTUM_WEIGHTS).forEach(indicator => {
+        const value = scoringData[indicator];
+        if (value === null || value === undefined || isNaN(value)) return;
+        const config = MOMENTUM_WEIGHTS[indicator];
+        const raw = scoreIndicator(value, indicator, currency, allEconomicData, scoringData, safeHavenThreshold);
+        weightedSum += raw * config.weight;
+        totalWeight += config.weight;
+    });
+
+    if (totalWeight === 0) return null; // Sin datos de momentum → no mostrar
+    const base = weightedSum / totalWeight;
+    const compressed = 20 + (base * 0.58);
+    return Math.max(20, Math.min(82, parseFloat(compressed.toFixed(1))));
+};
 
 const generateForexPairRecommendations = (economicData, forexRates) => {
     const cacheKey = 'forex_pair_recommendations';
@@ -3462,102 +3574,6 @@ const getSentiment = (strength) => {
     return 'neutral';
 };
 
-// ── SCORE ESTRUCTURAL (3-12 meses): fundamentos macro sin momentum de mercado ──
-const calculateStructuralScore = (currency, data = null, forexRates = {}, allEconomicData = {}) => {
-    if (!data) return 50;
-    
-    // Indicadores puramente fundamentales (sin fxPerformance1M ni cotPositioning)
-    const STRUCTURAL_WEIGHTS = {
-        currentAccount:        { weight: 0.16, direction: 'higher' },
-        tradeBalance:          { weight: 0.12, direction: 'higher' },
-        debt:                  { weight: 0.06, direction: 'lower'  },
-        termsOfTrade:          { weight: 0.03, direction: 'terms_of_trade' },
-        interestRate:          { weight: 0.12, direction: 'higher' },
-        inflation:             { weight: 0.10, direction: 'target' },
-        outlookScore:          { weight: 0.08, direction: 'outlook_direction' },
-        rateMomentum:          { weight: 0.05, direction: 'rate_momentum' },
-        gdpGrowth:             { weight: 0.13, direction: 'higher' },
-        unemployment:          { weight: 0.08, direction: 'lower'  },
-        production:            { weight: 0.05, direction: 'stable' },
-        wageGrowth:            { weight: 0.04, direction: 'stable' },
-        inflationExpectations: { weight: 0.03, direction: 'target' },
-        bond10y:               { weight: 0.02, direction: 'carry_yield' },
-        capitalFlows:          { weight: 0.04, direction: 'flows' },
-    };
-
-    let weightedSum = 0;
-    let totalWeight = 0;
-    
-    const countryObj = (typeof countries !== 'undefined') ? countries.find(c => c.code === currency) : null;
-    let effectiveOutlook = (countryObj && countryObj.outlook && countryObj.outlook !== 'Calculando...') ? countryObj.outlook : null;
-    if (effectiveOutlook && data.rateMomentum !== null && data.rateMomentum !== undefined) {
-        if (data.rateMomentum > 0.3 && effectiveOutlook === 'Dovish') effectiveOutlook = 'Neutral';
-        if (data.rateMomentum < -1.0 && effectiveOutlook === 'Hawkish') effectiveOutlook = 'Neutral';
-    }
-    
-    const allRates = Object.values(allEconomicData).map(d => d.interestRate).filter(v => v != null && !isNaN(v));
-    const avgRate = allRates.length > 0 ? allRates.reduce((a,b) => a+b, 0) / allRates.length : 3.0;
-    const safeHavenThreshold = Math.max(1.0, avgRate - 1.5);
-    
-    let scoringData = { ...data, outlookScore: effectiveOutlook };
-
-    Object.keys(STRUCTURAL_WEIGHTS).forEach(indicator => {
-        const value = scoringData[indicator];
-        if (value === null || value === undefined || isNaN(value)) return;
-        const config = STRUCTURAL_WEIGHTS[indicator];
-        // Reutilizar scoreIndicator del scope exterior (closure)
-        const raw = scoreIndicator(value, indicator, currency, allEconomicData, scoringData);
-        weightedSum += raw * config.weight;
-        totalWeight += config.weight;
-    });
-
-    const base = totalWeight > 0 ? (weightedSum / totalWeight) : 50;
-    const compressed = 20 + (base * 0.58);
-    return Math.max(20, Math.min(82, parseFloat(compressed.toFixed(1))));
-};
-
-// ── SCORE MOMENTUM (1-4 semanas): señales de mercado en tiempo real ──
-const calculateMomentumScore = (currency, data = null, forexRates = {}, allEconomicData = {}) => {
-    if (!data) return 50;
-    
-    const MOMENTUM_WEIGHTS = {
-        fxPerformance1M:   { weight: 0.45, direction: 'fx_momentum' },
-        cotPositioning:    { weight: 0.30, direction: 'moderate_bullish' },
-        manufacturingPMI:  { weight: 0.15, direction: 'expansion' },
-        consumerConfidence:{ weight: 0.05, direction: 'sentiment_index' },
-        businessConfidence:{ weight: 0.05, direction: 'sentiment_index' },
-    };
-
-    let weightedSum = 0;
-    let totalWeight = 0;
-
-    const allRates = Object.values(allEconomicData).map(d => d.interestRate).filter(v => v != null && !isNaN(v));
-    const avgRate = allRates.length > 0 ? allRates.reduce((a,b) => a+b, 0) / allRates.length : 3.0;
-    const safeHavenThreshold = Math.max(1.0, avgRate - 1.5);
-    
-    let scoringData = { ...data };
-    if (currency === 'NZD' && scoringData.businessConfidence !== null && scoringData.businessConfidence !== undefined) {
-        scoringData.businessConfidence = Math.max(0, Math.min(100, (scoringData.businessConfidence / 100) * 50 + 50));
-    }
-    if (currency === 'JPY' && scoringData.consumerConfidence !== null && scoringData.consumerConfidence !== undefined && scoringData.consumerConfidence < 60) {
-        scoringData.consumerConfidence = ((scoringData.consumerConfidence - 25) / 30) * 40 + 85;
-    }
-
-    Object.keys(MOMENTUM_WEIGHTS).forEach(indicator => {
-        const value = scoringData[indicator];
-        if (value === null || value === undefined || isNaN(value)) return;
-        const config = MOMENTUM_WEIGHTS[indicator];
-        const raw = scoreIndicator(value, indicator, currency, allEconomicData, scoringData, safeHavenThreshold);
-        weightedSum += raw * config.weight;
-        totalWeight += config.weight;
-    });
-
-    if (totalWeight === 0) return null; // Sin datos de momentum → no mostrar
-    const base = weightedSum / totalWeight;
-    const compressed = 20 + (base * 0.58);
-    return Math.max(20, Math.min(82, parseFloat(compressed.toFixed(1))));
-};
-
 const getMomentumSentiment = (score) => {
     if (score === null || score === undefined) return null;
     if (score >= 58) return 'alcista';
@@ -4188,8 +4204,8 @@ const DataHealthCheck = ({ economicData }) => {
                                         <div className="card-currency-name">{country.currency}</div>
                                     </div>
                                 </div>
-<div className="card-strength">
-    <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+<div className="card-strength" style={{ flexShrink: 0 }}>
+    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         <div style={{ textAlign: 'right' }}>
             <div className="strength-score" style={{ 
                 color: sentiment === 'alcista' ? 'var(--green-strong)' : 
@@ -4534,27 +4550,11 @@ const sentiment = getSentiment(strength);
                                                             </div>
                                                         </td>
 <td style={{ background: 'var(--bg-card)', minWidth: '120px' }}>
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-        <div className="overall-cell">
-            <div className="overall-indicator" style={{ background: overallColor }}></div>
-            <span className="overall-label" style={{ color: overallColor, fontSize: '0.7rem' }}>
-                {sentiment} <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>({strength})</span>
-            </span>
-        </div>
-        {(() => {
-            const mScore = calculateMomentumScore(country.code, data, forexRates, economicData);
-            const mSentiment = getMomentumSentiment(mScore);
-            if (mScore === null) return null;
-            const mColor = mSentiment === 'alcista' ? 'var(--green-strong)' : mSentiment === 'bajista' ? 'var(--red-strong)' : 'var(--neutral)';
-            return (
-                <div className="overall-cell" title="Score momentum (1-4 semanas): COT + FX + PMI">
-                    <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: mColor, flexShrink: 0 }}></div>
-                    <span style={{ fontSize: '0.6rem', fontWeight: 600, color: mColor, textTransform: 'uppercase' }}>
-                        {mSentiment} <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>({mScore})</span>
-                    </span>
-                </div>
-            );
-        })()}
+    <div className="overall-cell">
+        <div className="overall-indicator" style={{ background: overallColor }}></div>
+        <span className="overall-label" style={{ color: overallColor, fontSize: '0.7rem' }}>
+            {sentiment} <span style={{ color: 'var(--text-tertiary)', fontWeight: 400 }}>({strength})</span>
+        </span>
     </div>
 </td>
 <HeatmapCell value={data.gdp} type="gdp" currency={country.code} indicator="gdp" lastUpdate={data.gdpDate} />
