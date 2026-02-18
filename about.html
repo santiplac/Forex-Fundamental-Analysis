@@ -43,6 +43,7 @@
         th { background: var(--bg-secondary); font-weight: 600; color: var(--text-primary); }
         td { color: var(--text-secondary); }
         code { background: var(--bg-secondary); padding: 0.2rem 0.4rem; border-radius: 3px; font-family: 'Courier New', monospace; font-size: 0.9em; color: var(--green); }
+        pre { background: var(--bg-secondary); padding: 1rem; border-radius: 6px; font-family: 'Courier New', monospace; font-size: 0.85rem; color: var(--green); overflow-x: auto; margin: 1rem 0; line-height: 1.6; }
     </style>
 </head>
 <body>
@@ -62,10 +63,11 @@
     <div class="container">
         <h1>Acerca de Nuestra Plataforma</h1>
 
+        <!-- MISIÓN -->
         <div class="section">
             <h2>Nuestra Misión</h2>
             <p>El Dashboard de Análisis Fundamental Forex fue creado para proporcionar a traders, inversores y analistas financieros una herramienta cuantitativa de análisis fundamental orientada al trading de divisas.</p>
-            <p>Creemos que comprender los fundamentos económicos de los movimientos de divisas—crecimiento económico, política monetaria, inflación y dinámicas comerciales—es esencial para tomar decisiones informadas en el mercado forex.</p>
+            <p>Creemos que comprender los fundamentos económicos de los movimientos de divisas —crecimiento económico, política monetaria, inflación y dinámicas comerciales— es esencial para tomar decisiones informadas en el mercado forex.</p>
         </div>
 
         <div class="highlight-box">
@@ -73,193 +75,131 @@
         </div>
 
         <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-number">8</div>
-                <div class="stat-label">Divisas Principales</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">19</div>
-                <div class="stat-label">Indicadores Ponderados</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">60s</div>
-                <div class="stat-label">Actualización FX</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">24h</div>
-                <div class="stat-label">Actualización Datos</div>
-            </div>
+            <div class="stat-card"><div class="stat-number">8</div><div class="stat-label">Divisas Principales</div></div>
+            <div class="stat-card"><div class="stat-number">20</div><div class="stat-label">Indicadores Ponderados</div></div>
+            <div class="stat-card"><div class="stat-number">60s</div><div class="stat-label">Actualización FX</div></div>
+            <div class="stat-card"><div class="stat-number">24h</div><div class="stat-label">Actualización Datos</div></div>
         </div>
 
+        <!-- LO QUE OFRECEMOS -->
         <div class="section">
             <h2>Lo Que Ofrecemos</h2>
             <p>Nuestra plataforma ofrece análisis fundamental completo de las principales divisas G8:</p>
             <ul>
-                <li><strong>Tipos de Cambio en Tiempo Real:</strong> Tasas actualizadas cada 60 segundos vía APIs verificadas</li>
-                <li><strong>Mapa de Calor de Indicadores:</strong> 19 métricas económicas ponderadas con codificación por color, más columna de PIB como referencia estructural</li>
-                <li><strong>Score de Fortaleza Cuantitativo:</strong> Índice 20-80 basado en ponderación de 19 factores distribuidos en 5 tiers temáticos</li>
-                <li><strong>Perspectiva del BC (Outlook Score):</strong> El outlook Hawkish/Neutral/Dovish se incorpora como indicador de scoring con peso 6%, capturando la dirección de política monetaria además del nivel de tasa. Incluye corrección por rate momentum para BCs en normalización o ciclo de recorte activo</li>
-                <li><strong>Rate Momentum:</strong> Variación de la tasa de interés respecto a hace 12 meses. Permite corregir sesgos en el outlookScore para bancos en normalización (ej. BoJ) o con ciclos de recorte agresivos (ej. Fed, BCE, RBNZ, BoC)</li>
-                <li><strong>Calendario Económico Real:</strong> Eventos scrapeados de Trading Economics 3 veces por día (00:00, 08:00 y 16:00 UTC), con datos reales de publicación (actual, estimado, previo), horarios precisos, impacto oficial y filtro por nivel de impacto. El calendario cubre 2 días hacia atrás y 30 días adelante. Fallback a calendario estimado hasta que el primer scraping se ejecute.</li>
-                <li><strong>Términos de Intercambio:</strong> Ratio precio exportaciones/importaciones actualizado diariamente. Clave para AUD, CAD, NZD</li>
-                <li><strong>Próximas Reuniones Reales:</strong> Fechas oficiales de reuniones de bancos centrales desde cbrates.com, actualizadas semanalmente</li>
-                <li><strong>Análisis de Bancos Centrales:</strong> Tasas de política, calendarios y perspectivas dinámicas calculadas algorítmicamente</li>
-                <li><strong>Datos de Balance Externo:</strong> Cuenta corriente y balanza comercial</li>
-                <li><strong>Bonos Soberanos 10Y:</strong> Yield del bono a 10 años como indicador de carry y expectativas. Para EUR se usa el yield oficial de la Zona Euro (GEUGB10Y — agregado publicado directamente por Trading Economics)</li>
-                <li><strong>Confianza del Consumidor y Empresarial:</strong> Índices de sentimiento económico adelantados</li>
-                <li><strong>Flujos de Capital:</strong> Balance de la cuenta financiera como proxy de demanda estructural de divisa</li>
-                <li><strong>Expectativas de Inflación:</strong> Indicador de credibilidad del banco central y presiones futuras</li>
-                <li><strong>Posicionamiento COT:</strong> Sentimiento especulativo desde reportes CFTC semanales, con lógica contrarian automática para posiciones extremas (&gt;±100K contratos)</li>
-                <li><strong>Recomendaciones de Pares:</strong> Sugerencias LONG/SHORT basadas en diferenciales de fortaleza fundamental</li>
-                <li><strong>Visualización Intuitiva:</strong> Interface optimizada para evaluación rápida con tooltips explicativos en cada indicador</li>
+                <li><strong>Tipos de Cambio en Tiempo Real:</strong> Tasas actualizadas cada 60 segundos vía APIs verificadas en cascada</li>
+                <li><strong>Mapa de Calor de Indicadores:</strong> 20 métricas económicas ponderadas con codificación por color, más columna de PIB como referencia estructural</li>
+                <li><strong>Score de Fortaleza Cuantitativo:</strong> Índice 20–82 basado en ponderación de 20 factores distribuidos en 6 tiers temáticos</li>
+                <li><strong>FX Momentum (fxPerformance1M):</strong> Rendimiento real de la divisa frente al USD en los últimos 30 días, calculado con tasas de referencia ECB (Frankfurter API). Es el único indicador 100% forward-looking del modelo: libre de lag de publicación, captura posicionamiento especulativo, flujos institucionales y carry unwind en tiempo casi real.</li>
+                <li><strong>Safe Haven Threshold Dinámico:</strong> El umbral que activa la prima safe haven para CHF y JPY se calcula automáticamente como <code>max(1.0, avgRate − 1.5)</code>, donde <code>avgRate</code> es el promedio de tasas de las 8 divisas. Esto lo hace robusto a cualquier régimen global de tipos de interés.</li>
+                <li><strong>Régimen de Mercado via COT:</strong> La prima safe haven se amplifica o comprime según el régimen de riesgo detectado a partir del posicionamiento COT promedio de las 8 divisas, reflejando si el mercado está en modo risk-off, neutral o risk-on.</li>
+                <li><strong>Perspectiva del BC (Outlook Score):</strong> El outlook Hawkish/Neutral/Dovish se incorpora como indicador de scoring con peso 6%, capturando la dirección de política monetaria además del nivel de tasa. Incluye corrección automática por rate momentum para bancos centrales en normalización o en ciclo activo de recortes.</li>
+                <li><strong>Rate Momentum:</strong> Variación de la tasa de interés respecto a hace 12 meses, con peso propio en el modelo. Permite corregir sesgos del outlookScore para bancos centrales cuyo ciclo de tasas diverge de su nivel actual (ej. BoJ normalizando, BCE o RBNZ recortando agresivamente).</li>
+                <li><strong>Calendario Económico Real:</strong> Eventos scrapeados de Trading Economics tres veces por día (00:00, 08:00 y 16:00 UTC), con datos reales de publicación (actual, estimado, previo), horarios precisos, impacto oficial y filtro por nivel de impacto. Cubre 2 días hacia atrás y 30 días adelante.</li>
+                <li><strong>Términos de Intercambio:</strong> Ratio precio exportaciones/importaciones actualizado diariamente. Especialmente relevante para AUD, CAD y NZD como economías exportadoras de materias primas.</li>
+                <li><strong>Próximas Reuniones Reales:</strong> Fechas oficiales de reuniones de bancos centrales obtenidas de cbrates.com, actualizadas cada lunes.</li>
+                <li><strong>Bonos Soberanos 10Y:</strong> Yield del bono a 10 años como indicador de carry y expectativas de tasas futuras. Para EUR se usa el yield oficial de la Zona Euro (GEUGB10Y), distinto del Bund alemán.</li>
+                <li><strong>Confianza del Consumidor y Empresarial:</strong> Índices de sentimiento económico adelantados, normalizados a base 100 por divisa.</li>
+                <li><strong>Flujos de Capital:</strong> Balance de la cuenta financiera de la balanza de pagos como proxy de demanda estructural de divisa.</li>
+                <li><strong>Expectativas de Inflación:</strong> Indicador de credibilidad del banco central y presiones futuras sobre la política monetaria.</li>
+                <li><strong>Posicionamiento COT:</strong> Sentimiento especulativo desde reportes CFTC semanales, con lógica contrarian automática para posiciones extremas (&gt;±100K contratos).</li>
+                <li><strong>Recomendaciones de Pares:</strong> Sugerencias LONG/SHORT basadas en diferenciales de fortaleza fundamental, con factores positivos y negativos detallados por par.</li>
+                <li><strong>Verificación de Calidad de Datos:</strong> Sistema activo que detecta datos desactualizados, indicadores críticos faltantes y valores fuera de rango, con alertas visibles en el dashboard.</li>
             </ul>
         </div>
 
+        <!-- METODOLOGÍA -->
         <div class="section">
             <h2>Metodología Cuantitativa</h2>
 
             <h3>Enfoque Data-Driven</h3>
-            <p>Nuestro modelo está diseñado específicamente para trading de divisas y se basa en factores económicos que históricamente han mostrado correlación con movimientos en el mercado forex:</p>
+            <p>Nuestro modelo está diseñado específicamente para trading de divisas y se basa en factores económicos que históricamente han mostrado correlación con movimientos en el mercado forex. Cada componente del modelo tiene una justificación económica explícita y un peso calibrado para reflejar su relevancia en la determinación del valor relativo de una divisa.</p>
+            <p>El PIB total aparece en el mapa de calor como columna de referencia estructural, pero no forma parte del modelo de scoring: al ser un stock acumulado no captura momentum. En su lugar se utiliza el crecimiento del PIB (Tier 3, peso 10%), que sí es un indicador de flujo relevante para el trading.</p>
 
-            <h3>Sistema de Ponderación — 19 Indicadores (100% Data-Driven)</h3>
-            <p>Cada indicador económico contribuye al score final según su relevancia para el trading de divisas. El modelo organiza los 19 indicadores en 5 tiers temáticos. El PIB total aparece en el mapa de calor como columna de referencia estructural, pero no forma parte del modelo de scoring porque es un stock (nivel acumulado) y no captura momentum; en su lugar se utiliza el crecimiento del PIB (Tier 3), que sí es un indicador de flujo relevante para el trading.</p>
+            <h3>Sistema de Ponderación — 20 Indicadores en 6 Tiers</h3>
+            <p>Cada indicador contribuye al score final según su relevancia para el trading de divisas. El motor normaliza automáticamente dividiendo por el peso total de los indicadores con datos disponibles, evitando que la ausencia de un dato penalice artificialmente el score. La suma bruta de pesos es aproximadamente 1.04 y queda normalizada en cada evaluación.</p>
 
             <table>
                 <thead>
-                    <tr>
-                        <th>Tier</th>
-                        <th>Indicador</th>
-                        <th>Peso (%)</th>
-                        <th>Razón</th>
-                    </tr>
+                    <tr><th>Tier</th><th>Indicador</th><th>Peso</th><th>Razón</th></tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td rowspan="4"><strong>Tier 1 (27%)</strong><br/>Balance Externo<br/>&amp; Safe Haven</td>
-                        <td>Cuenta Corriente</td>
-                        <td>12%</td>
-                        <td>Demanda estructural de divisa por flujos reales</td>
+                        <td rowspan="4"><strong>Tier 1 — 27%</strong><br/>Balance Externo &amp; Safe Haven</td>
+                        <td>Cuenta Corriente</td><td>12%</td><td>Demanda estructural de divisa por flujos reales de bienes y servicios</td>
                     </tr>
+                    <tr><td>Balanza Comercial</td><td>9%</td><td>Flujos comerciales mensuales en millones USD</td></tr>
+                    <tr><td>Deuda Pública</td><td>4%</td><td>Sostenibilidad fiscal y credibilidad soberana</td></tr>
+                    <tr><td>Términos de Intercambio</td><td>2%</td><td>Ratio precio exportaciones/importaciones (base 100). Especialmente relevante para AUD, CAD, NZD</td></tr>
+
                     <tr>
-                        <td>Balanza Comercial</td>
-                        <td>9%</td>
-                        <td>Flujos comerciales mensuales en millones USD</td>
+                        <td rowspan="5"><strong>Tier 2 — 26%</strong><br/>Tasas &amp; Carry</td>
+                        <td>Tasa de Interés</td><td>9%</td><td>Nivel actual de tasa y diferencial de carry trade. El indicador fxPerformance1M cubre el momentum real de mercado, por lo que el peso de tasa se calibra para evitar solapamiento</td>
                     </tr>
+                    <tr><td>Inflación</td><td>8%</td><td>Expectativas de política monetaria; objetivo del modelo 1.8–2.5%</td></tr>
+                    <tr><td>Perspectiva del BC (Outlook Score)</td><td>6%</td><td>Dirección de política monetaria: Hawkish=90, Neutral=50, Dovish=10. Corregido automáticamente por rate momentum</td></tr>
+                    <tr><td>Rate Momentum</td><td>2%</td><td>Variación de la tasa respecto a hace 12 meses. Captura el ciclo de normalización o recorte del BC más allá del nivel absoluto</td></tr>
+                    <tr><td>Bono Soberano 10Y</td><td>1%</td><td>Yield a largo plazo y atractivo para inversores de renta fija. Para EUR: GEUGB10Y (yield oficial Zona Euro, Trading Economics)</td></tr>
+
                     <tr>
-                        <td>Deuda Pública</td>
-                        <td>4%</td>
-                        <td>Sostenibilidad fiscal y credibilidad soberana</td>
+                        <td rowspan="3"><strong>Tier 3 — 20%</strong><br/>Crecimiento &amp; Empleo</td>
+                        <td>Crecimiento PIB</td><td>10%</td><td>Momentum económico fundamental</td>
                     </tr>
+                    <tr><td>Desempleo</td><td>6%</td><td>Salud del mercado laboral y presiones salariales</td></tr>
+                    <tr><td>Producción Industrial</td><td>4%</td><td>Actividad del sector real (% MoM). Para NZD: trimestral (QoQ) por frecuencia de Statistics New Zealand</td></tr>
+
                     <tr>
-                        <td>Términos de Intercambio</td>
-                        <td>2%</td>
-                        <td>Ratio precio exportaciones/importaciones (base 100). Especialmente relevante para AUD, CAD, NZD</td>
+                        <td rowspan="3"><strong>Tier 4 — 9%</strong><br/>Consumo &amp; Salarios</td>
+                        <td>Ventas Minoristas</td><td>4%</td><td>Fortaleza del consumo doméstico (% MoM)</td>
                     </tr>
+                    <tr><td>Crecimiento Salarial</td><td>3%</td><td>Presiones inflacionarias laborales (% YoY, óptimo 2.5–4.5%)</td></tr>
+                    <tr><td>Expectativas de Inflación</td><td>2%</td><td>Credibilidad del banco central y anclaje de expectativas (objetivo 1.8–2.5%)</td></tr>
+
                     <tr>
-                        <td rowspan="4"><strong>Tier 2 (28%)</strong><br/>Tasas &amp; Carry</td>
-                        <td>Tasa de Interés</td>
-                        <td>12%</td>
-                        <td>Nivel actual de tasa y diferencial de carry trade</td>
+                        <td rowspan="5"><strong>Tier 5 — 15%</strong><br/>Sentimiento de Mercado</td>
+                        <td>COT Positioning</td><td>4%</td><td>Posicionamiento especulativo neto (CFTC oficial). Lógica contrarian para posiciones &gt;±100K contratos. Para USD: DXY ponderado por sus pesos reales</td>
                     </tr>
-                    <tr>
-                        <td>Perspectiva del BC (Outlook Score)</td>
-                        <td>6%</td>
-                        <td>Dirección de política monetaria: Hawkish=90, Neutral=50, Dovish=10. Captura el ciclo de tasas además del nivel. Corregido automáticamente por rate momentum para BCs en normalización (ej. BoJ subiendo de negativo) o recorte agresivo</td>
+                    <tr><td>Flujos de Capital</td><td>3%</td><td>Cuenta financiera de la balanza de pagos (millones USD)</td></tr>
+                    <tr><td>Confianza del Consumidor</td><td>3%</td><td>Índice adelantado del gasto privado, normalizado a base 100</td></tr>
+                    <tr><td>PMI Manufacturero</td><td>3%</td><td>Indicador adelantado de actividad industrial (&gt;50 = expansión)</td></tr>
+                    <tr><td>Confianza Empresarial</td><td>2%</td><td>Indicador adelantado de inversión y contrataciones</td></tr>
+
+                    <tr style="background: rgba(38,166,154,0.07);">
+                        <td><strong>Tier 6 — 7%</strong><br/>FX Momentum</td>
+                        <td>FX Performance 1M<br/>(<code>fxPerformance1M</code>)</td>
+                        <td><strong>7%</strong></td>
+                        <td>Rendimiento real de la divisa vs USD en los últimos 30 días (Frankfurter/ECB). Único indicador 100% forward-looking del modelo. Función de scoring asimétrica: penaliza depreciaciones más que premia apreciaciones equivalentes, dado que la reversión de tendencia contiene mayor información que la continuación.</td>
                     </tr>
-                    <tr>
-                        <td>Inflación</td>
-                        <td>8%</td>
-                        <td>Expectativas de política monetaria (objetivo 1.8–2.5%)</td>
-                    </tr>
-                    <tr>
-                        <td>Bono Soberano 10Y</td>
-                        <td>2%</td>
-                        <td>Yield a largo plazo y atractivo para inversores de renta fija. Para EUR: GEUGB10Y (yield oficial Zona Euro, Trading Economics). Para USD: US 10Y Treasury. Para el resto: bono soberano nacional a 10 años.</td>
-                    </tr>
-                    <tr>
-                        <td rowspan="3"><strong>Tier 3 (20%)</strong><br/>Crecimiento<br/>&amp; Empleo</td>
-                        <td>Crecimiento PIB</td>
-                        <td>10%</td>
-                        <td>Momentum económico fundamental</td>
-                    </tr>
-                    <tr>
-                        <td>Desempleo</td>
-                        <td>6%</td>
-                        <td>Salud del mercado laboral y presiones salariales</td>
-                    </tr>
-                    <tr>
-                        <td>Producción Industrial</td>
-                        <td>4%</td>
-                        <td>Actividad del sector real (% MoM). Para NZD el dato es trimestral (QoQ) por frecuencia de publicación de Statistics New Zealand</td>
-                    </tr>
-                    <tr>
-                        <td rowspan="3"><strong>Tier 4 (9%)</strong><br/>Consumo<br/>&amp; Salarios</td>
-                        <td>Ventas Minoristas</td>
-                        <td>4%</td>
-                        <td>Fortaleza del consumo doméstico (% MoM)</td>
-                    </tr>
-                    <tr>
-                        <td>Crecimiento Salarial</td>
-                        <td>3%</td>
-                        <td>Presiones inflacionarias laborales (% YoY, óptimo 2.5–4.5%)</td>
-                    </tr>
-                    <tr>
-                        <td>Expectativas de Inflación</td>
-                        <td>2%</td>
-                        <td>Credibilidad del BC y anclaje de expectativas (objetivo 1.8–2.5%)</td>
-                    </tr>
-                    <tr>
-                        <td rowspan="5"><strong>Tier 5 (15%)</strong><br/>Sentimiento<br/>de Mercado</td>
-                        <td>COT Positioning</td>
-                        <td>4%</td>
-                        <td>Posicionamiento especulativo neto (CFTC oficial). Incluye lógica contrarian: cuando supera ±100K contratos (saturación histórica del mercado), la señal se invierte parcialmente. Para EUR, GBP, JPY, AUD, CAD, CHF, NZD: Investing.com. Para USD: US Dollar Index (DXY) vía CFTC directo</td>
-                    </tr>
-                    <tr>
-                        <td>Flujos de Capital</td>
-                        <td>3%</td>
-                        <td>Cuenta financiera de la balanza de pagos (MM USD)</td>
-                    </tr>
-                    <tr>
-                        <td>Confianza del Consumidor</td>
-                        <td>3%</td>
-                        <td>Índice adelantado del gasto privado. Normalizado a base 100 (EUR, GBP: +100; JPY: escala propia; CHF: +130; resto: ya en base 100)</td>
-                    </tr>
-                    <tr>
-                        <td>PMI Manufacturero</td>
-                        <td>3%</td>
-                        <td>Indicador adelantado de actividad industrial (&gt;50 = expansión)</td>
-                    </tr>
-                    <tr>
-                        <td>Confianza Empresarial</td>
-                        <td>2%</td>
-                        <td>Indicador adelantado de inversión y contrataciones. Normalizado a base 100 (EUR, GBP, JPY, AUD: +100; NZD: balance neto sin ajuste; USD, CAD, CHF: escala propia)</td>
-                    </tr>
-                    <tr style="background: rgba(38,166,154,0.1);">
-                        <td><strong>TOTAL</strong></td>
-                        <td><strong>19 Indicadores</strong></td>
-                        <td><strong>~99%</strong></td>
-                        <td><strong>27% + 28% + 20% + 9% + 15% = 99% (normalizado automáticamente por el motor de scoring)</strong></td>
+
+                    <tr style="background: rgba(38,166,154,0.12);">
+                        <td><strong>Total</strong></td>
+                        <td><strong>20 Indicadores</strong></td>
+                        <td><strong>~104%</strong></td>
+                        <td>27% + 26% + 20% + 9% + 15% + 7% = ~104%, normalizado automáticamente</td>
                     </tr>
                 </tbody>
             </table>
 
             <h3>Ajustes Contextuales Dinámicos</h3>
-            <p>Además de los 19 indicadores ponderados, el modelo aplica 10 modificadores contextuales (±15 puntos máximo sobre el score final) basados en condiciones macroeconómicas específicas:</p>
+            <p>Además de los 20 indicadores ponderados, el modelo aplica 10 modificadores contextuales con un impacto máximo de ±15 puntos sobre el score final, basados en condiciones macroeconómicas específicas que los indicadores individuales no capturan por separado:</p>
             <ul>
-                <li><strong>Activo Refugio (Safe Haven):</strong> Evalúa deuda baja, superávit externo y estabilidad de precios. Se amplifica en entornos de aversión al riesgo (COT promedio negativo entre las 8 divisas). Beneficia principalmente a CHF, JPY y USD.</li>
-                <li><strong>Prima Safe Haven Tasa Baja:</strong> Corrección específica para CHF y JPY: compensa la penalización que el modelo de tasa aplica a estas divisas cuando sus tasas son significativamente inferiores al promedio global, ya que su atractivo proviene del refugio, no del carry.</li>
-                <li><strong>Exposición a Materias Primas:</strong> Aplicable solo a AUD, CAD y NZD. Ajusta según crecimiento económico global y superávit comercial. Positivo en ciclos de expansión global, negativo en contracción.</li>
+                <li><strong>Activo Refugio (Safe Haven):</strong> Evalúa la combinación de deuda baja, superávit externo y estabilidad de precios. Se amplifica en entornos de aversión al riesgo (COT promedio negativo entre las 8 divisas). Beneficia principalmente a CHF, JPY y USD.</li>
+                <li><strong>Prima Safe Haven Tasa Baja:</strong> Corrección para divisas cuya tasa de interés está significativamente por debajo del promedio global, compensando la penalización que el modelo de carry aplicaría a CHF y JPY cuando su atractivo proviene del refugio y no del diferencial de tasas. El umbral es dinámico: <code>max(1.0, avgRate − 1.5)</code>. La magnitud se modula por el régimen de mercado: factor 1.0 en risk-off, 0.85 en neutral, 0.65 en risk-on.</li>
+                <li><strong>Exposición a Materias Primas:</strong> Aplicable exclusivamente a AUD, CAD y NZD. Positivo en ciclos de expansión económica global, negativo en contracción, calibrado por el superávit comercial y la producción industrial del país.</li>
                 <li><strong>Prima de Carry Trade:</strong> Bonificación para divisas con tasas de interés significativamente superiores al promedio de las 8 divisas del modelo.</li>
-                <li><strong>Impacto Recesivo:</strong> Penalización proporcional cuando PIB &lt; 0%, amplificada si hay desempleo elevado.</li>
+                <li><strong>Impacto Recesivo:</strong> Penalización proporcional cuando el PIB es negativo, amplificada si el desempleo es elevado simultáneamente.</li>
                 <li><strong>Déficit Estructural (Twin Deficits):</strong> Penalización por déficits persistentes simultáneos en cuenta corriente y balanza comercial.</li>
-                <li><strong>Sostenibilidad de Deuda:</strong> Penalización adicional cuando deuda &gt; 150% del PIB en contexto de crecimiento bajo.</li>
-                <li><strong>Estabilidad Inflacionaria:</strong> Penalización por inflación &gt; 4% con tasa de interés insuficiente para controlarla.</li>
-                <li><strong>Yield Curve Proxy:</strong> Penalización cuando el bono soberano 10Y cotiza significativamente por debajo de la tasa de política (spread &lt; −0.5%), señal de que el mercado descuenta recortes agresivos de tasas futuros.</li>
-                <li><strong>COT Contrarian Hawkish:</strong> Bonus para divisas con outlook Hawkish cuyo posicionamiento COT es extremadamente bajista (&lt; −25K contratos), indicando desalineamiento entre fundamentales y sentimiento especulativo — condición típicamente contrarian alcista.</li>
+                <li><strong>Sostenibilidad de Deuda:</strong> Penalización adicional cuando la deuda supera el 150% del PIB en un contexto de crecimiento bajo.</li>
+                <li><strong>Estabilidad Inflacionaria:</strong> Penalización por inflación superior al 4% cuando la tasa de interés es insuficiente para controlarla.</li>
+                <li><strong>Yield Curve Proxy:</strong> Penalización cuando el bono soberano 10Y cotiza más de 0.5 puntos porcentuales por debajo de la tasa de política, señal de que el mercado descuenta recortes agresivos de tasas futuros.</li>
+                <li><strong>COT Contrarian Hawkish:</strong> Bonus para divisas con outlook Hawkish y posicionamiento COT extremadamente bajista (&lt; −25.000 contratos), indicando desalineamiento entre fundamentales y sentimiento especulativo — condición típicamente contrarian alcista.</li>
             </ul>
 
-            <h3>Normalización y Escala Final (20–80)</h3>
-            <p>El score final se normaliza a un rango de 20–80 puntos. El motor suma los indicadores ponderados y divide por el peso total de los indicadores con datos disponibles, evitando que la ausencia de un dato penalice artificialmente el score:</p>
+            <h3>Normalización y Escala Final (20–82)</h3>
+            <p>El score final se normaliza a un rango de 20–82 puntos. El modelo introduce una <em>compresión de base</em> antes de aplicar los ajustes contextuales, garantizando que siempre exista espacio para que dichos ajustes muevan el score en cualquier dirección sin colisionar con los techos o suelos de la escala:</p>
+            <pre>compressedBase  = 20 + (baseScore × 0.58)
+rawFinal        = compressedBase + cappedAdj  [±15 pts máximo]
+normalizedScore = clamp(rawFinal, 20, 82)</pre>
+            <p>Este diseño evita el "efecto techo" que aplastaba divisas con fundamentos distintos en torno a 80 cuando sus indicadores base eran similares pero sus ajustes contextuales diferían.</p>
             <ul>
                 <li><strong>Alcista (≥ 62):</strong> Top ~30% de divisas. Múltiples indicadores favorables y ajustes contextuales positivos.</li>
                 <li><strong>Neutral (45–62):</strong> Middle ~40%. Factores mixtos que se compensan.</li>
@@ -267,6 +207,7 @@
             </ul>
         </div>
 
+        <!-- RECOMENDACIONES DE PARES -->
         <div class="section">
             <h2>Sistema de Recomendaciones de Pares</h2>
 
@@ -275,24 +216,18 @@
 
             <h3>Proceso de Selección</h3>
             <ol style="margin-left: 2rem; color: var(--text-secondary);">
-                <li><strong>Cálculo de Fortaleza Individual:</strong> Se calcula el score fundamental (20–80) para cada una de las 8 divisas usando los 19 indicadores ponderados</li>
+                <li><strong>Cálculo de Fortaleza Individual:</strong> Score fundamental (20–82) para cada una de las 8 divisas usando los 20 indicadores ponderados</li>
                 <li><strong>Ranking y Clasificación:</strong> Las divisas se ordenan de mayor a menor fortaleza fundamental</li>
                 <li><strong>Identificación de Extremos:</strong> Se extraen las 3 divisas más fuertes (top 30%) y las 3 más débiles (bottom 30%)</li>
-                <li><strong>Generación de Combinaciones LONG:</strong> Se crean pares comprando la divisa fuerte contra la débil (ej: <code>EUR/JPY</code> si EUR es fuerte y JPY débil)</li>
-                <li><strong>Generación de Combinaciones SHORT:</strong> Se crean pares vendiendo la divisa débil contra la fuerte</li>
+                <li><strong>Generación de Combinaciones LONG:</strong> Comprando la divisa fuerte contra la débil (ej: <code>EUR/JPY</code>)</li>
+                <li><strong>Generación de Combinaciones SHORT:</strong> Vendiendo la divisa débil contra la fuerte</li>
                 <li><strong>Cálculo de Prioridad:</strong> Cada par se califica mediante <code>diferencial × calidad_de_datos</code></li>
-                <li><strong>Selección Final:</strong> Se muestran las 8 mejores oportunidades (4 LONG + 4 SHORT) ordenadas por prioridad</li>
+                <li><strong>Selección Final:</strong> Las 8 mejores oportunidades (4 LONG + 4 SHORT) ordenadas por prioridad</li>
             </ol>
 
             <h3>Métricas de Cada Recomendación</h3>
             <table>
-                <thead>
-                    <tr>
-                        <th>Métrica</th>
-                        <th>Descripción</th>
-                        <th>Interpretación</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Métrica</th><th>Descripción</th><th>Interpretación</th></tr></thead>
                 <tbody>
                     <tr><td><strong>Par</strong></td><td>Divisa base / Divisa cotizada</td><td>Estructura del par recomendado</td></tr>
                     <tr><td><strong>Dirección</strong></td><td>LONG (Comprar) o SHORT (Vender)</td><td>Acción recomendada sobre el par</td></tr>
@@ -300,191 +235,185 @@
                     <tr><td><strong>Confianza</strong></td><td>Alta (&gt;20) / Media (12–20) / Baja (&lt;12)</td><td>Basada en amplitud del diferencial de scores</td></tr>
                     <tr><td><strong>Factores Positivos</strong></td><td>Top 3 contribuciones a fortaleza</td><td>Razones fundamentales que sostienen la fortaleza</td></tr>
                     <tr><td><strong>Factores Negativos</strong></td><td>Top 3 contribuciones negativas</td><td>Razones fundamentales que explican la debilidad</td></tr>
-                    <tr><td><strong>Calidad de Datos</strong></td><td>% de los 19 indicadores disponibles</td><td>Fiabilidad del análisis (≥70% es bueno)</td></tr>
+                    <tr><td><strong>Calidad de Datos</strong></td><td>% de los 20 indicadores disponibles</td><td>Fiabilidad del análisis (≥70% es bueno)</td></tr>
                 </tbody>
             </table>
 
             <h3>Ejemplo Práctico</h3>
             <div class="highlight-box">
                 <p><strong>Recomendación:</strong> <code>EUR/JPY</code> LONG (Comprar)</p>
-                <p><strong>Diferencial:</strong> 32.5 puntos (EUR: 72.3 vs JPY: 39.8)</p>
-                <p><strong>Confianza:</strong> Alta</p>
-                <p><strong>Fortaleza EUR (+72.3):</strong></p>
-                <ul style="margin-left: 2rem; margin-top: 0.5rem; margin-bottom: 1rem;">
-                    <li>Tasa de Interés: +14.2 (peso 12%)</li>
+                <p><strong>Diferencial:</strong> 32.5 puntos (EUR: 72.3 vs JPY: 39.8) | <strong>Confianza:</strong> Alta</p>
+                <p style="margin-top: 0.75rem;"><strong>Fortaleza EUR (72.3):</strong></p>
+                <ul style="margin-left: 2rem; margin-top: 0.25rem; margin-bottom: 1rem;">
                     <li>Cuenta Corriente: +11.8 (peso 12%)</li>
+                    <li>FX Performance 1M: +8.4 (peso 7%) — apreciación real vs USD en 30 días</li>
                     <li>Crecimiento PIB: +8.5 (peso 10%)</li>
                 </ul>
                 <p><strong>Debilidad JPY (39.8):</strong></p>
-                <ul style="margin-left: 2rem; margin-top: 0.5rem; margin-bottom: 1rem;">
-                    <li>Tasa de Interés: −12.5 (peso 12%)</li>
+                <ul style="margin-left: 2rem; margin-top: 0.25rem; margin-bottom: 1rem;">
+                    <li>Tasa de Interés: −8.1 (peso 9%) — moderado por safe haven threshold dinámico</li>
                     <li>Sostenibilidad Deuda: −8.3 (ajuste contextual)</li>
                     <li>Inflación: −5.7 (peso 8%)</li>
                 </ul>
-                <p><em>Nota: Con rate momentum positivo del BoJ (+0.85% en 12 meses), el outlookScore del JPY se corrige de Dovish a Neutral automáticamente, reduciendo parte de la penalización por nivel de tasa.</em></p>
-                <p><strong>Análisis:</strong> EUR muestra fundamentos superiores con un índice de fortaleza de 72.3 puntos, superando a JPY (39.8) por un diferencial de 32.5 puntos. Este diferencial sugiere una oportunidad de compra (LONG) en EUR/JPY.</p>
-                <p style="margin-top: 1rem; margin-bottom: 0;"><strong>Calidad de Datos:</strong> 85% (≈16 de 19 indicadores disponibles para ambas divisas)</p>
+                <p><em>Con rate momentum BoJ positivo (+0.85% en 12 meses), el outlookScore del JPY se corrige automáticamente de Dovish a Neutral. El safe haven threshold dinámico clasifica correctamente al JPY (0.50%) como safe haven funder, aplicando la prima correspondiente modulada por el régimen de mercado.</em></p>
+                <p style="margin-top: 0.75rem; margin-bottom: 0;"><strong>Calidad de Datos:</strong> 85% (≈17 de 20 indicadores disponibles para ambas divisas)</p>
             </div>
 
             <h3>Limitaciones y Consideraciones</h3>
             <ul>
                 <li><strong>Sólo Análisis Fundamental:</strong> No incluye análisis técnico, sentimiento de mercado retail, o eventos noticiosos recientes</li>
-                <li><strong>No es Timing:</strong> El sistema identifica divergencias fundamentales, no puntos óptimos de entrada/salida</li>
+                <li><strong>No es Timing:</strong> El sistema identifica divergencias fundamentales, no puntos óptimos de entrada o salida</li>
                 <li><strong>Sin Gestión de Riesgo:</strong> No proporciona niveles de stop-loss, take-profit, o tamaño de posición</li>
-                <li><strong>Correlación No Garantizada:</strong> La correlación esperada con el ranking de precios es 0.4–0.6 en el corto plazo (1 mes) y 0.7–0.9 en horizontes de 3–6 meses. El modelo es un anclaje fundamental, no una herramienta de timing</li>
+                <li><strong>Correlación con Precio:</strong> La correlación esperada es 0.4–0.6 en el corto plazo (1 mes) y 0.7–0.9 en horizontes de 3–6 meses. El modelo es un anclaje fundamental, no una herramienta de timing</li>
                 <li><strong>Factores Externos:</strong> No considera intervenciones de bancos centrales, eventos geopolíticos, o shocks exógenos</li>
-                <li><strong>Narrativa de Mercado:</strong> Factores como política fiscal, incertidumbre geopolítica o flujos de repatriación pueden disociar temporalmente el precio de los fundamentales</li>
             </ul>
 
             <h3>Uso Recomendado</h3>
-            <p>Las recomendaciones de pares deben utilizarse como:</p>
             <ul>
                 <li><strong>Filtro Inicial:</strong> Para identificar pares con divergencia fundamental significativa</li>
-                <li><strong>Complemento Técnico:</strong> Combinar con análisis técnico para timing y niveles</li>
+                <li><strong>Complemento Técnico:</strong> Combinar con análisis técnico para timing y niveles de entrada</li>
                 <li><strong>Validación de Ideas:</strong> Para confirmar o refutar hipótesis de trading propias</li>
-                <li><strong>Análisis de Sesgo:</strong> Entender qué divisas tienen viento a favor/en contra fundamentalmente</li>
-                <li><strong>Perspectiva de Medio Plazo:</strong> Orientadas a operaciones de días/semanas, no intradiarias</li>
+                <li><strong>Análisis de Sesgo:</strong> Entender qué divisas tienen viento a favor o en contra fundamentalmente</li>
+                <li><strong>Perspectiva de Medio Plazo:</strong> Orientadas a operaciones de días y semanas, no intradiarias</li>
             </ul>
         </div>
 
+        <!-- FUENTES DE DATOS -->
         <div class="section">
             <h2>Fuentes de Datos Verificadas</h2>
 
             <h3>Proveedores Principales</h3>
             <ul>
-                <li><strong>Trading Economics:</strong> Indicadores macroeconómicos actualizados diariamente (PIB, Inflación, Desempleo, Balanza Comercial, Ventas Minoristas, Salarios, PMI, Confianza, Flujos de Capital, Expectativas de Inflación, Términos de Intercambio, Rate Momentum). Para los bonos 10Y de EUR, Trading Economics publica directamente el yield oficial de la Zona Euro con símbolo <code>GEUGB10Y:GOV</code> en su página de mercados de bonos (<code>/bonds</code>). El calendario económico real también se obtiene de Trading Economics (3 veces por día).</li>
-                <li><strong>ONS (Office for National Statistics):</strong> Términos de Intercambio GBP vía serie CTSL (datos trimestrales SA)</li>
-                <li><strong>OECD API:</strong> Términos de Intercambio EUR (fallback a proxy Alemania si la API no responde)</li>
+                <li><strong>Trading Economics:</strong> Indicadores macroeconómicos actualizados diariamente: PIB, Inflación, Desempleo, Balanza Comercial, Ventas Minoristas, Salarios, PMI, Confianza, Flujos de Capital, Expectativas de Inflación, Términos de Intercambio y Rate Momentum. Para bonos EUR: yield oficial Zona Euro (<code>GEUGB10Y:GOV</code>). Calendario económico real tres veces por día.</li>
+                <li><strong>Frankfurter API / ECB:</strong> Tasas de referencia del BCE para el cálculo de <code>fxPerformance1M</code> (rendimiento real de cada divisa vs USD en los últimos 30 días).</li>
+                <li><strong>ONS (Office for National Statistics):</strong> Términos de Intercambio GBP, serie CTSL (datos trimestrales ajustados estacionalmente)</li>
+                <li><strong>OECD API:</strong> Términos de Intercambio EUR (fallback a proxy Alemania cuando la API no responde)</li>
                 <li><strong>World Bank:</strong> Términos de Intercambio como fallback final (indicador TT.PRI.MRCH.XD.WD)</li>
-                <li><strong>CFTC (Commodity Futures Trading Commission):</strong> Reportes COT semanales oficiales para USD (US Dollar Index DXY)</li>
+                <li><strong>CFTC (Commodity Futures Trading Commission):</strong> Reportes COT semanales para USD vía US Dollar Index (DXY), con ponderaciones reales del índice</li>
                 <li><strong>Investing.com:</strong> Datos COT semanales para EUR, GBP, JPY, AUD, CAD, CHF, NZD</li>
-                <li><strong>cbrates.com:</strong> Fechas oficiales de reuniones de bancos centrales (actualizadas cada lunes)</li>
-                <li><strong>ExchangeRate-API / Frankfurter:</strong> Tipos de cambio en tiempo real (6 proveedores en cascada)</li>
+                <li><strong>cbrates.com:</strong> Fechas oficiales de próximas reuniones de bancos centrales, actualizadas cada lunes</li>
+                <li><strong>ExchangeRate-API / Frankfurter:</strong> Tipos de cambio en tiempo real con 6 proveedores en cascada</li>
             </ul>
 
             <h3>Frecuencia de Actualización</h3>
             <table>
-                <thead>
-                    <tr>
-                        <th>Tipo de Dato</th>
-                        <th>Frecuencia</th>
-                        <th>Fuente</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Tipo de Dato</th><th>Frecuencia</th><th>Fuente</th></tr></thead>
                 <tbody>
                     <tr><td>Tipos de Cambio</td><td>60 segundos</td><td>APIs de Forex (6 proveedores en cascada)</td></tr>
                     <tr><td>Indicadores Económicos base (12)</td><td>24 horas (06:00 UTC)</td><td>Trading Economics</td></tr>
-                    <tr><td>Indicadores Extendidos (6: bonos, confianza, flujos, exp. inflación)</td><td>24 horas (06:30 UTC)</td><td>Trading Economics</td></tr>
-                    <tr><td>Tasas de Interés</td><td>24 horas (08:00 UTC)</td><td>Trading Economics / referencia del período de política</td></tr>
-                    <tr><td>Rate Momentum (variación tasa 12 meses)</td><td>24 horas (06:30 UTC)</td><td>Trading Economics — tasa actual vs tasa hace 12 meses. Calculado automáticamente en el workflow de datos extendidos (v7). Usado para corregir el outlookScore en BCs con ciclo de tasas divergente del nivel actual (normalización JPY, recortes agresivos BCE/BoC/RBNZ)</td></tr>
-                    <tr><td>Términos de Intercambio</td><td>24 horas</td><td>TE (todos) → ONS (GBP) → OECD (EUR) → DE proxy → World Bank</td></tr>
-                    <tr><td>Bonos 10Y — EUR</td><td>24 horas (06:30 UTC)</td><td>Trading Economics <code>GEUGB10Y:GOV</code> (yield EA, página /bonds)</td></tr>
-                    <tr><td>Bonos 10Y — resto</td><td>24 horas (06:30 UTC)</td><td>Trading Economics country-list/government-bond-yield</td></tr>
-                    <tr><td>Calendario Económico</td><td>3x/día (00:00, 08:00, 16:00 UTC)</td><td>Trading Economics — eventos reales con actual/estimado/previo, horarios precisos e impacto oficial. Rango: 2 días atrás + 30 días adelante. Fallback a calendario estimado si el scraping falla.</td></tr>
-                    <tr><td>Datos COT — EUR, GBP, JPY, AUD, CAD, CHF, NZD</td><td>Semanal (Viernes 20:00 UTC)</td><td>Investing.com</td></tr>
-                    <tr><td>Datos COT — USD</td><td>Semanal (Viernes 20:30 UTC)</td><td>CFTC directo (US Dollar Index DXY)</td></tr>
+                    <tr><td>Indicadores Extendidos (bonos, confianza, flujos, exp. inflación)</td><td>24 horas (06:30 UTC)</td><td>Trading Economics</td></tr>
+                    <tr><td>Tasas de Interés</td><td>24 horas (08:00 UTC)</td><td>Trading Economics</td></tr>
+                    <tr><td>Rate Momentum (variación tasa 12 meses)</td><td>24 horas (06:30 UTC)</td><td>Trading Economics</td></tr>
+                    <tr><td>FX Performance 1M (<code>fxPerformance1M</code>)</td><td>24 horas</td><td>Frankfurter API (ECB reference rates)</td></tr>
+                    <tr><td>Términos de Intercambio</td><td>24 horas</td><td>TE → ONS (GBP) → OECD (EUR) → Proxy DE → World Bank</td></tr>
+                    <tr><td>Bonos 10Y — EUR</td><td>24 horas (06:30 UTC)</td><td>Trading Economics <code>GEUGB10Y:GOV</code></td></tr>
+                    <tr><td>Bonos 10Y — resto de divisas</td><td>24 horas (06:30 UTC)</td><td>Trading Economics government-bond-yield por país</td></tr>
+                    <tr><td>Calendario Económico</td><td>3× al día (00:00, 08:00, 16:00 UTC)</td><td>Trading Economics — actual, estimado, previo, impacto oficial</td></tr>
+                    <tr><td>COT — EUR, GBP, JPY, AUD, CAD, CHF, NZD</td><td>Semanal (Viernes ~20:00 UTC)</td><td>Investing.com</td></tr>
+                    <tr><td>COT — USD</td><td>Semanal (Viernes ~20:30 UTC)</td><td>CFTC directo — DXY ponderado</td></tr>
                     <tr><td>Próximas Reuniones de Bancos Centrales</td><td>Semanal (Lunes 10:00 UTC)</td><td>cbrates.com (fechas oficiales)</td></tr>
-                    <tr><td>Perspectiva Bancos Centrales (Outlook)</td><td>Calculado dinámicamente</td><td>Algoritmo basado en inflación, crecimiento, desempleo y tasa actual. Corregido por rate momentum cuando el nivel de tasa no refleja el ciclo real del BC</td></tr>
-                    <tr><td>Recomendaciones de Pares</td><td>Calculado en tiempo real</td><td>Algoritmo basado en scores actuales</td></tr>
+                    <tr><td>Perspectiva Bancos Centrales (Outlook)</td><td>Calculado dinámicamente</td><td>Algoritmo basado en 4 reglas + corrección por rate momentum</td></tr>
+                    <tr><td>Recomendaciones de Pares</td><td>Tiempo real</td><td>Algoritmo basado en scores actuales</td></tr>
                 </tbody>
             </table>
 
             <h3>Sistema de Detección de Frescura de Datos</h3>
             <p>El dashboard incluye un sistema activo de verificación de calidad que monitorea automáticamente:</p>
             <ul>
-                <li><strong>Antigüedad de Datos:</strong> Alerta si algún país tiene datos con más de 7 días de antigüedad; aviso entre 3 y 7 días</li>
-                <li><strong>Staleness de COT:</strong> El timestamp del reporte COT se propaga en cada archivo, permitiendo detectar desactualizaciones si el workflow del viernes falla</li>
-                <li><strong>Indicadores Críticos Faltantes:</strong> Verifica que tasa de interés, inflación, PIB y desempleo estén disponibles para cada divisa</li>
-                <li><strong>Completitud General:</strong> Score de completitud por divisa (% de 19 indicadores disponibles). Alerta crítica si &lt; 50%, aviso si &lt; 70%</li>
-                <li><strong>Rango de Valores:</strong> Detecta valores fuera de rango que podrían indicar errores de scraping</li>
+                <li><strong>Antigüedad:</strong> Alerta si algún país tiene datos con más de 7 días de antigüedad; aviso preventivo entre 3 y 7 días</li>
+                <li><strong>Indicadores Críticos Faltantes:</strong> Verifica la disponibilidad de tasa de interés, inflación, PIB y desempleo para cada divisa</li>
+                <li><strong>Completitud General:</strong> Score de completitud por divisa (% de 20 indicadores disponibles). Alerta crítica si es inferior al 50%, aviso si es inferior al 70%</li>
+                <li><strong>Rango de Valores:</strong> Detecta valores fuera de rango estadístico que podrían indicar errores de scraping</li>
+                <li><strong>Staleness de COT:</strong> El timestamp de cada reporte COT se propaga individualmente, permitiendo detectar desactualizaciones si el workflow semanal falla</li>
             </ul>
 
-            <h3>Nota sobre el Calendario Económico Real</h3>
-            <p>A partir de v4.9.4, el calendario económico se obtiene directamente de Trading Economics 3 veces por día (00:00, 08:00 y 16:00 UTC), cubriendo las 8 divisas del dashboard. Cada evento incluye horario preciso de publicación, valores real (actual), estimado (forecast) y previo, nivel de impacto oficial según la clasificación de Trading Economics, y la fecha exacta del evento. El tab de Calendario incluye un filtro por nivel de impacto (Todos / Alto / Medio / Bajo) y destaca visualmente los eventos del día actual.</p>
-            <p>Si el archivo de calendario no está disponible (ej. primer deploy antes de que el workflow se ejecute), el sistema fallback genera un calendario estimado con eventos típicos de cada divisa. La consola del navegador mostrará <code>✅ Real calendar loaded: N events</code> cuando el calendario real esté activo.</p>
+            <h3>Nota sobre FX Performance 1M</h3>
+            <p>El indicador <code>fxPerformance1M</code> mide el porcentaje de apreciación o depreciación de cada divisa frente al USD en los últimos 30 días, usando las tasas de referencia publicadas diariamente por el BCE a través de Frankfurter API. Para USD se calcula como el inverso ponderado por los pesos reales del DXY.</p>
+            <p>Es el único indicador del modelo sin lag de publicación: refleja en tiempo casi real el posicionamiento especulativo, flujos institucionales y carry unwind. Si el dato no está disponible para alguna divisa, su peso (7%) se redistribuye automáticamente entre los indicadores presentes sin degradar la calidad del score.</p>
+            <p>La función de scoring es asimétrica de forma intencional: una apreciación del +5% aporta un score parcial próximo a 100; una depreciación del −2.5% aporta solo ~20. Esta asimetría refleja que la reversión de tendencia (momentum negativo) contiene mayor información forward-looking que la continuación.</p>
 
-            <h3>Nota sobre Bono 10Y — EUR</h3>
-            <p>Trading Economics publica en su página de mercados de bonos (<code>tradingeconomics.com/bonds</code>) una fila explícita para <strong>"Euro area"</strong> con el símbolo <code>GEUGB10Y:GOV</code>. Este es el yield oficial del agregado de la Zona Euro, distinto del Bund alemán (<code>GDBR10</code>). El workflow de datos extendidos (v7) extrae este yield directamente usando el atributo <code>data-symbol="GEUGB10Y:GOV"</code> del DOM. El Bund alemán (2.74% en Feb 2026) difiere significativamente del yield EA (3.10%), lo que hace crítica esta distinción para el análisis de carry y flujos de capital.</p>
-
-            <h3>Nota sobre la Columna PIB en el Mapa de Calor</h3>
-            <p>El PIB total (en trillones USD) aparece como primera columna en el mapa de calor, pero <strong>no forma parte del modelo de scoring</strong>. Su función es puramente referencial. El indicador relevante para el score es el <strong>Crecimiento del PIB</strong> (% anual), incluido en el Tier 3 con peso 10%.</p>
-
-            <h3>Nota sobre Perspectiva de Bancos Centrales y outlookScore</h3>
-            <p>El "Outlook" (Hawkish/Neutral/Dovish) se calcula mediante un algoritmo dinámico de 4 reglas:</p>
+            <h3>Nota sobre Safe Haven Threshold Dinámico</h3>
+            <p>El umbral que determina si una divisa se comporta como "safe haven funder" (financiadora de carry trade) se calcula en tiempo de ejecución como <code>safeHavenThreshold = max(1.0, avgRate − 1.5)</code>, donde <code>avgRate</code> es el promedio de tasas de interés de las 8 divisas del modelo. Este diseño adapta automáticamente el comportamiento del modelo a cualquier régimen global de tipos:</p>
             <ul>
-                <li>Si inflación &gt; 3.0% → +2 | Si inflación &lt; 1.5% → −2</li>
-                <li>Si crecimiento PIB &gt; 2.5% → +1 | Si crecimiento PIB &lt; 1.0% → −2</li>
-                <li>Si desempleo &lt; 3.5% → +1 | Si desempleo &gt; 6.0% → −1</li>
-                <li>Si tasa de interés &gt; 4.0% → +1 | Si tasa de interés &lt; 2.0% → −1</li>
+                <li>Régimen 2026 (avg ≈3.5%) → threshold = <strong>2.0%</strong> → CHF (0.25%) y JPY (0.50%) califican como safe haven funders</li>
+                <li>Régimen 2022 (avg ≈4.5%) → threshold = <strong>3.0%</strong> → CHF (1.4%) califica</li>
+                <li>Régimen 2021 (avg ≈0.3%) → threshold = <strong>1.0%</strong> (floor) → solo tasas cercanas a cero califican</li>
             </ul>
-            <p><strong>Clasificación:</strong> Score ≥ 2 = Hawkish | Score ≤ −2 = Dovish | Score entre −1 y +1 = Neutral.</p>
-            <p>A partir de v4.9.3, este outlook se incorpora al modelo de scoring como indicador <strong>outlookScore</strong> con peso 6%, capturando la <em>dirección</em> de política monetaria además del nivel de tasa. El modelo aplica además una <strong>corrección automática por rate momentum</strong>: si un banco central tiene tasa baja pero está subiendo activamente (rate momentum positivo &gt;+0.3%), el outlookScore pasa de Dovish a Neutral para evitar penalizar divisas en normalización como el JPY. El proceso inverso aplica para BCs con tasa alta en ciclo agresivo de recortes (&gt;−1.0% en 12 meses).</p>
-            <p>El <strong>rate momentum</strong> se obtiene como <code>tasa_actual − tasa_hace_12_meses</code> y se actualiza diariamente junto con los datos extendidos (06:30 UTC). No añade puntos directamente al score: actúa únicamente como corrector del outlookScore cuando detecta divergencia entre el nivel de tasa y el ciclo real del banco central.</p>
 
-            <h3>Nota sobre Próximas Reuniones de Bancos Centrales</h3>
-            <p>Las fechas se obtienen semanalmente (cada lunes) desde <a href="https://www.cbrates.com/meetings.htm" target="_blank">cbrates.com</a>. Las fechas son reales y oficiales, no estimadas algorítmicamente.</p>
+            <h3>Nota sobre el Régimen de Mercado via COT</h3>
+            <p>La prima safe haven de CHF y JPY se modula según el régimen de riesgo detectado a partir del posicionamiento COT promedio de las 8 divisas del modelo:</p>
+            <ul>
+                <li><strong>Risk-off</strong> (COT promedio &lt; −5.000 contratos): factor 1.0 — premium pleno. El mercado busca activos refugio activamente.</li>
+                <li><strong>Neutral</strong> (COT promedio entre −5.000 y +5.000): factor 0.85 — premium moderado.</li>
+                <li><strong>Risk-on</strong> (COT promedio &gt; +5.000): factor 0.65 — premium comprimido. El apetito por riesgo reduce la demanda de refugio.</li>
+            </ul>
 
-            <h3>Nota sobre Términos de Intercambio</h3>
-            <p>El índice mide el ratio entre el precio de las exportaciones y el precio de las importaciones (base 100). Un índice &gt;100 indica que el país exporta más valor del que importa. El sistema usa una cadena de fallback: Trading Economics → ONS (GBP) → OECD API (EUR) → Proxy Alemania (EUR fallback, correlación &gt;0.95 con EA20) → World Bank. Especialmente relevante para AUD, CAD y NZD.</p>
+            <h3>Nota sobre Perspectiva de Bancos Centrales y Outlook Score</h3>
+            <p>El Outlook (Hawkish/Neutral/Dovish) se calcula mediante un algoritmo de 4 reglas que pondera inflación, crecimiento del PIB, desempleo y tasa de interés actual. Se convierte en indicador numérico con peso 6% en el modelo de scoring.</p>
+            <p>El modelo aplica corrección automática por rate momentum para evitar sesgos del nivel de tasa respecto al ciclo real del banco central: si el rate momentum supera +0.3% (BC normalizando), un outlookScore Dovish se actualiza a Neutral. Si el rate momentum es inferior a −1.0% (recortes agresivos), un outlookScore Hawkish se actualiza a Neutral.</p>
+            <p>Adicionalmente, el rate momentum contribuye con peso propio del 2% al score de fortaleza, separando su rol corrector del outlookScore de su contribución directa al modelo.</p>
+
+            <h3>Nota sobre el Bono 10Y — EUR</h3>
+            <p>Trading Economics publica en su página de mercados de bonos el yield oficial del agregado de la Zona Euro bajo el símbolo <code>GEUGB10Y:GOV</code>, distinto del Bund alemán (<code>GDBR10</code>). El Bund (≈2.74% en febrero de 2026) difiere significativamente del yield del área euro (≈3.10%), lo que hace crítica esta distinción para el análisis de carry y flujos de capital entre regiones.</p>
 
             <h3>Nota sobre Datos COT y Lógica Contrarian</h3>
-            <p>Los datos de Commitment of Traders provienen del CFTC (para USD) e Investing.com para las 7 divisas restantes. Todos los datos COT tienen un retraso natural de ~3 días.</p>
-            <p>A partir de v4.9.3, el modelo incorpora <strong>lógica contrarian</strong> para posiciones extremas: cuando el posicionamiento neto supera ±100K contratos (umbral derivado del rango histórico de posiciones especulativas en los majors del CFTC), la señal se invierte parcialmente. Un posicionamiento alcista extremo (&gt;100K) puede indicar saturación del mercado; un posicionamiento bajista extremo en una divisa con banco central hawkish puede indicar desalineamiento entre fundamentales y sentimiento especulativo — condición típicamente contrarian alcista.</p>
+            <p>Los datos del Commitment of Traders provienen del CFTC para el USD (ponderado por los pesos reales del DXY) e Investing.com para las 7 divisas restantes. Todos los datos COT tienen un retraso natural de aproximadamente 3 días desde el cierre del martes al reporte del viernes.</p>
+            <p>Cuando el posicionamiento neto supera ±100.000 contratos —umbral derivado del rango histórico del CFTC para los majors— la señal se invierte parcialmente. Un posicionamiento bajista extremo en una divisa con banco central Hawkish indica desalineamiento entre fundamentales y sentimiento especulativo, condición típicamente contrarian alcista.</p>
+
+            <h3>Nota sobre el Calendario Económico</h3>
+            <p>El calendario económico se obtiene directamente de Trading Economics tres veces al día (00:00, 08:00 y 16:00 UTC), cubriendo las 8 divisas del dashboard con datos reales de publicación: actual, estimado y previo. Cubre 2 días hacia atrás y 30 días adelante. Si el archivo de calendario no está disponible, el sistema activa un fallback que genera un calendario estimado con eventos típicos de cada divisa hasta que el siguiente scraping se ejecute correctamente.</p>
 
             <h3>Nota sobre Tendencias Históricas</h3>
-            <p>La pestaña "Tendencias Históricas" muestra dos series por divisa:</p>
-            <ul>
-                <li><strong>Tasa de Interés:</strong> Datos reales históricos almacenados</li>
-                <li><strong>Índice de Fortaleza:</strong> Estimación algorítmica basada en el score actual con variación simulada — <em>no representa datos históricos reales</em>. Para análisis retrospectivo preciso, consultar FRED o Trading Economics directamente</li>
-            </ul>
+            <p>La pestaña "Tendencias Históricas" muestra dos series por divisa: la tasa de interés con datos reales históricos almacenados, y un índice de fortaleza que es una estimación algorítmica basada en el score actual con variación simulada. El índice de fortaleza histórico <em>no representa datos reales</em>. Para análisis retrospectivo preciso se recomienda consultar FRED o Trading Economics directamente.</p>
         </div>
 
+        <!-- TRANSPARENCIA -->
         <div class="section">
             <h2>Transparencia Metodológica</h2>
             <p>Nuestro sistema es transparente en cuanto a:</p>
             <ul>
-                <li><strong>Pesos Explícitos:</strong> Cada uno de los 19 factores muestra su contribución exacta al score</li>
+                <li><strong>Pesos Explícitos:</strong> Cada uno de los 20 factores tiene un peso documentado y su contribución al score es trazable</li>
                 <li><strong>Cálculos Visibles:</strong> La lógica de scoring está disponible en el código fuente del dashboard</li>
-                <li><strong>Datos Verificables:</strong> Todas las métricas pueden ser confirmadas en fuentes oficiales</li>
-                <li><strong>OutlookScore Documentado:</strong> El outlook del banco central se convierte en indicador numérico con peso 6%, con corrección automática por rate momentum para evitar sesgos de nivel de tasa vs ciclo real</li>
-                <li><strong>Rate Momentum Explícito:</strong> La variación de tasa en 12 meses se usa para corregir el outlookScore de forma proporcional y reversible — no añade puntos directamente</li>
-                <li><strong>Calendario Real Documentado:</strong> El calendario proviene de Trading Economics (3 actualizaciones/día). Cuando el calendario real está disponible, la interfaz muestra la fuente y fecha de última actualización. El fallback a calendario estimado se activa solo si el scraping falla o en el primer deploy.</li>
-                <li><strong>COT Contrarian Documentado:</strong> El umbral de ±100K contratos para activar la señal contrarian está derivado del rango histórico del CFTC, no de valores fijos por divisa</li>
-                <li><strong>Fuente EUR Bond:</strong> El yield de la Zona Euro (GEUGB10Y) se obtiene de la página de mercados de bonos de Trading Economics, sin proxies nacionales</li>
-                <li><strong>Limitaciones Claras:</strong> PIB total no en el modelo de scoring. Net Foreign Assets descartado por retraso de 2–3 años en publicación. Yield curves completas no incluidas por complejidad de normalización</li>
-                <li><strong>Honestidad sobre Datos Históricos:</strong> El índice de fortaleza histórico es una estimación algorítmica, no datos reales</li>
-                <li><strong>Correlación Esperada Documentada:</strong> El modelo es un anclaje fundamental de medio plazo. La correlación con rankings de precio es 0.4–0.6 a 1 mes y 0.7–0.9 a 3–6 meses</li>
+                <li><strong>Datos Verificables:</strong> Todas las métricas pueden ser confirmadas en sus fuentes oficiales</li>
+                <li><strong>Escala Documentada:</strong> La fórmula de compresión de base (20–82) y los criterios de clasificación alcista/neutral/bajista son explícitos</li>
+                <li><strong>Mecanismos Dinámicos Documentados:</strong> El safe haven threshold, el régimen COT y la corrección por rate momentum están explicados con fórmulas y ejemplos numéricos en esta página</li>
+                <li><strong>Outlookcore y Rate Momentum:</strong> Ambos roles documentados — corrector del outlookScore y peso propio (2%) como indicador independiente</li>
+                <li><strong>Limitaciones Claras:</strong> PIB total no incluido en el scoring. Net Foreign Assets descartado por retraso de publicación de 2–3 años. Yield curves completas excluidas por complejidad de normalización entre países.</li>
+                <li><strong>Honestidad sobre Datos Históricos:</strong> El índice de fortaleza histórico es una estimación algorítmica, no datos reales del pasado</li>
+                <li><strong>Correlación Esperada Documentada:</strong> El modelo es un anclaje fundamental de medio plazo con correlación 0.4–0.6 a 1 mes y 0.7–0.9 a 3–6 meses</li>
             </ul>
         </div>
 
+        <!-- A QUIÉN SERVIMOS -->
         <div class="section">
             <h2>A Quién Servimos</h2>
             <p>Esta plataforma está diseñada para:</p>
             <ul>
-                <li><strong>Traders Retail de Forex:</strong> Análisis fundamental sistemático para decisiones de trading</li>
-                <li><strong>Analistas Técnicos:</strong> Complemento de análisis técnico con fundamentos cuantitativos</li>
-                <li><strong>Estudiantes de Finanzas:</strong> Herramienta educativa para entender determinantes de divisas</li>
-                <li><strong>Inversores Multi-Asset:</strong> Evaluación de exposición a divisas en portafolios</li>
-                <li><strong>Investigadores:</strong> Plataforma transparente para estudiar correlaciones macro-forex</li>
-                <li><strong>Swing Traders:</strong> Identificación de oportunidades fundamentales de medio plazo</li>
+                <li><strong>Traders Retail de Forex:</strong> Análisis fundamental sistemático como base para decisiones de trading</li>
+                <li><strong>Analistas Técnicos:</strong> Complemento cuantitativo de análisis técnico con fundamentos macroeconómicos</li>
+                <li><strong>Estudiantes de Finanzas:</strong> Herramienta educativa para entender los determinantes fundamentales del valor de las divisas</li>
+                <li><strong>Inversores Multi-Asset:</strong> Evaluación de la exposición a divisas en portafolios diversificados</li>
+                <li><strong>Investigadores:</strong> Plataforma transparente y reproducible para estudiar correlaciones entre datos macro y movimientos forex</li>
+                <li><strong>Swing Traders:</strong> Identificación de oportunidades fundamentales de medio plazo (días a semanas)</li>
             </ul>
         </div>
 
         <div class="highlight-box">
             <h3 style="font-size: 1.2rem; margin-bottom: 0.75rem;">Descargo de Responsabilidad</h3>
-            <p>Esta plataforma proporciona contenido informativo y educativo únicamente. No constituye asesoramiento financiero, recomendaciones de inversión o señales de trading. Los scores de fortaleza y las recomendaciones de pares son análisis cuantitativos basados en datos económicos, no predicciones sobre movimientos futuros de divisas.</p>
-            <p style="margin-top: 1rem;">Las recomendaciones de pares identifican divergencias fundamentales entre divisas pero no garantizan rentabilidad ni consideran factores técnicos, de timing, o de gestión de riesgo. Los usuarios deben realizar su propia due diligence y análisis complementario.</p>
+            <p>Esta plataforma proporciona contenido informativo y educativo únicamente. No constituye asesoramiento financiero, recomendaciones de inversión ni señales de trading. Los scores de fortaleza y las recomendaciones de pares son análisis cuantitativos basados en datos económicos, no predicciones sobre movimientos futuros de divisas.</p>
+            <p style="margin-top: 1rem;">Las recomendaciones de pares identifican divergencias fundamentales entre divisas pero no garantizan rentabilidad ni consideran factores técnicos, de timing, o de gestión de riesgo. Los usuarios deben realizar su propia due diligence y análisis complementario antes de operar.</p>
             <p style="margin-top: 1rem; margin-bottom: 0;">El trading de divisas conlleva riesgo sustancial de pérdida de capital. Los usuarios son responsables de sus decisiones de trading y deben consultar con profesionales financieros licenciados antes de invertir.</p>
         </div>
 
+        <!-- CONTACTO -->
         <div class="section">
             <h2>Contacto y Soporte</h2>
-            <p>Valoramos los comentarios de nuestros usuarios y estamos comprometidos con la mejora continua.</p>
+            <p>Valoramos los comentarios de nuestros usuarios y estamos comprometidos con la mejora continua de la plataforma.</p>
             <ul>
                 <li><strong>Consultas Generales:</strong> <a href="contact.html">Formulario de Contacto</a></li>
                 <li><strong>Email:</strong> <a href="mailto:globalinvestingmarkets@gmail.com">globalinvestingmarkets@gmail.com</a></li>
-                <li><strong>Feedback Metodológico:</strong> Aceptamos sugerencias sobre calibración y mejoras al modelo</li>
-                <li><strong>Reporte de Errores:</strong> Si detecta inconsistencias en datos o cálculos, por favor repórtelas</li>
+                <li><strong>Feedback Metodológico:</strong> Aceptamos sugerencias sobre calibración, nuevos indicadores y mejoras al modelo</li>
+                <li><strong>Reporte de Errores:</strong> Si detecta inconsistencias en datos o cálculos, por favor repórtelas para que podamos corregirlas</li>
             </ul>
         </div>
 
@@ -498,7 +427,7 @@
                 <a href="contact.html">Contacto</a>
             </p>
             <p style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-secondary);">
-                Dashboard v4.9.4 · Modelo: 19 indicadores · 5 tiers · 10 ajustes contextuales · Calendario real TE (3x/día)
+                Dashboard v4.9.6 · Modelo: 20 indicadores · 6 tiers · 10 ajustes contextuales · Calendario real TE (3×/día)
             </p>
         </div>
     </div>
