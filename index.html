@@ -2025,22 +2025,6 @@ try {
                 } catch (error) {
                     console.error(`❌ Error loading data for ${country.code}:`, error);
                 }
-
-// CARGAR FX PERFORMANCE (momentum 1M de mercado real)
-try {
-    const fxPerfUrl = `https://globalinvesting.github.io/fx-performance/${country.code}.json`;
-    const fxPerfResponse = await fetchWithRetry(fxPerfUrl, { cache: 'no-cache', mode: 'cors' }, 2);
-    if (fxPerfResponse.ok) {
-        const fxPerfData = await fxPerfResponse.json();
-        if (fxPerfData.fxPerformance1M !== null && fxPerfData.fxPerformance1M !== undefined) {
-            economicData[country.code].fxPerformance1M = fxPerfData.fxPerformance1M;
-            economicData[country.code].fxPerformance1MDate = fxPerfData.date || new Date().toISOString();
-            console.log(`✅ FX perf 1M for ${country.code}: ${fxPerfData.fxPerformance1M}%`);
-        }
-    }
-} catch (error) {
-    console.warn(`No FX performance data for ${country.code}`);
-}
                 
                 setDataLoadingStatus({ 
                     status: `${country.name} completado`, 
@@ -2048,10 +2032,30 @@ try {
                 });
             }
 
-            setDataLoadingStatus({ status: 'Procesando outlook de bancos centrales...', progress: 95 });
+setDataLoadingStatus({ status: 'Procesando outlook de bancos centrales...', progress: 95 });
             for (let country of countries) {
                 country.outlook = await determineCentralBankOutlook(country.code, economicData[country.code]);
                 country.nextMeeting = await fetchCentralBankMeetings(country.code);
+            }
+
+            // ✅ FX Performance ANTES de guardar caché para que quede persistido
+            setDataLoadingStatus({ status: 'Cargando FX Performance 1M...', progress: 97 });
+            for (let i = 0; i < countries.length; i++) {
+                const country = countries[i];
+                try {
+                    const fxPerfUrl = `https://globalinvesting.github.io/fx-performance/${country.code}.json`;
+                    const fxPerfResponse = await fetchWithRetry(fxPerfUrl, { cache: 'no-cache', mode: 'cors' }, 2);
+                    if (fxPerfResponse.ok) {
+                        const fxPerfData = await fxPerfResponse.json();
+                        if (fxPerfData.fxPerformance1M !== null && fxPerfData.fxPerformance1M !== undefined) {
+                            economicData[country.code].fxPerformance1M = fxPerfData.fxPerformance1M;
+                            economicData[country.code].fxPerformance1MDate = fxPerfData.date || new Date().toISOString();
+                            console.log(`✅ FX perf 1M (pre-cache) for ${country.code}: ${fxPerfData.fxPerformance1M}%`);
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`No FX performance data for ${country.code}`);
+                }
             }
 
             setDataLoadingStatus({ status: 'Datos cargados exitosamente', progress: 100 });
