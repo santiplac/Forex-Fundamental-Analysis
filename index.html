@@ -4737,41 +4737,45 @@ const sentiment = getSentiment(strength);
 )}
 
 <div className="footer">
-    <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>DASHBOARD DE ANÁLISIS FUNDAMENTAL FOREX - DATA-DRIVEN</div>
-<div style={{ marginBottom: '1rem' }}>
-        Metodología: Modelo cuantitativo 100% basado en datos económicos reales • 18 indicadores ponderados<br/>
-        Balance Externo (27%) • Tasas & Carry (28%) • Crecimiento (20%) • Consumo & Salarios (9%) • Sentimiento (15%)<br/>
-        Datos actualizados diariamente desde Trading Economics, FRED y CFTC
+    <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>
+        DASHBOARD DE ANÁLISIS FUNDAMENTAL FOREX — DATA-DRIVEN
+    </div>
+    <div style={{ marginBottom: '1rem' }}>
+        Metodología: Modelo cuantitativo basado en datos económicos reales • 20 indicadores ponderados en 6 tiers<br/>
+        Balance Externo &amp; Safe Haven (27%) • Tasas &amp; Carry (26%) • Crecimiento &amp; Empleo (20%) • Consumo &amp; Salarios (9%) • Sentimiento de Mercado (15%) • FX Momentum (7%)<br/>
+        Datos actualizados diariamente desde Trading Economics, Frankfurter/ECB y CFTC
     </div>
 
-        <div style={{ 
-        background: 'var(--bg-card)', 
-        padding: '1rem', 
-        borderRadius: '6px', 
+    <div style={{
+        background: 'var(--bg-card)',
+        padding: '1rem',
+        borderRadius: '6px',
         border: '1px solid var(--border)',
         marginTop: '1rem',
         fontSize: '0.8125rem',
         lineHeight: '1.6'
     }}>
-        <strong>Disclaimer:</strong><br/>
-        Este dashboard es una herramienta educativa y de análisis. Los scores de fortaleza son cálculos cuantitativos 
-        basados en datos macroeconómicos y no constituyen asesoramiento financiero. El trading de divisas (forex) 
-        conlleva riesgos significativos. Consulte con un asesor financiero certificado antes de tomar decisiones de inversión.
+        <strong>Aviso Legal:</strong><br/>
+        Este dashboard es una herramienta de análisis cuantitativo con fines informativos y educativos.
+        Los scores de fortaleza, rankings y recomendaciones de pares son cálculos basados en datos
+        macroeconómicos públicos y no constituyen asesoramiento financiero ni señales de trading.
+        El trading de divisas (forex) conlleva riesgos significativos de pérdida de capital.
+        Consulte con un asesor financiero certificado antes de tomar decisiones de inversión.
     </div>
-    
+
     <div style={{ textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
-<button onClick={() => window.clearForexCache && window.clearForexCache()} style={{
-    padding: '10px 20px', background: 'var(--blue)', color: 'white', border: 'none',
-    borderRadius: '6px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600
-}}>
-    Limpiar Caché y Recargar Datos
-</button>
-<div style={{ marginTop: '1rem', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-    © {new Date().getFullYear()} Santiago Plá · Global Investing. Todos los derechos reservados.
-</div>
-<div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-    Dashboard v4.9.6
-</div>
+        <button onClick={() => window.clearForexCache && window.clearForexCache()} style={{
+            padding: '10px 20px', background: 'var(--blue)', color: 'white', border: 'none',
+            borderRadius: '6px', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600
+        }}>
+            Limpiar Caché y Recargar Datos
+        </button>
+        <div style={{ marginTop: '1rem', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+            © {new Date().getFullYear()} Santiago Plá · Global Investing. Todos los derechos reservados.
+        </div>
+        <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+            Dashboard v4.9.6
+        </div>
     </div>
 </div>
                     </div>
