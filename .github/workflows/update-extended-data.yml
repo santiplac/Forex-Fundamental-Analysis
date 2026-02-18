@@ -114,26 +114,20 @@ jobs:
               Calcula rateMomentum = tasa_actual - tasa_hace_12_meses.
 
               Estrategia 1: TE API guest (json histórico completo)
-                https://api.tradingeconomics.com/historical/country/{slug}/indicator/interest-rate?c=guest:guest
-                Devuelve array con todos los valores históricos mensuales.
-
-              Estrategia 2: FRED CSV (solo funciona para USD/EUR/GBP/JPY)
-
-              Estrategia 3: Calcular desde current rate de rates/{CURR}.json
-                y hardcodear la tasa de hace 12 meses desde una fuente conocida.
-                Como bootstrap: usar los valores conocidos de Feb 2025 para
-                el primer run, y a partir de ahí el archivo anterior sirve de historial.
-
+              Estrategia 2: FRED CSV (solo USD/EUR/GBP/JPY)
+              Estrategia 3: Bootstrap con tasas conocidas de Feb 2025
               Estrategia 4: Archivo anterior (fallback final)
+
+              La clave 'rateMomentumStrategy' se guarda en el JSON para auditoría.
               """
               print(f"\n{'='*50}\nRATE MOMENTUM (v10 — TE API guest + FRED + bootstrap)\n{'='*50}")
               momentum = {}
               momentum_dates = {}
+              momentum_source = {}  # ← NUEVO: registra qué estrategia se usó
 
               today     = datetime.today()
               target_dt = today - timedelta(days=365)
 
-              # ── Mapa: código divisa → slug de país en TE API ──────────────────────
               TE_COUNTRY_SLUGS = {
                   'USD': 'united-states',
                   'EUR': 'euro-area',
@@ -166,16 +160,13 @@ jobs:
                               print(f"    ⚠️ {code}: respuesta vacía o insuficiente")
                               continue
 
-                          # Parsear y ordenar observaciones
                           obs = []
                           for item in data:
-                              # TE devuelve 'DateTime' y 'Value'
                               dt_str = item.get('DateTime') or item.get('Date') or ''
                               val    = item.get('Value')
                               if not dt_str or val is None:
                                   continue
                               try:
-                                  # Formato: '2025-01-01T00:00:00' o '2025-01-01'
                                   dt_str_clean = dt_str[:10]
                                   obs_dt = datetime.strptime(dt_str_clean, '%Y-%m-%d')
                                   obs.append((obs_dt, float(val)))
@@ -189,7 +180,6 @@ jobs:
                           obs.sort(key=lambda x: x[0])
                           current_dt, current_rate = obs[-1]
 
-                          # Buscar observación más cercana a 12 meses atrás
                           closest_val, closest_diff, closest_dt = None, float('inf'), None
                           for obs_dt, obs_val in obs[:-1]:
                               diff = abs((obs_dt - target_dt).days)
@@ -198,16 +188,17 @@ jobs:
 
                           if closest_val is not None and closest_diff <= 60:
                               m_val = round(current_rate - closest_val, 4)
-                              momentum[code]       = m_val
-                              momentum_dates[code] = current_dt.strftime('%Y-%m-%d')
+                              momentum[code]        = m_val
+                              momentum_dates[code]  = current_dt.strftime('%Y-%m-%d')
+                              momentum_source[code] = 'te-api-guest'  # ← NUEVO
                               direction = '↑' if m_val > 0.001 else ('↓' if m_val < -0.001 else '→')
                               print(f"    ✓ {code}: {current_rate}% - {closest_val}% = {m_val:+.4f}% {direction} (ref: {closest_dt.strftime('%Y-%m')}, {closest_diff}d)")
                           else:
                               print(f"    ⚠️ {code}: 12M target demasiado lejano ({closest_diff}d), {len(obs)} obs disponibles")
 
                       elif r.status_code == 401:
-                          print(f"    ⚠️ {code}: TE API requiere autenticación (401) — intentando alternativa")
-                          break  # Si 401, el guest token no funciona, saltar toda la estrategia
+                          print(f"    ⚠️ {code}: TE API requiere autenticación (401) — saltando estrategia 1")
+                          break
                       elif r.status_code == 429:
                           print(f"    ⚠️ Rate limited en TE API, esperando 30s...")
                           time.sleep(30)
@@ -219,7 +210,7 @@ jobs:
                   except Exception as e:
                       print(f"    ❌ {code}: {e}")
 
-              # ── Estrategia 2: FRED CSV (USD/EUR/GBP/JPY) ──────────────────────────
+              # ── Estrategia 2: FRED CSV ────────────────────────────────────────────
               FRED_SERIES = {
                   'USD': 'FEDFUNDS',
                   'EUR': 'ECBDFR',
@@ -255,37 +246,29 @@ jobs:
                                   closest_diff, closest_val = diff, obs_val
                           if closest_val is not None and closest_diff <= 45:
                               m_val = round(current_rate - closest_val, 4)
-                              momentum[code]       = m_val
-                              momentum_dates[code] = latest_dt.strftime('%Y-%m-%d')
+                              momentum[code]        = m_val
+                              momentum_dates[code]  = latest_dt.strftime('%Y-%m-%d')
+                              momentum_source[code] = 'fred'  # ← NUEVO
                               direction = '↑' if m_val > 0.001 else ('↓' if m_val < -0.001 else '→')
                               print(f"    ✓ {code} [FRED {series_id}]: {current_rate}% - {closest_val}% = {m_val:+.4f}% {direction}")
                           time.sleep(0.5)
                       except Exception as e:
                           print(f"    ❌ {code}: {e}")
 
-              # ── Estrategia 3: Bootstrap con tasas conocidas de Feb 2025 ───────────
-              # Valores de política monetaria hace ~12 meses (Feb 2025) — fuente: bancos centrales.
-              # Se usan SOLO si ninguna otra estrategia funcionó.
-              # El próximo run usará el archivo anterior como referencia (estrategia 4),
-              # así este bootstrap solo se ejecuta una vez en el primer deploy.
+              # ── Estrategia 3: Bootstrap ───────────────────────────────────────────
               BOOTSTRAP_RATES_12M_AGO = {
-                  # código: (tasa_hace_12M_en_Feb_2025, fecha_referencia)
-                  'CAD': (3.00, '2025-02-01'),   # BoC: 3.00% en Feb 2025
-                  'AUD': (4.35, '2025-02-01'),   # RBA: 4.35% en Feb 2025
-                  'CHF': (0.50, '2025-02-01'),   # SNB: 0.50% en Feb 2025
-                  'NZD': (3.75, '2025-02-01'),   # RBNZ: 3.75% en Feb 2025
-                  # USD/EUR/GBP/JPY cubiertos por FRED
+                  'CAD': (3.00, '2025-02-01'),
+                  'AUD': (4.35, '2025-02-01'),
+                  'CHF': (0.50, '2025-02-01'),
+                  'NZD': (3.75, '2025-02-01'),
               }
 
               bootstrap_candidates = [c for c in CURRENCIES if c not in momentum and c in BOOTSTRAP_RATES_12M_AGO]
               if bootstrap_candidates:
                   print(f"\n  Estrategia 3: Bootstrap tasas Feb 2025 para {', '.join(bootstrap_candidates)}")
-
-                  # Leer tasas actuales desde rates/{CURR}.json en el repo
                   for code in bootstrap_candidates:
                       old_rate, old_date_str = BOOTSTRAP_RATES_12M_AGO[code]
                       try:
-                          # Intentar leer tasa actual del repo local
                           rates_path = f'rates/{code}.json'
                           current_rate = None
                           if os.path.exists(rates_path):
@@ -301,8 +284,9 @@ jobs:
                               continue
 
                           m_val = round(current_rate - old_rate, 4)
-                          momentum[code]       = m_val
-                          momentum_dates[code] = str(date.today())
+                          momentum[code]        = m_val
+                          momentum_dates[code]  = str(date.today())
+                          momentum_source[code] = 'bootstrap-feb2025'  # ← NUEVO
                           direction = '↑' if m_val > 0.001 else ('↓' if m_val < -0.001 else '→')
                           print(f"    ✓ {code} [bootstrap]: {current_rate}% - {old_rate}% (Feb 2025) = {m_val:+.4f}% {direction}")
 
@@ -321,8 +305,9 @@ jobs:
                                   prev = json.load(f)
                               prev_val = prev.get('data', {}).get('rateMomentum')
                               if prev_val is not None:
-                                  momentum[code]       = prev_val
-                                  momentum_dates[code] = prev.get('dates', {}).get('rateMomentum', str(date.today()))
+                                  momentum[code]        = prev_val
+                                  momentum_dates[code]  = prev.get('dates', {}).get('rateMomentum', str(date.today()))
+                                  momentum_source[code] = 'previous-file'  # ← NUEVO
                                   print(f"    ✓ {code}: valor anterior {prev_val:+.4f}% [{momentum_dates[code]}]")
                               else:
                                   print(f"    ✗ {code}: sin valor anterior disponible")
@@ -331,13 +316,21 @@ jobs:
                       except Exception as e:
                           print(f"    ✗ {code}: {e}")
 
+              # ── Resumen de estrategias usadas ─────────────────────────────────────
+              print(f"\n  Estrategias usadas:")
+              for code in CURRENCIES:
+                  src = momentum_source.get(code, 'none')
+                  val = momentum.get(code)
+                  val_str = f"{val:+.4f}%" if val is not None else "null"
+                  print(f"    {code}: {src} → {val_str}")
+
               final_missing = [c for c in CURRENCIES if c not in momentum]
               if final_missing:
                   print(f"\n  ❌ rateMomentum no disponible para: {', '.join(final_missing)} (será null)")
               else:
                   print(f"\n  ✅ rateMomentum completo para todas las divisas")
 
-              return momentum, momentum_dates
+              return momentum, momentum_dates, momentum_source  # ← NUEVO: retorna source
 
           # ── CAPITAL FLOWS ────────────────────────────────────────────────────────
           def parse_capital_flows_row(cols):
@@ -375,23 +368,52 @@ jobs:
 
           # ── CONFIDENCE NORMALIZATION ─────────────────────────────────────────────
           def normalize_confidence(value, currency, indicator):
+              """
+              Normaliza índices de confianza a una escala base ~100.
+              Retorna None (en lugar de basura) si el resultado está fuera de rango.
+              """
               if value is None:
                   return None
+
+              VALID_RANGE = (50, 200)  # rango esperado post-normalización
+
+              result = None
+
               if indicator == 'consumerConfidence':
                   if currency in ('EUR', 'GBP'):
-                      return round(value + 100, 2)
-                  if currency == 'JPY':
-                      return round(((value - 40) / 10) * 15 + 100, 2)
-                  if currency == 'CHF':
-                      return round(value + 130, 2)
-                  return value
-              if indicator == 'businessConfidence':
+                      # Índices europeos suelen venir en escala negativa (-30 a +10)
+                      result = round(value + 100, 2)
+                  elif currency == 'JPY':
+                      result = round(((value - 40) / 10) * 15 + 100, 2)
+                  elif currency == 'CHF':
+                      # ← FIX: offset hardcodeado con validación de rango
+                      result = round(value + 130, 2)
+                      if not (VALID_RANGE[0] <= result <= VALID_RANGE[1]):
+                          print(f"    ⚠️ CHF consumerConfidence normalizado fuera de rango: {result} (raw={value}) → null")
+                          return None
+                  else:
+                      result = value
+
+              elif indicator == 'businessConfidence':
                   if currency in ('EUR', 'GBP', 'JPY', 'AUD'):
-                      return round(value + 100, 2)
-                  if currency == 'NZD':
-                      return round(value, 2)
-                  return value
-              return value
+                      result = round(value + 100, 2)
+                  elif currency == 'NZD':
+                      # ANZ Business Outlook: net balance centrado en 0, se deja tal cual
+                      # El scoring del dashboard lo re-mapea a base-100
+                      result = round(value, 2)
+                  else:
+                      result = value
+              else:
+                  result = value
+
+              # Validación de rango post-normalización (excepto NZD businessConfidence
+              # que intencionalmente puede ser negativo)
+              if result is not None and indicator == 'consumerConfidence':
+                  if not (VALID_RANGE[0] <= result <= VALID_RANGE[1]):
+                      print(f"    ⚠️ {currency} {indicator} normalizado fuera de rango: {result} (raw={value}) → null")
+                      return None
+
+              return result
 
           # ── GENERIC TABLE SCRAPER ────────────────────────────────────────────────
           def scrape_te_table(url, label):
@@ -661,8 +683,8 @@ jobs:
                   all_dates[c][key] = dt.get(c, str(date.today()))
               time.sleep(2)
 
-          # 3. rateMomentum (v10: TE API guest → FRED → bootstrap → archivo anterior)
-          rate_momentum, rate_momentum_dates = scrape_rate_momentum()
+          # 3. rateMomentum — ahora retorna también momentum_source
+          rate_momentum, rate_momentum_dates, momentum_source = scrape_rate_momentum()
           for c in CURRENCIES:
               all_data[c]['rateMomentum']  = rate_momentum.get(c)
               all_dates[c]['rateMomentum'] = rate_momentum_dates.get(c, str(date.today()))
@@ -673,6 +695,7 @@ jobs:
               pkg = {
                   'lastUpdate': str(date.today()),
                   'source': 'TradingEconomics — v10: rateMomentum via TE API guest + FRED + bootstrap',
+                  'rateMomentumStrategy': momentum_source.get(curr, 'none'),  # ← NUEVO
                   'data':   all_data[curr],
                   'dates':  all_dates[curr]
               }
@@ -690,7 +713,8 @@ jobs:
               rm = all_data[curr].get('rateMomentum')
               if rm is not None:
                   direction = '↑' if rm > 0.001 else ('↓' if rm < -0.001 else '→')
-                  extras.append(f"rateMomentum={rm:+.4f}% {direction}")
+                  src = momentum_source.get(curr, 'unknown')
+                  extras.append(f"rateMomentum={rm:+.4f}% {direction} [{src}]")  # ← NUEVO: muestra fuente
               extra_str = f" [{', '.join(extras)}]" if extras else ''
               print(f"{status} {curr}: {', '.join(available) or 'NO DATA'}{extra_str}")
               if missing:
