@@ -1520,14 +1520,47 @@ const fetchExtendedData = async (countryCode) => {
             });
         };
 
-        const fetchEconomicCalendar = async () => {
+const fetchEconomicCalendar = async () => {
             const cacheKey = 'economic_calendar';
             const cached = CacheManager.get(cacheKey);
             if (cached !== null) return cached;
 
+            // ✅ Strategy 1: Real scraped calendar from GitHub Pages (TE source)
+            try {
+                const url = 'https://globalinvesting.github.io/calendar-data/calendar.json';
+                const response = await fetchWithRetry(url, { cache: 'no-cache', mode: 'cors' }, 3);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.events && data.events.length > 0) {
+                        console.log(`✅ Real calendar loaded: ${data.events.length} events (source: ${data.source})`);
+                        // Store both events array and metadata
+                        const result = {
+                            events: data.events,
+                            lastUpdate: data.lastUpdate,
+                            source: data.source,
+                            impactCounts: data.impactCounts || {},
+                            currencyCounts: data.currencyCounts || {},
+                        };
+                        CacheManager.set(cacheKey, result, CACHE_CONFIG.CALENDAR);
+                        return result;
+                    }
+                }
+            } catch (error) {
+                console.warn('Real calendar fetch failed:', error.message);
+            }
+
+            // ✅ Fallback: dynamic calendar generator (hardcoded schedule)
+            console.warn('⚠️ Falling back to dynamic calendar generator');
             const dynamicCalendar = generateDynamicEconomicCalendar();
-            CacheManager.set(cacheKey, dynamicCalendar, CACHE_CONFIG.CALENDAR);
-            return dynamicCalendar;
+            const fallbackResult = {
+                events: dynamicCalendar,
+                lastUpdate: null,
+                source: 'fallback-generator',
+                impactCounts: {},
+                currencyCounts: {},
+            };
+            CacheManager.set(cacheKey, fallbackResult, CACHE_CONFIG.CALENDAR);
+            return fallbackResult;
         };
 
         const fetchHistoricalFXData = async (currencyCode) => {
@@ -2663,7 +2696,7 @@ const indicatorTooltips = {
             const [forexRates, setForexRates] = useState({});
             const [economicData, setEconomicData] = useState({});
             const [dynamicAlerts, setDynamicAlerts] = useState([]);
-            const [economicCalendar, setEconomicCalendar] = useState([]);
+            const [economicCalendar, setEconomicCalendar] = useState({ events: [], lastUpdate: null, source: null, impactCounts: {}, currencyCounts: {} });
             const [lastUpdate, setLastUpdate] = useState(null);
             const [historicalData, setHistoricalData] = useState({});
             const [dataLoadingStatus, setDataLoadingStatus] = useState({ status: 'Inicializando...', progress: 0 });
@@ -3471,8 +3504,8 @@ const hasCOTData = () => {
                         const loadedData = await loadAllEconomicData(setEconomicData, setDataLoadingStatus);
                         
                         setDataLoadingStatus({ status: 'Cargando calendario económico...', progress: 92 });
-                        const calendar = await fetchEconomicCalendar();
-                        setEconomicCalendar(calendar);
+                        const calendarResult = await fetchEconomicCalendar();
+                        setEconomicCalendar(calendarResult);
 
                         const historical = await generateHistoricalData(loadedData, setDataLoadingStatus);
                         setHistoricalData(historical);
@@ -4153,30 +4186,130 @@ const sentiment = getSentiment(strength);
                             </div>
                         )}
 
-                        {activeTab === 'calendar' && (
+{activeTab === 'calendar' && (
                             <div>
                                 <div className="section-header">
                                     <div className="section-title">Calendario Económico</div>
+                                    <div className="section-meta">
+                                        {economicCalendar.source && economicCalendar.source !== 'fallback-generator'
+                                            ? `Fuente: Trading Economics • Actualizado ${economicCalendar.lastUpdate || ''}`
+                                            : 'Calendario estimado (scraping en proceso)'}
+                                        {economicCalendar.impactCounts && economicCalendar.impactCounts.high > 0 && (
+                                            <span style={{ marginLeft: '1rem' }}>
+                                                🔴 {economicCalendar.impactCounts.high} alto
+                                                {economicCalendar.impactCounts.medium > 0 && ` · 🟠 ${economicCalendar.impactCounts.medium} medio`}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="calendar-container">
-                                    {economicCalendar.map((event, index) => (
-                                        <div key={index} className="calendar-event">
-                                            <div className="event-time">
-                                                <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{event.date}</div>
-                                                <div>{event.time}</div>
+
+                                {/* Filter bar */}
+                                {(() => {
+                                    const [calFilter, setCalFilter] = React.useState('all');
+                                    const events = (economicCalendar.events || []);
+                                    const filtered = calFilter === 'all'
+                                        ? events
+                                        : events.filter(e => e.impact === calFilter);
+
+                                    return (
+                                        <>
+                                            <div style={{
+                                                display: 'flex',
+                                                gap: '0.5rem',
+                                                marginBottom: '1rem',
+                                                flexWrap: 'wrap'
+                                            }}>
+                                                {['all', 'high', 'medium', 'low'].map(f => (
+                                                    <button
+                                                        key={f}
+                                                        onClick={() => setCalFilter(f)}
+                                                        style={{
+                                                            padding: '0.375rem 0.875rem',
+                                                            borderRadius: '4px',
+                                                            border: '1px solid var(--border)',
+                                                            background: calFilter === f ? 'var(--blue)' : 'var(--bg-card)',
+                                                            color: calFilter === f ? 'white' : 'var(--text-secondary)',
+                                                            cursor: 'pointer',
+                                                            fontSize: '0.8125rem',
+                                                            fontWeight: 500,
+                                                            transition: 'all 0.15s'
+                                                        }}
+                                                    >
+                                                        {f === 'all'    ? 'Todos'       :
+                                                         f === 'high'   ? '🔴 Alto'     :
+                                                         f === 'medium' ? '🟠 Medio'    : '⚪ Bajo'}
+                                                    </button>
+                                                ))}
+                                                <span style={{
+                                                    marginLeft: 'auto',
+                                                    fontSize: '0.75rem',
+                                                    color: 'var(--text-tertiary)',
+                                                    alignSelf: 'center'
+                                                }}>
+                                                    {filtered.length} eventos
+                                                </span>
                                             </div>
-                                            <div className="event-details">
-                                                <div className="event-title">{event.event}</div>
-                                                <div className="event-country">
-                                                    <span className="flag-emoji">{event.flag}</span> {event.country}
+
+                                            {filtered.length === 0 ? (
+                                                <div style={{
+                                                    textAlign: 'center',
+                                                    padding: '3rem',
+                                                    color: 'var(--text-secondary)',
+                                                    background: 'var(--bg-secondary)',
+                                                    borderRadius: '6px',
+                                                    border: '1px solid var(--border)'
+                                                }}>
+                                                    {(economicCalendar.events || []).length === 0
+                                                        ? 'Cargando calendario... El scraping se ejecuta a las 00:00, 08:00 y 16:00 UTC.'
+                                                        : 'No hay eventos con ese filtro de impacto.'}
                                                 </div>
-                                            </div>
-                                            <div className={`event-impact impact-${event.impact}`}>
-                                                {event.impact === 'high' ? 'Alto Impacto' : event.impact === 'medium' ? 'Medio' : 'Bajo'}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                            ) : (
+                                                <div className="calendar-container">
+                                                    {filtered.map((event, index) => {
+                                                        const isToday = event.dateISO === new Date().toISOString().split('T')[0];
+                                                        const hasActual = event.actual && event.actual !== '';
+                                                        return (
+                                                            <div key={index} className="calendar-event" style={{
+                                                                borderLeft: isToday ? '3px solid var(--blue)' : 'none',
+                                                                opacity: hasActual ? 0.75 : 1,
+                                                            }}>
+                                                                <div className="event-time">
+                                                                    <div style={{ fontWeight: 600, fontSize: '0.875rem', color: isToday ? 'var(--blue)' : 'inherit' }}>
+                                                                        {event.date}
+                                                                    </div>
+                                                                    <div>{event.time}</div>
+                                                                </div>
+                                                                <div className="event-details">
+                                                                    <div className="event-title">{event.event}</div>
+                                                                    <div className="event-country">
+                                                                        <span className="flag-emoji">{event.flag}</span> {event.country || event.currency}
+                                                                    </div>
+                                                                    {(event.actual || event.forecast || event.previous) && (
+                                                                        <div style={{
+                                                                            display: 'flex',
+                                                                            gap: '0.75rem',
+                                                                            marginTop: '0.25rem',
+                                                                            fontSize: '0.75rem',
+                                                                            color: 'var(--text-tertiary)'
+                                                                        }}>
+                                                                            {event.actual   && <span>Real: <strong style={{ color: 'var(--green-strong)' }}>{event.actual}</strong></span>}
+                                                                            {event.forecast && <span>Est: <strong style={{ color: 'var(--text-secondary)' }}>{event.forecast}</strong></span>}
+                                                                            {event.previous && <span>Ant: {event.previous}</span>}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div className={`event-impact impact-${event.impact}`}>
+                                                                    {event.impact === 'high'   ? 'Alto Impacto' :
+                                                                     event.impact === 'medium' ? 'Medio' : 'Bajo'}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </>
+                                    );
+                                })()}
                             </div>
                         )}
 
@@ -4446,7 +4579,7 @@ const sentiment = getSentiment(strength);
     © {new Date().getFullYear()} Santiago Plá · Global Investing. Todos los derechos reservados.
 </div>
 <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-    Dashboard v4.9.3
+    Dashboard v4.9.4
 </div>
     </div>
 </div>
