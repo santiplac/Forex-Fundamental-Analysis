@@ -4876,11 +4876,15 @@ const sentiment = getSentiment(strength);
 
                             {/* Score dual compacto */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: '110px' }}>
-                                <div style={{ 
-                                    background: 'var(--bg-card)', borderRadius: '4px',
-                                    padding: '0.4rem 0.6rem', border: '1px solid var(--border)'
-                                }}>
-                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>ESTRUCTURAL (E)</div>
+<div 
+    title={`Score estructural (3-12M): ${rec.strongCurrency} ${rec.structuralScore?.toFixed(1)} vs ${rec.weakCurrency} ${rec.weakStructuralScore?.toFixed(1)} — Diferencial: +${rec.structuralSpread?.toFixed(1)} pts | ${rec.convictionDetail}`}
+    style={{ 
+        background: 'var(--bg-card)', borderRadius: '4px',
+        padding: '0.4rem 0.6rem', border: '1px solid var(--border)',
+        cursor: 'help'
+    }}
+>
+    <div style={{ fontSize: '0.6rem', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>ESTRUCTURAL (E)</div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--green-strong)' }}>
                                             {rec.strongCurrency} {rec.structuralScore?.toFixed(1)}
@@ -4896,12 +4900,16 @@ const sentiment = getSentiment(strength);
                                 </div>
 
                                 {rec.momentumSpread !== null && rec.momentumSpread !== undefined ? (
-                                    <div style={{ 
-                                        background: 'var(--bg-card)', borderRadius: '4px',
-                                        padding: '0.4rem 0.6rem',
-                                        border: `1px solid ${rec.horizonConflict ? '#ef535044' : 'var(--border)'}`
-                                    }}>
-                                        <div style={{ fontSize: '0.6rem', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>MOMENTUM (M)</div>
+<div 
+    title={`Score momentum (1-4W): ${rec.strongCurrency} ${rec.momentumScore?.toFixed(1)} vs ${rec.weakCurrency} ${rec.weakMomentumScore?.toFixed(1)} — Diferencial: ${rec.momentumSpread?.toFixed(1)} pts${rec.horizonConflict ? ' ⚠ CONFLICTO con fundamentos' : ''}`}
+    style={{ 
+        background: 'var(--bg-card)', borderRadius: '4px',
+        padding: '0.4rem 0.6rem',
+        border: `1px solid ${rec.horizonConflict ? '#ef535044' : 'var(--border)'}`,
+        cursor: 'help'
+    }}
+>
+    <div style={{ fontSize: '0.6rem', color: 'var(--text-tertiary)', marginBottom: '0.2rem' }}>MOMENTUM (M)</div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: rec.momentumScore >= 58 ? 'var(--green-strong)' : rec.momentumScore <= 42 ? 'var(--red-strong)' : 'var(--neutral)' }}>
                                                 {rec.strongCurrency} {rec.momentumScore?.toFixed(1)}
