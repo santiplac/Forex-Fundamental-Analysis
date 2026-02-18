@@ -110,20 +110,10 @@ jobs:
 
           # ── v10: rateMomentum — múltiples estrategias ─────────────────────────────
           def scrape_rate_momentum():
-              """
-              Calcula rateMomentum = tasa_actual - tasa_hace_12_meses.
-
-              Estrategia 1: TE API guest (json histórico completo)
-              Estrategia 2: FRED CSV (solo USD/EUR/GBP/JPY)
-              Estrategia 3: Bootstrap con tasas conocidas de Feb 2025
-              Estrategia 4: Archivo anterior (fallback final)
-
-              La clave 'rateMomentumStrategy' se guarda en el JSON para auditoría.
-              """
               print(f"\n{'='*50}\nRATE MOMENTUM (v10 — TE API guest + FRED + bootstrap)\n{'='*50}")
               momentum = {}
               momentum_dates = {}
-              momentum_source = {}  # ← NUEVO: registra qué estrategia se usó
+              momentum_source = {}
 
               today     = datetime.today()
               target_dt = today - timedelta(days=365)
@@ -190,7 +180,7 @@ jobs:
                               m_val = round(current_rate - closest_val, 4)
                               momentum[code]        = m_val
                               momentum_dates[code]  = current_dt.strftime('%Y-%m-%d')
-                              momentum_source[code] = 'te-api-guest'  # ← NUEVO
+                              momentum_source[code] = 'te-api-guest'
                               direction = '↑' if m_val > 0.001 else ('↓' if m_val < -0.001 else '→')
                               print(f"    ✓ {code}: {current_rate}% - {closest_val}% = {m_val:+.4f}% {direction} (ref: {closest_dt.strftime('%Y-%m')}, {closest_diff}d)")
                           else:
@@ -248,7 +238,7 @@ jobs:
                               m_val = round(current_rate - closest_val, 4)
                               momentum[code]        = m_val
                               momentum_dates[code]  = latest_dt.strftime('%Y-%m-%d')
-                              momentum_source[code] = 'fred'  # ← NUEVO
+                              momentum_source[code] = 'fred'
                               direction = '↑' if m_val > 0.001 else ('↓' if m_val < -0.001 else '→')
                               print(f"    ✓ {code} [FRED {series_id}]: {current_rate}% - {closest_val}% = {m_val:+.4f}% {direction}")
                           time.sleep(0.5)
@@ -286,7 +276,7 @@ jobs:
                           m_val = round(current_rate - old_rate, 4)
                           momentum[code]        = m_val
                           momentum_dates[code]  = str(date.today())
-                          momentum_source[code] = 'bootstrap-feb2025'  # ← NUEVO
+                          momentum_source[code] = 'bootstrap-feb2025'
                           direction = '↑' if m_val > 0.001 else ('↓' if m_val < -0.001 else '→')
                           print(f"    ✓ {code} [bootstrap]: {current_rate}% - {old_rate}% (Feb 2025) = {m_val:+.4f}% {direction}")
 
@@ -307,7 +297,7 @@ jobs:
                               if prev_val is not None:
                                   momentum[code]        = prev_val
                                   momentum_dates[code]  = prev.get('dates', {}).get('rateMomentum', str(date.today()))
-                                  momentum_source[code] = 'previous-file'  # ← NUEVO
+                                  momentum_source[code] = 'previous-file'
                                   print(f"    ✓ {code}: valor anterior {prev_val:+.4f}% [{momentum_dates[code]}]")
                               else:
                                   print(f"    ✗ {code}: sin valor anterior disponible")
@@ -316,7 +306,7 @@ jobs:
                       except Exception as e:
                           print(f"    ✗ {code}: {e}")
 
-              # ── Resumen de estrategias usadas ─────────────────────────────────────
+              # ── Resumen ───────────────────────────────────────────────────────────
               print(f"\n  Estrategias usadas:")
               for code in CURRENCIES:
                   src = momentum_source.get(code, 'none')
@@ -330,7 +320,7 @@ jobs:
               else:
                   print(f"\n  ✅ rateMomentum completo para todas las divisas")
 
-              return momentum, momentum_dates, momentum_source  # ← NUEVO: retorna source
+              return momentum, momentum_dates, momentum_source
 
           # ── CAPITAL FLOWS ────────────────────────────────────────────────────────
           def parse_capital_flows_row(cols):
@@ -370,45 +360,66 @@ jobs:
           def normalize_confidence(value, currency, indicator):
               """
               Normaliza índices de confianza a una escala base ~100.
-              Retorna None (en lugar de basura) si el resultado está fuera de rango.
+
+              Divisas con escala nativa diferente a base-100:
+                EUR/GBP  → índice europeo en escala negativa (-30 a +10) → +100
+                JPY      → índice japonés (rango 33-40) → mapeo lineal
+                CHF      → SECO Consumer Climate (rango -40 a +10) → +130
+
+              Divisas que pasan el valor crudo SIN transformar (RAW_PASSTHROUGH):
+                CAD → Conference Board Canada (~40-130, actual ~49).
+                      El index.html normaliza valores <80 internamente.
+                      No aplicar validación de rango aquí: 49 es un valor
+                      legítimo en escala nativa y el index lo maneja.
+                NZD → ANZ Business Outlook: balance neto centrado en 0.
+                      El index.html lo re-mapea a base-100.
+                USD → Michigan Consumer Sentiment (~50-100): el index normaliza.
+                AUD → Westpac Consumer Confidence (~80-110): ya cerca de base-100.
+
+              Validación de rango (50-200): solo para divisas normalizadas aquí
+              (EUR, GBP, JPY, CHF). Las de RAW_PASSTHROUGH se excluyen porque
+              sus valores crudos son intencionalmente fuera de ese rango.
               """
               if value is None:
                   return None
 
-              VALID_RANGE = (50, 200)  # rango esperado post-normalización
+              VALID_RANGE = (50, 200)
+
+              # Divisas que pasan el valor crudo al JSON sin transformación.
+              # El index.html se encarga de mapearlos a escala comparable.
+              RAW_PASSTHROUGH = {'CAD', 'NZD', 'USD', 'AUD'}
 
               result = None
 
               if indicator == 'consumerConfidence':
                   if currency in ('EUR', 'GBP'):
-                      # Índices europeos suelen venir en escala negativa (-30 a +10)
+                      # Escala europea: típicamente -30 a +10 → base 100
                       result = round(value + 100, 2)
                   elif currency == 'JPY':
+                      # Escala japonesa: rango histórico ~33-42
                       result = round(((value - 40) / 10) * 15 + 100, 2)
                   elif currency == 'CHF':
-                      # ← FIX: offset hardcodeado con validación de rango
+                      # SECO Consumer Climate: rango -40 a +10 → base 100
                       result = round(value + 130, 2)
-                      if not (VALID_RANGE[0] <= result <= VALID_RANGE[1]):
-                          print(f"    ⚠️ CHF consumerConfidence normalizado fuera de rango: {result} (raw={value}) → null")
-                          return None
                   else:
-                      result = value
+                      # CAD, USD, AUD, NZD: pasar crudo
+                      result = round(value, 2)
 
               elif indicator == 'businessConfidence':
                   if currency in ('EUR', 'GBP', 'JPY', 'AUD'):
                       result = round(value + 100, 2)
-                  elif currency == 'NZD':
-                      # ANZ Business Outlook: net balance centrado en 0, se deja tal cual
-                      # El scoring del dashboard lo re-mapea a base-100
-                      result = round(value, 2)
                   else:
-                      result = value
+                      # CAD (Ivey PMI ~50), NZD (ANZ net balance), USD (ISM ~52):
+                      # pasar crudo — el index.html normaliza según la divisa.
+                      result = round(value, 2)
+
               else:
                   result = value
 
-              # Validación de rango post-normalización (excepto NZD businessConfidence
-              # que intencionalmente puede ser negativo)
-              if result is not None and indicator == 'consumerConfidence':
+              # Validación de rango: solo para divisas que normalizamos aquí.
+              # RAW_PASSTHROUGH se excluye para no rechazar valores legítimos
+              # como CAD=49.3 (Conference Board Canada en escala nativa).
+              if result is not None and currency not in RAW_PASSTHROUGH:
                   if not (VALID_RANGE[0] <= result <= VALID_RANGE[1]):
                       print(f"    ⚠️ {currency} {indicator} normalizado fuera de rango: {result} (raw={value}) → null")
                       return None
@@ -683,7 +694,7 @@ jobs:
                   all_dates[c][key] = dt.get(c, str(date.today()))
               time.sleep(2)
 
-          # 3. rateMomentum — ahora retorna también momentum_source
+          # 3. rateMomentum
           rate_momentum, rate_momentum_dates, momentum_source = scrape_rate_momentum()
           for c in CURRENCIES:
               all_data[c]['rateMomentum']  = rate_momentum.get(c)
@@ -695,7 +706,7 @@ jobs:
               pkg = {
                   'lastUpdate': str(date.today()),
                   'source': 'TradingEconomics — v10: rateMomentum via TE API guest + FRED + bootstrap',
-                  'rateMomentumStrategy': momentum_source.get(curr, 'none'),  # ← NUEVO
+                  'rateMomentumStrategy': momentum_source.get(curr, 'none'),
                   'data':   all_data[curr],
                   'dates':  all_dates[curr]
               }
@@ -714,7 +725,10 @@ jobs:
               if rm is not None:
                   direction = '↑' if rm > 0.001 else ('↓' if rm < -0.001 else '→')
                   src = momentum_source.get(curr, 'unknown')
-                  extras.append(f"rateMomentum={rm:+.4f}% {direction} [{src}]")  # ← NUEVO: muestra fuente
+                  extras.append(f"rateMomentum={rm:+.4f}% {direction} [{src}]")
+              cc = all_data[curr].get('consumerConfidence')
+              if cc is not None:
+                  extras.append(f"consumerConfidence={cc}")
               extra_str = f" [{', '.join(extras)}]" if extras else ''
               print(f"{status} {curr}: {', '.join(available) or 'NO DATA'}{extra_str}")
               if missing:
