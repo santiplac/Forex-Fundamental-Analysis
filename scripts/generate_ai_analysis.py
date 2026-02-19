@@ -130,14 +130,17 @@ FORMATO:
 - Texto corrido en español, sin bullets, sin títulos, sin markdown
 - Exactamente 3 párrafos separados por línea en blanco
 - Total: entre 180 y 250 palabras
+- Cada párrafo debe tener entre 3 y 5 oraciones como máximo
 
 ESTRUCTURA:
 1. Política monetaria: banco central (nombre completo), tasa actual, postura hawkish/dovish/neutral, inflación
-2. Actividad económica: crecimiento, empleo, consumo, sector exterior
+2. Actividad económica: CRECIMIENTO PIB (%), empleo, consumo, sector exterior
 3. Sentimiento de mercado: COT, rendimiento FX reciente, perspectivas
 
 REGLAS:
 - Cita los valores numéricos exactos del input
+- El campo "PIB Total" es el tamaño de la economía en trillones USD — NO es la tasa de crecimiento
+- La tasa de crecimiento del PIB es el campo "Crecimiento PIB (%)"
 - Si un indicador no tiene dato, no lo menciones
 - Tono profesional y directo, como research de banco de inversión
 - Sin saludos ni meta-comentarios"""
