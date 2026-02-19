@@ -2081,10 +2081,16 @@ try {
             }
 
 setDataLoadingStatus({ status: 'Procesando outlook de bancos centrales...', progress: 95 });
-            for (let country of countries) {
-                country.outlook = await determineCentralBankOutlook(country.code, economicData[country.code]);
-                country.nextMeeting = await fetchCentralBankMeetings(country.code);
-            }
+for (let country of countries) {
+    const outlook = await determineCentralBankOutlook(country.code, economicData[country.code]);
+    const nextMeeting = await fetchCentralBankMeetings(country.code);
+    // Asignar al objeto global (para calculateStrength que lo usa vía countries.find)
+    country.outlook = outlook;
+    country.nextMeeting = nextMeeting;
+    // TAMBIÉN guardar en economicData para que React detecte el cambio y re-renderice
+    economicData[country.code].outlook = outlook;
+    economicData[country.code].nextMeeting = nextMeeting;
+}
 
             // ✅ FX Performance ANTES de guardar caché para que quede persistido
             setDataLoadingStatus({ status: 'Cargando FX Performance 1M...', progress: 97 });
@@ -3571,6 +3577,11 @@ const generateAnalysis = (currency, forexRates, economicData) => {
     if (!economicData[currency]) return 'Cargando datos...';
     const data = economicData[currency];
     const country = countries.find(c => c.code === currency);
+
+    // Usar outlook de economicData si está disponible (más fresco que el objeto country)
+if (economicData[currency]?.outlook && country) {
+    country.outlook = economicData[currency].outlook;
+}
     
     // ✅ CORRECCIÓN: Obtener objeto y extraer score
     const strengthObj = calculateStrength(currency, data, forexRates, economicData);
@@ -4219,11 +4230,11 @@ const DataHealthCheck = ({ economicData }) => {
                                         </div>
                                         <div className="bank-info-item">
                                             <div className="bank-info-label">Próxima Reunión</div>
-                                            <div className="bank-info-value">{country.nextMeeting}</div>
+                                           <div className="bank-info-value">{data.nextMeeting || country.nextMeeting}</div>
                                         </div>
                                         <div className="bank-info-item">
                                             <div className="bank-info-label">Perspectiva</div>
-                                            <div className="bank-info-value">{country.outlook}</div>
+                                            <div className="bank-info-value">{data.outlook || country.outlook}</div>
                                         </div>
                                     </div>
                                 </div>
