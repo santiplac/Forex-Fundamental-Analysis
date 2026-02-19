@@ -26,7 +26,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install google-generativeai requests
+          pip install google-genai requests
 
       - name: Generate AI analysis for all currencies
         env:
