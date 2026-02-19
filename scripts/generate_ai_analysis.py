@@ -189,9 +189,12 @@ REGLAS:
 def call_gemini_api(api_key: str, prompt: str) -> str:
     url = f"{GEMINI_URL}?key={api_key}"
     payload = {
+        "systemInstruction": {
+            "parts": [{"text": SYSTEM_PROMPT}]
+        },
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {
-            "maxOutputTokens": 500,
+            "maxOutputTokens": 800,
             "temperature": 0.4,
             "topP": 0.85
         }
@@ -214,7 +217,7 @@ def call_gemini_api(api_key: str, prompt: str) -> str:
 
 def generate_analysis(api_key: str, currency: str, data: dict) -> str:
     data_summary = build_data_summary(currency, data)
-    prompt = f"{SYSTEM_PROMPT}\n\n---\n\n{data_summary}\n\n---\n\nGenera el análisis fundamental para {currency}:"
+    prompt = f"{data_summary}\n\n---\n\nGenera el análisis fundamental para {currency}:"
 
     max_retries = 3
     for attempt in range(max_retries):
