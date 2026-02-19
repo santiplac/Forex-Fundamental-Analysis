@@ -2099,8 +2099,8 @@ const TRADING_WEIGHTS = {
     outlookScore:          { weight: 0.08, direction: 'outlook_direction' },
     rateMomentum:          { weight: 0.04, direction: 'rate_momentum' },
 
-    // Tier 2: External Balance (0.20 — reducido para evitar que CA domine)
-    currentAccount:        { weight: 0.07, direction: 'higher' },
+// Tier 2: External Balance (0.18 — currentAccount reducido para evitar overfitting CHF)
+    currentAccount:        { weight: 0.05, direction: 'higher' },
     tradeBalance:          { weight: 0.07, direction: 'higher' },
     debt:                  { weight: 0.04, direction: 'lower'  },
     termsOfTrade:          { weight: 0.02, direction: 'terms_of_trade' },
@@ -2128,7 +2128,7 @@ const TRADING_WEIGHTS = {
     // El único indicador 100% forward-looking y libre de lag de publicación.
     // Captura: positioning especulativo, flows institucionales, carry, risk-off.
     // Con peso 0.14 tiene impacto real en el ranking sin dominar (anti-overfitting).
-    fxPerformance1M:       { weight: 0.14, direction: 'fx_momentum' },
+    fxPerformance1M:       { weight: 0.16, direction: 'fx_momentum' },
 };
     
 // ========== SCORING FUNCTIONS v4.9.5 ==========
@@ -2156,8 +2156,9 @@ const scoreIndicator = (value, indicator, currencyCtx, allEconomicData, scoringD
 
         case 'higher':
             if (indicator === 'interestRate') {
-if (isSafeHavenFunder) {
-    // P-3 v4.9.6 — Factor de régimen de mercado via COT promedio
+
+          if (isSafeHavenFunder) {
+    // P-3 v4.9.6 — Factor de régimen + corrección por normalización activa
     let riskRegime = 'neutral';
     if (allEconomicData && typeof allEconomicData === 'object') {
         const cotValues = Object.values(allEconomicData)
@@ -2170,15 +2171,30 @@ if (isSafeHavenFunder) {
                        : 'neutral';
         }
     }
-    // risk-off = premium pleno | neutral = moderado | risk-on = comprimido
     const regimeFactor = riskRegime === 'risk-off' ? 1.0
                        : riskRegime === 'risk-on'  ? 0.65
                        : 0.85;
-    score = (72 - (value / 1.5) * 17) * regimeFactor;
-    // Resultados Feb 2026 (risk-on):
-    //   CHF 0.25% → score ≈ 45.0  (antes: 69.2)
-    //   JPY 0.50% → score ≈ 42.6  (antes: 65.5)
-} else {
+
+    // CORRECCIÓN v5.0.4: Si rateMomentum indica normalización activa (BC subiendo tasas),
+    // el score de interestRate mejora parcialmente hacia la escala estándar.
+    // Esto captura la diferencia entre JPY (normalizando desde 0%) y CHF (estable en 0.25%).
+    // Sin esta corrección, ambos reciben el mismo tratamiento safe-haven aunque el mercado
+    // los trata muy diferente: JPY sube por BoJ hawkish, CHF sube por safe haven puro.
+    const rateMomentumVal = scoringDataExplicit?.rateMomentum ?? null;
+    let normalizationBonus = 0;
+    if (rateMomentumVal !== null && rateMomentumVal > 0.3) {
+        // BC normalizando: interpolar entre safe-haven score y score estándar
+        // rateMomentum=0.3 → 10% hacia estándar | rateMomentum=1.5+ → 40% hacia estándar
+        const blendFactor = Math.min((rateMomentumVal - 0.3) / 1.2, 0.4);
+        // Score estándar para la tasa actual (ej. JPY 0.50%):
+        const standardScore = 30 + ((value - 0.5) / 2.0) * 40; // ≈ 30 para 0.50%
+        const safeHavenScore = (72 - (value / 1.5) * 17) * regimeFactor;
+        score = safeHavenScore * (1 - blendFactor) + standardScore * blendFactor;
+    } else {
+        score = (72 - (value / 1.5) * 17) * regimeFactor;
+    }   
+            
+            else {
                     // Lógica estándar para divisas no-safe-haven
                     if (value >= 4.0)      score = 100;
                     else if (value >= 2.5) score = 70 + ((value - 2.5) / 1.5) * 30;
