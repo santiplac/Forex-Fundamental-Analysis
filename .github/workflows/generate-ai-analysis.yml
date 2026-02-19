@@ -1,4 +1,4 @@
-name: Generate AI Analysis with Gemini
+name: Generate AI Analysis with Groq
 
 on:
   workflow_run:
