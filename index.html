@@ -2154,47 +2154,38 @@ const scoreIndicator = (value, indicator, currencyCtx, allEconomicData, scoringD
 
     switch (config.direction) {
 
-        case 'higher':
+         case 'higher':
             if (indicator === 'interestRate') {
+                if (isSafeHavenFunder) {
+                    // P-3 v4.9.6 — Factor de régimen + corrección por normalización activa
+                    let riskRegime = 'neutral';
+                    if (allEconomicData && typeof allEconomicData === 'object') {
+                        const cotValues = Object.values(allEconomicData)
+                            .map(d => d.cotPositioning)
+                            .filter(v => v !== null && v !== undefined && !isNaN(v));
+                        if (cotValues.length >= 3) {
+                            const avgCOT = cotValues.reduce((a, b) => a + b, 0) / cotValues.length;
+                            riskRegime = avgCOT > 5000  ? 'risk-on'
+                                       : avgCOT < -5000 ? 'risk-off'
+                                       : 'neutral';
+                        }
+                    }
+                    const regimeFactor = riskRegime === 'risk-off' ? 1.0
+                                       : riskRegime === 'risk-on'  ? 0.65
+                                       : 0.85;
 
-          if (isSafeHavenFunder) {
-    // P-3 v4.9.6 — Factor de régimen + corrección por normalización activa
-    let riskRegime = 'neutral';
-    if (allEconomicData && typeof allEconomicData === 'object') {
-        const cotValues = Object.values(allEconomicData)
-            .map(d => d.cotPositioning)
-            .filter(v => v !== null && v !== undefined && !isNaN(v));
-        if (cotValues.length >= 3) {
-            const avgCOT = cotValues.reduce((a, b) => a + b, 0) / cotValues.length;
-            riskRegime = avgCOT > 5000  ? 'risk-on'
-                       : avgCOT < -5000 ? 'risk-off'
-                       : 'neutral';
-        }
-    }
-    const regimeFactor = riskRegime === 'risk-off' ? 1.0
-                       : riskRegime === 'risk-on'  ? 0.65
-                       : 0.85;
-
-    // CORRECCIÓN v5.0.4: Si rateMomentum indica normalización activa (BC subiendo tasas),
-    // el score de interestRate mejora parcialmente hacia la escala estándar.
-    // Esto captura la diferencia entre JPY (normalizando desde 0%) y CHF (estable en 0.25%).
-    // Sin esta corrección, ambos reciben el mismo tratamiento safe-haven aunque el mercado
-    // los trata muy diferente: JPY sube por BoJ hawkish, CHF sube por safe haven puro.
-    const rateMomentumVal = scoringDataExplicit?.rateMomentum ?? null;
-    let normalizationBonus = 0;
-    if (rateMomentumVal !== null && rateMomentumVal > 0.3) {
-        // BC normalizando: interpolar entre safe-haven score y score estándar
-        // rateMomentum=0.3 → 10% hacia estándar | rateMomentum=1.5+ → 40% hacia estándar
-        const blendFactor = Math.min((rateMomentumVal - 0.3) / 1.2, 0.4);
-        // Score estándar para la tasa actual (ej. JPY 0.50%):
-        const standardScore = 30 + ((value - 0.5) / 2.0) * 40; // ≈ 30 para 0.50%
-        const safeHavenScore = (72 - (value / 1.5) * 17) * regimeFactor;
-        score = safeHavenScore * (1 - blendFactor) + standardScore * blendFactor;
-    } else {
-        score = (72 - (value / 1.5) * 17) * regimeFactor;
-    }   
-            
-            else {
+                    // CORRECCIÓN v5.0.4: Si rateMomentum indica normalización activa (BC subiendo tasas),
+                    // el score de interestRate mejora parcialmente hacia la escala estándar.
+                    const rateMomentumVal = scoringDataExplicit?.rateMomentum ?? null;
+                    if (rateMomentumVal !== null && rateMomentumVal > 0.3) {
+                        const blendFactor = Math.min((rateMomentumVal - 0.3) / 1.2, 0.4);
+                        const standardScore = 30 + ((value - 0.5) / 2.0) * 40;
+                        const safeHavenScore = (72 - (value / 1.5) * 17) * regimeFactor;
+                        score = safeHavenScore * (1 - blendFactor) + standardScore * blendFactor;
+                    } else {
+                        score = (72 - (value / 1.5) * 17) * regimeFactor;
+                    }
+                } else {
                     // Lógica estándar para divisas no-safe-haven
                     if (value >= 4.0)      score = 100;
                     else if (value >= 2.5) score = 70 + ((value - 2.5) / 1.5) * 30;
@@ -2216,13 +2207,11 @@ const scoreIndicator = (value, indicator, currencyCtx, allEconomicData, scoringD
                     else score = Math.max(0, 20 + ((value + 30000) / 15000) * 20);
                 } else {
                     // currentAccount (%PIB)
-                    // Para economías commodity-exportadoras (AUD, NZD), el déficit estructural
-                    // es normal y el mercado lo descuenta. Floor más alto para déficits históricos.
                     if (value > 5)        score = 100;
                     else if (value > 0)   score = 70 + (value / 5) * 30;
                     else if (value > -3)  score = 50 + (value / 3) * 20;
-                    else if (value > -4)  score = 25 + ((value + 4) / 1) * 5;   // suavizado: 25-30
-                    else                  score = Math.max(15, 25 - ((value + 4) / -3) * 10); // floor 15
+                    else if (value > -4)  score = 25 + ((value + 4) / 1) * 5;
+                    else                  score = Math.max(15, 25 - ((value + 4) / -3) * 10);
                 }
             }
             break;
