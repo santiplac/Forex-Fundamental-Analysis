@@ -2,7 +2,7 @@
 """
 generate_ai_analysis.py
 Genera análisis fundamentales de divisas forex usando Gemini API REST directa.
-Sin SDK — solo requests. Evita problemas de inicialización y cuelgues.
+Sin SDK — solo requests.
 """
 
 import os
@@ -32,8 +32,7 @@ COUNTRY_META = {
 
 GITHUB_BASE = 'https://globalinvesting.github.io'
 OUTPUT_DIR  = Path('ai-analysis')
-
-GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
+GEMINI_URL  = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
 
 # ── Carga de datos desde GitHub Pages ─────────────────────────────────────────
 
@@ -187,37 +186,29 @@ REGLAS:
 
 
 def call_gemini_api(api_key: str, prompt: str) -> str:
-    """Llama a la API REST de Gemini directamente con requests."""
     url = f"{GEMINI_URL}?key={api_key}"
-    
     payload = {
-        "contents": [
-            {"role": "user", "parts": [{"text": prompt}]}
-        ],
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
         "generationConfig": {
             "maxOutputTokens": 500,
             "temperature": 0.4,
             "topP": 0.85
         }
     }
-
     response = requests.post(
         url,
         json=payload,
         headers={"Content-Type": "application/json"},
         timeout=30
     )
-
     if response.status_code == 429:
         raise RuntimeError("RATE_LIMIT")
-    
     response.raise_for_status()
     data = response.json()
-    
     try:
         return data['candidates'][0]['content']['parts'][0]['text'].strip()
     except (KeyError, IndexError) as e:
-        raise RuntimeError(f"Respuesta inesperada de Gemini: {data}") from e
+        raise RuntimeError(f"Respuesta inesperada: {data}") from e
 
 
 def generate_analysis(api_key: str, currency: str, data: dict) -> str:
@@ -233,7 +224,6 @@ def generate_analysis(api_key: str, currency: str, data: dict) -> str:
                 raise ValueError(f"Respuesta corta: {word_count} palabras")
             print(f"  ✅ {word_count} palabras generadas")
             return text
-
         except RuntimeError as e:
             if "RATE_LIMIT" in str(e):
                 wait = 60 if attempt == 0 else 120
@@ -269,6 +259,35 @@ def main():
         raise EnvironmentError("❌ GEMINI_API_KEY no configurada en los secrets del repo")
 
     print(f"✅ API key configurada ({len(api_key)} caracteres)\n")
+
+    # ── TEST DE CONECTIVIDAD ───────────────────────────────────────────────────
+    print("🔍 Testeando conectividad...")
+
+    try:
+        r = requests.get('https://httpbin.org/get', timeout=5)
+        print(f"  ✅ Internet OK ({r.status_code})")
+    except Exception as e:
+        print(f"  ❌ Sin internet: {e}")
+
+    try:
+        r = requests.get('https://globalinvesting.github.io/economic-data/USD.json', timeout=5)
+        print(f"  ✅ GitHub Pages OK ({r.status_code})")
+    except Exception as e:
+        print(f"  ❌ GitHub Pages bloqueado: {e}")
+
+    try:
+        r = requests.post(
+            f'{GEMINI_URL}?key={api_key}',
+            json={"contents": [{"role": "user", "parts": [{"text": "Di hola en español"}]}]},
+            headers={"Content-Type": "application/json"},
+            timeout=10
+        )
+        print(f"  ✅ Gemini API OK ({r.status_code}): {r.text[:120]}")
+    except Exception as e:
+        print(f"  ❌ Gemini API bloqueada: {e}")
+
+    print()
+    # ── FIN TEST ───────────────────────────────────────────────────────────────
 
     OUTPUT_DIR.mkdir(exist_ok=True)
 
