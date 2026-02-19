@@ -4,143 +4,52 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Términos de Servicio - Dashboard de Análisis Fundamental Forex</title>
-    <meta name="description" content="Términos de Servicio del Dashboard de Análisis Fundamental Forex - Términos y condiciones legales para usar nuestra plataforma.">
+    <meta name="description" content="Términos de Servicio del Dashboard de Análisis Fundamental Forex.">
     <meta name="robots" content="index, follow">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            --bg-primary: #0b0e14;
-            --bg-secondary: #13171f;
-            --bg-card: #1a1f2e;
-            --text-primary: #e1e4e8;
-            --text-secondary: #8b949e;
-            --border: #30363d;
+            --bg-primary: #0b0e14; --bg-secondary: #13171f; --bg-card: #1a1f2e;
+            --text-primary: #e1e4e8; --text-secondary: #8b949e; --border: #30363d;
             --blue: #1e88e5;
         }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.8; font-size: 15px; }
+        .container { max-width: 900px; margin: 0 auto; padding: 3rem 2rem; }
+        .header { background: var(--bg-secondary); border-bottom: 1px solid var(--border); padding: 1.5rem 2rem; margin-bottom: 3rem; }
+        .header-content { max-width: 900px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+        .brand-title { font-size: 1.125rem; font-weight: 700; color: var(--text-primary); text-decoration: none; }
+        .brand-title:hover { color: var(--blue); }
+        .nav-links { display: flex; gap: 2rem; }
+        .nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 0.9rem; transition: color 0.2s; }
+        .nav-links a:hover { color: var(--text-primary); }
+        h1 { font-size: 2.5rem; margin-bottom: 1rem; color: var(--text-primary); }
+        .last-updated { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 2rem; }
+        h2 { font-size: 1.5rem; margin-top: 2.5rem; margin-bottom: 1rem; color: var(--text-primary); }
+        p { margin-bottom: 1.25rem; color: var(--text-secondary); }
+        ul, ol { margin-left: 2rem; margin-bottom: 1.25rem; }
+        li { margin-bottom: 0.5rem; color: var(--text-secondary); }
+        strong { color: var(--text-primary); }
+        a { color: var(--blue); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .section { background: var(--bg-card); padding: 2rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 2rem; }
+        .warning-box { background: rgba(239, 83, 80, 0.1); border-left: 4px solid #ef5350; padding: 1.5rem; margin: 2rem 0; border-radius: 4px; }
 
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.8;
-            font-size: 15px;
+        @media (max-width: 768px) {
+            .header { padding: 1rem; }
+            .header-content { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+            .brand-title { font-size: 1rem; }
+            .nav-links { flex-wrap: wrap; gap: 0.75rem 1.25rem; }
+            .nav-links a { font-size: 0.85rem; }
+            .container { padding: 2rem 1rem; }
+            h1 { font-size: 1.75rem; }
+            h2 { font-size: 1.25rem; }
+            .section { padding: 1.25rem; }
+            .warning-box { padding: 1rem; }
         }
-
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 3rem 2rem;
-        }
-
-        .header {
-            background: var(--bg-secondary);
-            border-bottom: 1px solid var(--border);
-            padding: 1.5rem 2rem;
-            margin-bottom: 3rem;
-        }
-
-        .header-content {
-            max-width: 900px;
-            margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .brand-title {
-            font-size: 1.125rem;
-            font-weight: 700;
-            color: var(--text-primary);
-            text-decoration: none;
-        }
-
-        .brand-title:hover {
-            color: var(--blue);
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 2rem;
-        }
-
-        .nav-links a {
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 0.9rem;
-            transition: color 0.2s;
-        }
-
-        .nav-links a:hover {
-            color: var(--text-primary);
-        }
-
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
-            color: var(--text-primary);
-        }
-
-        .last-updated {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            margin-bottom: 2rem;
-        }
-
-        h2 {
-            font-size: 1.5rem;
-            margin-top: 2.5rem;
-            margin-bottom: 1rem;
-            color: var(--text-primary);
-        }
-
-        p {
-            margin-bottom: 1.25rem;
-            color: var(--text-secondary);
-        }
-
-        ul, ol {
-            margin-left: 2rem;
-            margin-bottom: 1.25rem;
-        }
-
-        li {
-            margin-bottom: 0.5rem;
-            color: var(--text-secondary);
-        }
-
-        strong {
-            color: var(--text-primary);
-        }
-
-        a {
-            color: var(--blue);
-            text-decoration: none;
-        }
-
-        a:hover {
-            text-decoration: underline;
-        }
-
-        .section {
-            background: var(--bg-card);
-            padding: 2rem;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            margin-bottom: 2rem;
-        }
-
-        .warning-box {
-            background: rgba(239, 83, 80, 0.1);
-            border-left: 4px solid #ef5350;
-            padding: 1.5rem;
-            margin: 2rem 0;
-            border-radius: 4px;
+        @media (max-width: 400px) {
+            h1 { font-size: 1.5rem; }
+            .nav-links { gap: 0.5rem 1rem; }
         }
     </style>
 </head>
@@ -163,24 +72,17 @@
         <p class="last-updated">Última Actualización: 9 de Febrero de 2026</p>
 
         <div class="warning-box">
-            <p style="margin: 0; font-weight: 600;"><strong>IMPORTANTE:</strong> Por favor lea estos Términos de Servicio cuidadosamente antes de usar nuestro sitio web. Al acceder o usar el Dashboard de Análisis Fundamental Forex, usted acepta estar sujeto a estos Términos. Si no está de acuerdo con alguna parte de estos Términos, no podrá acceder al servicio.</p>
+            <p style="margin: 0; font-weight: 600;"><strong>IMPORTANTE:</strong> Por favor lea estos Términos de Servicio cuidadosamente antes de usar nuestro sitio web. Al acceder o usar el Dashboard de Análisis Fundamental Forex, usted acepta estar sujeto a estos Términos.</p>
         </div>
 
         <div class="section">
             <h2>1. Aceptación de los Términos</h2>
-            <p>Al acceder y usar el Dashboard de Análisis Fundamental Forex (el "Servicio"), usted acepta y acuerda estar sujeto a los términos y disposiciones de este acuerdo. Este acuerdo es efectivo desde su primer uso del Servicio.</p>
+            <p>Al acceder y usar el Dashboard de Análisis Fundamental Forex (el "Servicio"), usted acepta y acuerda estar sujeto a los términos y disposiciones de este acuerdo.</p>
         </div>
 
         <div class="section">
             <h2>2. Descripción del Servicio</h2>
-            <p>El Dashboard de Análisis Fundamental Forex proporciona:</p>
-            <ul>
-                <li>Información de tipos de cambio en tiempo real</li>
-                <li>Datos y análisis de indicadores económicos</li>
-                <li>Evaluaciones de fortaleza de divisas basadas en factores fundamentales</li>
-                <li>Contenido educativo relacionado con mercados forex</li>
-                <li>Herramientas para monitorear indicadores macroeconómicos</li>
-            </ul>
+            <p>El Dashboard de Análisis Fundamental Forex proporciona información de tipos de cambio en tiempo real, datos y análisis de indicadores económicos, evaluaciones de fortaleza de divisas y contenido educativo relacionado con mercados forex.</p>
             <p>El Servicio se proporciona "tal cual" y "según disponibilidad" sin garantías de ningún tipo.</p>
         </div>
 
@@ -189,144 +91,62 @@
             <div class="warning-box">
                 <p><strong>AVISO CRÍTICO:</strong> Este Servicio NO proporciona asesoramiento financiero, de inversión, de trading o profesional de ningún tipo.</p>
             </div>
-            
-            <p>Usted reconoce y acepta explícitamente que:</p>
             <ul>
                 <li><strong>Solo Informativo:</strong> Todo el contenido, datos y análisis proporcionados son solo con fines informativos y educativos</li>
                 <li><strong>No es Asesoramiento de Inversión:</strong> Nada en este Servicio constituye una recomendación para comprar, vender o mantener ningún instrumento financiero</li>
-                <li><strong>No es Asesoramiento Profesional:</strong> No somos asesores financieros, asesores de inversión, corredores o profesionales con licencia</li>
-                <li><strong>Sin Garantías:</strong> El rendimiento pasado no garantiza resultados futuros; todo trading conlleva riesgo</li>
-                <li><strong>Investigación Independiente:</strong> Debe realizar su propia investigación y consultar con profesionales con licencia antes de tomar cualquier decisión financiera</li>
                 <li><strong>Responsabilidad Total:</strong> Usted es el único responsable de sus decisiones de trading e inversión</li>
             </ul>
         </div>
 
         <div class="section">
             <h2>4. Reconocimiento de Riesgo</h2>
-            <p>Usted reconoce y entiende que:</p>
             <ul>
                 <li>El trading de divisas conlleva un riesgo sustancial de pérdida y no es adecuado para todos los inversores</li>
                 <li>El apalancamiento en el trading de forex puede resultar en pérdidas que excedan su inversión inicial</li>
-                <li>Los valores de las divisas pueden fluctuar significativamente debido a condiciones económicas, políticas y de mercado</li>
                 <li>Solo debe operar con dinero que pueda permitirse perder</li>
-                <li>Las decisiones de trading basadas en información de este Servicio se toman bajo su propio riesgo</li>
             </ul>
         </div>
 
         <div class="section">
             <h2>5. Precisión y Disponibilidad de Datos</h2>
-            <p>Aunque nos esforzamos por proporcionar información precisa y oportuna:</p>
             <ul>
                 <li><strong>Sin Garantía:</strong> No garantizamos la precisión, integridad o puntualidad de ningún dato</li>
                 <li><strong>Datos de Terceros:</strong> Los datos provienen de proveedores externos y pueden contener errores o retrasos</li>
-                <li><strong>Interrupciones del Servicio:</strong> El Servicio puede no estar disponible debido a mantenimiento, problemas técnicos o fallas de terceros</li>
                 <li><strong>Verificación Requerida:</strong> Debe verificar toda la información de fuentes primarias antes de tomar decisiones</li>
             </ul>
         </div>
 
         <div class="section">
             <h2>6. Obligaciones del Usuario</h2>
-            <p>Como usuario de este Servicio, usted acepta:</p>
             <ul>
                 <li>Usar el Servicio solo para propósitos legales</li>
-                <li>No intentar obtener acceso no autorizado a ninguna porción del Servicio</li>
                 <li>No usar sistemas automatizados (bots, scrapers) sin permiso</li>
                 <li>No copiar, reproducir o distribuir contenido sin autorización</li>
-                <li>No transmitir virus, malware u otro código dañino</li>
                 <li>Cumplir con todas las leyes y regulaciones aplicables</li>
-                <li>No usar el Servicio para actividades de trading ilegales o manipulación del mercado</li>
             </ul>
         </div>
 
         <div class="section">
             <h2>7. Derechos de Propiedad Intelectual</h2>
-            <p>Todo el contenido, características y funcionalidad del Servicio, incluyendo pero no limitado a:</p>
-            <ul>
-                <li>Código de software y algoritmos</li>
-                <li>Diseño del dashboard e interfaz de usuario</li>
-                <li>Texto, gráficos, logos e imágenes</li>
-                <li>Metodologías de análisis y cálculos</li>
-            </ul>
-            <p>son propiedad nuestra o de nuestros licenciantes y están protegidos por derechos de autor, marcas registradas y otras leyes de propiedad intelectual. No puede reproducir, distribuir, modificar o crear obras derivadas sin nuestro permiso expreso por escrito.</p>
+            <p>Todo el contenido, características y funcionalidad del Servicio son propiedad nuestra o de nuestros licenciantes y están protegidos por derechos de autor y otras leyes de propiedad intelectual.</p>
         </div>
 
         <div class="section">
-            <h2>8. Enlaces y Servicios de Terceros</h2>
-            <p>Nuestro Servicio puede contener enlaces a sitios web, anunciantes o servicios de terceros. No somos responsables de:</p>
-            <ul>
-                <li>El contenido o prácticas de sitios web de terceros</li>
-                <li>El rendimiento o confiabilidad de servicios de terceros</li>
-                <li>Cualquier transacción que realice con terceros</li>
-                <li>Pérdidas resultantes de relaciones con corredores de terceros</li>
-            </ul>
-            <p>Sus interacciones con terceros son únicamente entre usted y ese tercero.</p>
-        </div>
-
-        <div class="section">
-            <h2>9. Limitación de Responsabilidad</h2>
-            <p><strong>EN LA MÁXIMA MEDIDA PERMITIDA POR LA LEY:</strong></p>
+            <h2>8. Limitación de Responsabilidad</h2>
             <ul>
                 <li>No seremos responsables de ningún daño indirecto, incidental, especial, consecuencial o punitivo</li>
                 <li>No seremos responsables de pérdidas de trading, ganancias perdidas o daños financieros</li>
-                <li>Nuestra responsabilidad total hacia usted no excederá $100 USD</li>
                 <li>No somos responsables de errores, omisiones o retrasos en los datos</li>
-                <li>No somos responsables de interrupciones o no disponibilidad del servicio</li>
             </ul>
         </div>
 
         <div class="section">
-            <h2>10. Indemnización</h2>
-            <p>Usted acepta indemnizar, defender y mantener indemne al Servicio, sus propietarios, operadores, empleados y afiliados de cualquier reclamo, responsabilidad, daño, pérdida y gasto (incluyendo honorarios legales) que surjan de:</p>
-            <ul>
-                <li>Su uso o mal uso del Servicio</li>
-                <li>Su violación de estos Términos</li>
-                <li>Su violación de cualquier derecho de otro</li>
-                <li>Sus decisiones de trading o inversión</li>
-            </ul>
+            <h2>9. Modificaciones al Servicio</h2>
+            <p>Nos reservamos el derecho de modificar, suspender o descontinuar el Servicio en cualquier momento y de actualizar estos Términos cuando sea necesario. El uso continuado del Servicio después de los cambios constituye la aceptación de los nuevos Términos.</p>
         </div>
 
         <div class="section">
-            <h2>11. Modificaciones al Servicio</h2>
-            <p>Nos reservamos el derecho de:</p>
-            <ul>
-                <li>Modificar, suspender o descontinuar el Servicio en cualquier momento sin previo aviso</li>
-                <li>Cambiar características, funcionalidad o fuentes de datos</li>
-                <li>Imponer límites en ciertas características o restringir el acceso</li>
-                <li>Actualizar estos Términos en cualquier momento</li>
-            </ul>
-            <p>El uso continuado del Servicio después de los cambios constituye la aceptación de los nuevos Términos.</p>
-        </div>
-
-        <div class="section">
-            <h2>12. Terminación</h2>
-            <p>Podemos terminar o suspender su acceso al Servicio inmediatamente, sin previo aviso o responsabilidad, por cualquier razón, incluyendo:</p>
-            <ul>
-                <li>Violación de estos Términos</li>
-                <li>Actividad sospechosa o fraudulenta</li>
-                <li>A nuestra sola discreción</li>
-            </ul>
-            <p>Tras la terminación, su derecho a usar el Servicio cesará inmediatamente.</p>
-        </div>
-
-        <div class="section">
-            <h2>13. Ley Aplicable y Jurisdicción</h2>
-            <p>Estos Términos se regirán e interpretarán de acuerdo con las leyes de la jurisdicción donde opera el Servicio, sin considerar sus disposiciones sobre conflictos de leyes.</p>
-            <p>Cualquier disputa que surja de estos Términos o del Servicio se resolverá en los tribunales de la jurisdicción aplicable.</p>
-        </div>
-
-        <div class="section">
-            <h2>14. Divisibilidad</h2>
-            <p>Si alguna disposición de estos Términos se considera inaplicable o inválida, esa disposición se limitará o eliminará en la medida mínima necesaria, y las disposiciones restantes permanecerán en pleno vigor y efecto.</p>
-        </div>
-
-        <div class="section">
-            <h2>15. Acuerdo Completo</h2>
-            <p>Estos Términos constituyen el acuerdo completo entre usted y el Servicio con respecto al uso de la plataforma y reemplazan todos los acuerdos y entendimientos previos.</p>
-        </div>
-
-        <div class="section">
-            <h2>16. Información de Contacto</h2>
-            <p>Si tiene alguna pregunta sobre estos Términos de Servicio, por favor contáctenos:</p>
+            <h2>10. Información de Contacto</h2>
             <ul>
                 <li><strong>Email:</strong> globalinvestingmarkets@gmail.com</li>
                 <li><strong>Sitio Web:</strong> <a href="contact.html">Formulario de Contacto</a></li>
