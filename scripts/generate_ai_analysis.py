@@ -32,7 +32,8 @@ COUNTRY_META = {
 
 GITHUB_BASE = 'https://globalinvesting.github.io'
 OUTPUT_DIR  = Path('ai-analysis')
-GEMINI_URL  = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
+GEMINI_MODEL = 'gemini-2.5-flash'
+GEMINI_URL   = f'https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent'
 
 # ── Carga de datos desde GitHub Pages ─────────────────────────────────────────
 
@@ -250,7 +251,7 @@ def generate_analysis(api_key: str, currency: str, data: dict) -> str:
 
 def main():
     print("=" * 60)
-    print("🤖 Generador AI — Gemini 1.5 Flash via REST API")
+    print(f"🤖 Generador AI — {GEMINI_MODEL} via REST API")
     print(f"   {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print("=" * 60)
 
@@ -307,7 +308,7 @@ def main():
                 "country":     COUNTRY_META[currency]['name'],
                 "bank":        COUNTRY_META[currency]['bank'],
                 "analysis":    analysis_text,
-                "model":       "gemini-1.5-flash",
+                "model":       GEMINI_MODEL,
                 "generatedAt": datetime.now(timezone.utc).isoformat(),
                 "dataSnapshot": {
                     "interestRate":    data.get('interestRate'),
@@ -345,7 +346,7 @@ def main():
     successful = [c for c, r in results.items() if r.get('success')]
     index = {
         "generatedAt":    datetime.now(timezone.utc).isoformat(),
-        "model":          "gemini-1.5-flash",
+        "model":          GEMINI_MODEL,
         "currencies":     successful,
         "totalGenerated": len(successful),
         "errors":         errors,
