@@ -1,6 +1,6 @@
 {
-  "lastUpdate": "2026-02-19",
-  "source": "TradingEconomics + ONS (GBP) + TE exp/imp ratio (EUR) + WorldBank + COT",
+  "lastUpdate": "2026-02-20",
+  "source": "TradingEconomics + ONS (GBP) + OECD (EUR) + WorldBank + COT",
   "data": {
     "gdp": 29185.0,
     "gdpGrowth": 4.4,
@@ -9,7 +9,7 @@
     "debt": 124.0,
     "currentAccount": -3.9,
     "production": 0.7,
-    "tradeBalance": -56830.0,
+    "tradeBalance": -70310.0,
     "retailSales": 0.0,
     "wageGrowth": 3.76,
     "manufacturingPMI": 52.4,
@@ -23,7 +23,7 @@
     "debt": "2024-12-15",
     "currentAccount": "2024-12-15",
     "production": "2026-01-15",
-    "tradeBalance": "2025-11-15",
+    "tradeBalance": "2025-12-15",
     "retailSales": "2025-12-15",
     "wageGrowth": "2025-11-15",
     "manufacturingPMI": "2026-01-15",

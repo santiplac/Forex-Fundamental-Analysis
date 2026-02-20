@@ -1,6 +1,6 @@
 {
-  "lastUpdate": "2026-02-19",
-  "source": "TradingEconomics + ONS (GBP) + TE exp/imp ratio (EUR) + WorldBank + COT",
+  "lastUpdate": "2026-02-20",
+  "source": "TradingEconomics + ONS (GBP) + OECD (EUR) + WorldBank + COT",
   "data": {
     "gdp": 3644.0,
     "gdpGrowth": 0.1,
@@ -9,7 +9,7 @@
     "debt": 93.6,
     "currentAccount": -2.2,
     "production": -0.9,
-    "tradeBalance": -5892.66,
+    "tradeBalance": -5837.49,
     "retailSales": 0.4,
     "wageGrowth": 4.2,
     "manufacturingPMI": 51.8,
