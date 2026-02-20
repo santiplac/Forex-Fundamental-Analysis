@@ -1,9 +1,9 @@
 {
-  "fxPerformance1M": 3.6039,
-  "fxPerformance1W": -0.331,
-  "rateNow": 0.77028,
-  "rate30dAgo": 0.79804,
-  "rate7dAgo": 0.76773,
-  "date": "2026-02-18",
+  "fxPerformance1M": 1.8508,
+  "fxPerformance1W": -0.7694,
+  "rateNow": 0.77589,
+  "rate30dAgo": 0.79025,
+  "rate7dAgo": 0.76992,
+  "date": "2026-02-19",
   "source": "Frankfurter API (ECB reference rates) \u2014 date normalized to yesterday"
 }
