@@ -453,30 +453,31 @@ jobs:
                       else:
                           print("  ✗ EUR: Germany proxy also unavailable")
 
-              # ── Step 4 (NEW): NZD — TE uses non-standard base (2002Q2=1000), always go
-              # straight to World Bank with extended timeout and more retries.
-              # The TE country page scraper would return the same 1000-base value and be
-              # rejected anyway, so we skip it entirely and give WB dedicated effort.
-              if 'NZD' in missing:
-                  print("  → NZD ToT: TE base incompatible (2002Q2=1000), fetching World Bank directly...")
-                  val, d = scrape_tot_wb('NZD', timeout=45, retries=3)
-                  if val is not None:
-                      data['NZD']  = val
-                      dates['NZD'] = d
-                      missing.remove('NZD')
-                  else:
-                      print("  ✗ NZD: World Bank ToT unavailable → null")
+              # ── NZD note: TE uses non-standard base (2002Q2=1000) so its value is always
+              # out-of-range and rejected in Step 1. The country-page scraper returns the
+              # same 1000-base value and would be rejected too, so NZD falls through to
+              # Step 5 (World Bank parallel pool) where it gets timeout=45s / retries=3.
 
-              # Step 5: World Bank for anything still missing
+              # Step 5: World Bank for anything still missing — PARALLEL execution
+              # NZD gets timeout=45/retries=3; others get timeout=30/retries=2
               still_missing = [c for c in CURRENCIES if c not in data]
               if still_missing:
-                  print(f"\n  → World Bank ToT fallback for: {', '.join(still_missing)}")
-                  for curr in still_missing:
-                      val, d = scrape_tot_wb(curr, timeout=30, retries=2)
-                      if val is not None:
-                          data[curr]  = val
-                          dates[curr] = d
-                      time.sleep(0.5)
+                  from concurrent.futures import ThreadPoolExecutor, as_completed
+                  print(f"\n  → World Bank ToT fallback (parallel) for: {', '.join(still_missing)}")
+
+                  def wb_fetch(curr):
+                      if curr == 'NZD':
+                          print(f"  → NZD ToT: TE base incompatible (2002Q2=1000), fetching World Bank directly...")
+                          return curr, scrape_tot_wb(curr, timeout=45, retries=3)
+                      return curr, scrape_tot_wb(curr, timeout=30, retries=2)
+
+                  with ThreadPoolExecutor(max_workers=4) as executor:
+                      futures = {executor.submit(wb_fetch, curr): curr for curr in still_missing}
+                      for future in as_completed(futures):
+                          curr, (val, d) = future.result()
+                          if val is not None:
+                              data[curr]  = val
+                              dates[curr] = d
 
               final_missing = [c for c in CURRENCIES if c not in data]
               if final_missing:
