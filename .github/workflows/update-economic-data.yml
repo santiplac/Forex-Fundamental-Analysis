@@ -140,7 +140,7 @@ jobs:
               for url in legacy_urls:
                   print(f"    → OECD legacy: {url[:80]}...")
                   try:
-                      r = requests.get(url, headers=JSON_HEADERS, timeout=25)
+                      r = requests.get(url, headers=JSON_HEADERS, timeout=8)
                       if r.status_code in (400, 404, 501):
                           print(f"    ✗ HTTP {r.status_code}")
                           continue
@@ -179,7 +179,7 @@ jobs:
               for url in new_urls:
                   print(f"    → OECD new: {url[:80]}...")
                   try:
-                      r = requests.get(url, headers=JSON_HEADERS, timeout=25)
+                      r = requests.get(url, headers=JSON_HEADERS, timeout=8)
                       if r.status_code in (400, 404, 501):
                           print(f"    ✗ HTTP {r.status_code}")
                           continue
@@ -326,23 +326,22 @@ jobs:
                       dates['GBP'] = d
                       missing.remove('GBP')
 
-              # EUR — OECD → Germany proxy
+              # EUR — Germany proxy first (zero requests), OECD only if unavailable
               if 'EUR' in missing:
-                  print("  → EUR ToT: trying OECD API...")
-                  val, d = fetch_tot_eur_oecd()
-                  if val is not None:
-                      data['EUR']  = val
-                      dates['EUR'] = d
+                  if de_proxy_val is not None:
+                      data['EUR']  = de_proxy_val
+                      dates['EUR'] = de_proxy_date
                       missing.remove('EUR')
+                      print(f"  ✓ EUR [proxy:DE={de_proxy_val}] (skipping slow OECD)")
                   else:
-                      print("  ✗ EUR: OECD API failed → trying Germany proxy")
-                      if de_proxy_val is not None:
-                          data['EUR']  = de_proxy_val
-                          dates['EUR'] = de_proxy_date
+                      print("  → EUR ToT: no DE proxy, trying OECD API...")
+                      val, d = fetch_tot_eur_oecd()
+                      if val is not None:
+                          data['EUR']  = val
+                          dates['EUR'] = d
                           missing.remove('EUR')
-                          print(f"  ✓ EUR [proxy:DE={de_proxy_val}] used as fallback")
                       else:
-                          print("  ✗ EUR: Germany proxy also unavailable")
+                          print("  ✗ EUR: OECD also failed, no data")
 
               # World Bank for anything still missing
               still_missing = [c for c in CURRENCIES if c not in data]
@@ -501,7 +500,7 @@ jobs:
               return cot
 
           print("="*60)
-          print("ECONOMIC DATA SCRAPER v11.3-debug")
+          print("ECONOMIC DATA SCRAPER v11.4")
           print("ToT NZD: TE raw ÷10 (base 2002Q2=1000→~100) — zero extra requests")
           print("ToT EUR: OECD legacy → OECD new → Germany proxy")
           print("ToT GBP: ONS CTSL → World Bank")
