@@ -1,4 +1,4 @@
-name: Update Economic Data - v11.2 (parallel ToT, fast timeouts, NZD normalized)
+name: Update Economic Data - v11 (TE + ONS + OECD EUR + DE proxy + WorldBank)
 on:
   schedule:
     - cron: '0 6 * * *'
@@ -79,10 +79,6 @@ jobs:
 
           exchange_rates = {}
 
-          # ═══════════════════════════════════════════════════════════════════
-          # UTILS
-          # ═══════════════════════════════════════════════════════════════════
-
           def fetch_fx():
               global exchange_rates
               try:
@@ -133,82 +129,6 @@ jobs:
               r.raise_for_status()
               return r
 
-          def scrape_te_price_index(url, label):
-              slug_keyword = url.rstrip('/').split('/')[-1].split('-')[0].lower()
-
-              try:
-                  r = te_get(url)
-                  soup = BeautifulSoup(r.content, 'lxml')
-
-                  for table in soup.find_all('table'):
-                      headers = [h.get_text(strip=True).lower() for h in table.find_all('th')]
-                      rows = table.find_all('tr')[1:]
-                      if not rows:
-                          continue
-
-                      val_col  = None
-                      date_col = None
-                      if 'actual' in headers:
-                          val_col = headers.index('actual')
-                      elif 'last' in headers:
-                          val_col = headers.index('last')
-                      if 'reference' in headers:
-                          date_col = headers.index('reference')
-
-                      if val_col is None:
-                          continue
-
-                      cells = rows[0].find_all('td')
-                      if len(cells) > val_col:
-                          val = clean_num(cells[val_col].get_text(strip=True))
-                          d   = str(date.today())
-                          if date_col and len(cells) > date_col:
-                              d = parse_te_date(cells[date_col].get_text(strip=True))
-                          if val is not None and 50 < val < 300:
-                              print(f"    ✓ {label} [S1-direct]: {val} ({d})")
-                              return val, d
-
-                      for row in rows:
-                          cells = row.find_all('td')
-                          if not cells:
-                              continue
-                          row_text = cells[0].get_text(strip=True).lower()
-                          if slug_keyword in row_text and len(cells) > val_col:
-                              val = clean_num(cells[val_col].get_text(strip=True))
-                              d   = str(date.today())
-                              if date_col and len(cells) > date_col:
-                                  d = parse_te_date(cells[date_col].get_text(strip=True))
-                              if val is not None and 50 < val < 300:
-                                  print(f"    ✓ {label} [S2-keyword]: {val} ({d})")
-                                  return val, d
-
-                      for row in rows:
-                          cells = row.find_all('td')
-                          if len(cells) > val_col:
-                              val = clean_num(cells[val_col].get_text(strip=True))
-                              if val is not None and 50 < val < 300:
-                                  d = str(date.today())
-                                  if date_col and len(cells) > date_col:
-                                      d = parse_te_date(cells[date_col].get_text(strip=True))
-                                  print(f"    ✓ {label} [S3-any]: {val} ({d})")
-                                  return val, d
-
-                  for tag in soup.find_all(['td', 'span', 'div'],
-                                           class_=re.compile(r'(actual|last|value|current)', re.I)):
-                      val = clean_num(tag.get_text(strip=True))
-                      if val is not None and 50 < val < 300:
-                          print(f"    ✓ {label} [S4-element]: {val}")
-                          return val, str(date.today())
-
-              except Exception as e:
-                  print(f"    ✗ {label}: {e}")
-
-              return None, None
-
-          # ═══════════════════════════════════════════════════════════════════
-          # TERMS OF TRADE — EUR: OECD API → Germany proxy
-          # ═══════════════════════════════════════════════════════════════════
-
           def fetch_tot_eur_oecd():
               legacy_urls = [
                   "https://stats.oecd.org/SDMX-JSON/data/MEI_PRICES_PPI/EA20.PPPI.A/all"
@@ -216,11 +136,10 @@ jobs:
                   "https://stats.oecd.org/SDMX-JSON/data/MEI/EA20.PRICEULNA.A/all"
                   "?dimensionAtObservation=allDimensions&lastNObservations=3",
               ]
-
               for url in legacy_urls:
                   print(f"    → OECD legacy: {url[:80]}...")
                   try:
-                      r = requests.get(url, headers=JSON_HEADERS, timeout=10)
+                      r = requests.get(url, headers=JSON_HEADERS, timeout=25)
                       if r.status_code in (400, 404, 501):
                           print(f"    ✗ HTTP {r.status_code}")
                           continue
@@ -256,11 +175,10 @@ jobs:
                   "https://sdmx.oecd.org/public/rest/data/OECD.SDD.NAD,DSD_NAAG@DF_NAAG_I"
                   "/EA20..TOT..A?lastNObservations=3&format=jsondata",
               ]
-
               for url in new_urls:
                   print(f"    → OECD new: {url[:80]}...")
                   try:
-                      r = requests.get(url, headers=JSON_HEADERS, timeout=10)
+                      r = requests.get(url, headers=JSON_HEADERS, timeout=25)
                       if r.status_code in (400, 404, 501):
                           print(f"    ✗ HTTP {r.status_code}")
                           continue
@@ -286,21 +204,7 @@ jobs:
                               return round(val, 2), f"{yr}-06-15"
                   except Exception as e:
                       print(f"    ✗ OECD new: {e}")
-
               return None, None
-
-
-          def fetch_tot_eur_germany_proxy(te_list_data, te_list_dates):
-              val  = te_list_data.get('DE_PROXY')
-              d    = te_list_dates.get('DE_PROXY', str(date.today()))
-              if val is not None and TOT_MIN <= val <= TOT_MAX:
-                  print(f"    ✓ EUR [proxy:DE]: {val} ({d}) — Germany used as EA proxy")
-                  return round(val, 2), d
-              return None, None
-
-          # ═══════════════════════════════════════════════════════════════════
-          # TERMS OF TRADE — GBP: ONS API
-          # ═══════════════════════════════════════════════════════════════════
 
           def scrape_tot_ons_gbp():
               urls = [
@@ -320,11 +224,9 @@ jobs:
                       if not quarters:
                           print(f"    ✗ ONS: no quarters. Keys: {list(data.keys())[:5]}")
                           continue
-
                       def qsort(q):
                           m = re.match(r'(\d{4})\s+Q(\d)', q.get('date',''))
                           return int(m.group(1))*10+int(m.group(2)) if m else 0
-
                       for q in sorted(quarters, key=qsort, reverse=True):
                           val = clean_num(q.get('value',''))
                           date_str = q.get('date','')
@@ -341,18 +243,7 @@ jobs:
                       print(f"    ✗ ONS {url}: {e}")
               return None, None
 
-          # ═══════════════════════════════════════════════════════════════════
-          # TERMS OF TRADE — World Bank fallback (all currencies)
-          # FIX: Added retry logic with exponential backoff for NZD timeout issue
-          # ═══════════════════════════════════════════════════════════════════
-
-          def scrape_tot_wb(currency_code, timeout=30, retries=2):
-              """World Bank fallback: TT.PRI.MRCH.XD.WD (net barter ToT, base 2015=100).
-              
-              FIX v11.1: Added retry logic — NZD was timing out at 30s with no retry,
-              causing it to be silently skipped. Now retries up to `retries` times
-              with exponential backoff (5s, 10s...) before giving up.
-              """
+          def scrape_tot_wb(currency_code, timeout=30):
               wb_map = {
                   'USD':'US','GBP':'GB','JPY':'JP','CAD':'CA',
                   'AUD':'AU','CHF':'CH','NZD':'NZ','EUR':'XC',
@@ -362,54 +253,38 @@ jobs:
                   return None, None
               url = (f"https://api.worldbank.org/v2/country/{wb}"
                      f"/indicator/TT.PRI.MRCH.XD.WD?format=json&mrv=5&per_page=5")
-              for attempt in range(1, retries + 1):
-                  try:
-                      r = requests.get(url, headers=JSON_HEADERS, timeout=timeout)
-                      r.raise_for_status()
-                      data = r.json()
-                      if not data or len(data) < 2 or not data[1]:
-                          return None, None
-                      for obs in data[1]:
-                          val = obs.get('value')
-                          if val is None:
-                              continue
-                          val = float(val)
-                          if TOT_MIN <= val <= TOT_MAX:
-                              yr = obs.get('date', str(date.today().year))
-                              print(f"    ✓ {currency_code} [World Bank ToT {yr}]: {val}")
-                              return round(val, 2), f"{yr}-06-15"
-                  except Exception as e:
-                      if attempt < retries:
-                          wait = 5 * attempt
-                          print(f"    ⚠ World Bank ToT {currency_code} attempt {attempt} failed: {e} — retrying in {wait}s...")
-                          time.sleep(wait)
-                      else:
-                          print(f"    ✗ World Bank ToT {currency_code}: {e}")
+              try:
+                  r = requests.get(url, headers=JSON_HEADERS, timeout=timeout)
+                  r.raise_for_status()
+                  data = r.json()
+                  if not data or len(data) < 2 or not data[1]:
+                      return None, None
+                  for obs in data[1]:
+                      val = obs.get('value')
+                      if val is None:
+                          continue
+                      val = float(val)
+                      if TOT_MIN <= val <= TOT_MAX:
+                          yr = obs.get('date', str(date.today().year))
+                          print(f"    ✓ {currency_code} [World Bank ToT {yr}]: {val}")
+                          return round(val, 2), f"{yr}-06-15"
+              except Exception as e:
+                  print(f"    ✗ World Bank ToT {currency_code}: {e}")
               return None, None
-
-          # ═══════════════════════════════════════════════════════════════════
-          # TERMS OF TRADE — Master resolver
-          # ═══════════════════════════════════════════════════════════════════
 
           def fetch_all_tot(te_list_data, te_list_dates):
               """
-              ToT resolution chain — fully parallelised:
+              ToT resolution chain:
                 1. TE list values (all currencies, reject out-of-range).
-                   Germany captured as EUR proxy at zero extra cost.
-                2. All missing currencies fetched IN PARALLEL:
-                   - GBP  → ONS API (with WB fallback inside the task)
-                   - EUR  → OECD legacy → OECD new → Germany proxy (all inside task)
-                   - NZD  → World Bank direct (TE base 2002Q2=1000, incompatible)
-                   - Rest → World Bank
-                   Running concurrently means the worst-case time is max(individual)
-                   not sum(all), cutting wait from ~3–4 min to ~45s.
+                   NZD: TE uses base 2002Q2=1000 → raw value saved as NZD_RAW,
+                   normalized by ÷10 to base-~100 (e.g. 1567 → 156.7). Zero extra requests.
+                2. GBP  → ONS API (quarterly, most current)
+                3. EUR  → OECD legacy → OECD new → Germany proxy (from TE list)
+                4. Rest → World Bank (annual, ~2yr lag)
               """
-              from concurrent.futures import ThreadPoolExecutor, as_completed
-
               data  = {}
               dates = {}
 
-              # Step 1: accept valid TE list values + capture Germany as EUR proxy
               de_proxy_val  = None
               de_proxy_date = str(date.today())
               for curr, val in te_list_data.items():
@@ -418,87 +293,72 @@ jobs:
                           de_proxy_val  = val
                           de_proxy_date = te_list_dates.get('DE_PROXY', str(date.today()))
                       continue
+                  if curr == 'NZD_RAW':
+                      continue  # handled below
                   if TOT_MIN <= val <= TOT_MAX:
                       data[curr]  = val
                       dates[curr] = te_list_dates.get(curr, str(date.today()))
                   else:
                       print(f"  ✗ {curr} [TE list]: {val} out of range → specialist scraper")
 
+              # NZD: normalize raw TE value (base 2002Q2=1000) by dividing by 10
+              if 'NZD' not in data:
+                  raw = te_list_data.get('NZD_RAW')
+                  if raw is not None and 500.0 <= raw <= 2500.0:
+                      normalized = round(raw / 10.0, 2)
+                      d = te_list_dates.get('NZD_RAW', str(date.today()))
+                      print(f"  ✓ NZD: TE raw={raw} → normalized {normalized} (÷10, base 2002Q2=1000→~100)")
+                      data['NZD']  = normalized
+                      dates['NZD'] = d
+
               missing = [c for c in CURRENCIES if c not in data]
               if not missing:
                   return data, dates
 
-              print(f"\n  → Specialist ToT (parallel) for: {', '.join(missing)}")
+              print(f"\n  → Specialist ToT for: {', '.join(missing)}")
 
-              # Step 2: define per-currency fetch tasks
-              def fetch_task(curr):
-                  """Returns (curr, value, date_str) — all fallback logic self-contained."""
-                  if curr == 'GBP':
-                      val, d = scrape_tot_ons_gbp()
-                      if val is not None:
-                          print(f"  ✓ GBP [ONS]")
-                          return curr, val, d
-                      # ONS failed → fall through to WB
-                      print(f"  ✗ GBP ONS failed → trying World Bank...")
-                      val, d = scrape_tot_wb('GBP', timeout=30, retries=2)
-                      return curr, val, d
+              # GBP via ONS
+              if 'GBP' in missing:
+                  val, d = scrape_tot_ons_gbp()
+                  if val is not None:
+                      data['GBP']  = val
+                      dates['GBP'] = d
+                      missing.remove('GBP')
 
-                  if curr == 'EUR':
-                      print("  → EUR ToT: trying OECD API...")
-                      val, d = fetch_tot_eur_oecd()
-                      if val is not None:
-                          return curr, val, d
-                      # OECD failed → Germany proxy
-                      print("  ✗ EUR OECD failed → trying Germany proxy")
+              # EUR — OECD → Germany proxy
+              if 'EUR' in missing:
+                  print("  → EUR ToT: trying OECD API...")
+                  val, d = fetch_tot_eur_oecd()
+                  if val is not None:
+                      data['EUR']  = val
+                      dates['EUR'] = d
+                      missing.remove('EUR')
+                  else:
+                      print("  ✗ EUR: OECD API failed → trying Germany proxy")
                       if de_proxy_val is not None:
-                          print(f"  ✓ EUR [proxy:DE={de_proxy_val}]")
-                          return curr, de_proxy_val, de_proxy_date
-                      # Proxy also unavailable → WB
-                      print("  ✗ EUR Germany proxy unavailable → trying World Bank...")
-                      val, d = scrape_tot_wb('EUR', timeout=30, retries=2)
-                      return curr, val, d
+                          data['EUR']  = de_proxy_val
+                          dates['EUR'] = de_proxy_date
+                          missing.remove('EUR')
+                          print(f"  ✓ EUR [proxy:DE={de_proxy_val}] used as fallback")
+                      else:
+                          print("  ✗ EUR: Germany proxy also unavailable")
 
-                  if curr == 'NZD':
-                      # TE publishes NZD ToT on base 2002Q2=1000 (raw ~1567).
-                      # scrape_te_list preserved it as NZD_RAW. Normalize ÷10
-                      # to get base-~100 equivalent (1567→156.7). Zero extra requests.
-                      raw = te_list_data.get('NZD_RAW')
-                      if raw is not None and 500.0 <= raw <= 2500.0:
-                          normalized = round(raw / 10.0, 2)
-                          d = te_list_dates.get('NZD_RAW', str(date.today()))
-                          print(f"  ✓ NZD: TE raw={raw} → normalized {normalized} (÷10, base 2002Q2=1000→~100)")
-                          return curr, normalized, d
-                      # Fallback only if TE raw was missing
-                      print("  → NZD ToT: TE raw unavailable, falling back to World Bank...")
-                      val, d = scrape_tot_wb('NZD', timeout=45, retries=3)
-                      return curr, val, d
-
-                  # Default: World Bank
-                  val, d = scrape_tot_wb(curr, timeout=30, retries=2)
-                  return curr, val, d
-
-              # Step 3: run all tasks in parallel (max 4 threads — WB rate-limit friendly)
-              with ThreadPoolExecutor(max_workers=4) as executor:
-                  futures = {executor.submit(fetch_task, curr): curr for curr in missing}
-                  for future in as_completed(futures, timeout=90):
-                      try:
-                          curr, val, d = future.result(timeout=5)
-                          if val is not None:
-                              data[curr]  = val
-                              dates[curr] = d
-                      except Exception as e:
-                          curr = futures[future]
-                          print(f"  ✗ {curr} ToT fetch failed: {e}")
+              # World Bank for anything still missing
+              still_missing = [c for c in CURRENCIES if c not in data]
+              if still_missing:
+                  print(f"\n  → World Bank ToT fallback for: {', '.join(still_missing)}")
+                  for curr in still_missing:
+                      val, d = scrape_tot_wb(curr, timeout=30)
+                      if val is not None:
+                          data[curr]  = val
+                          dates[curr] = d
+                      time.sleep(0.5)
 
               final_missing = [c for c in CURRENCIES if c not in data]
               if final_missing:
                   print(f"  ⚠ No ToT available for: {', '.join(final_missing)} → null")
 
               return data, dates
-
-          # ═══════════════════════════════════════════════════════════════════
-          # STANDARD TE SCRAPING
-          # ═══════════════════════════════════════════════════════════════════
 
           def scrape_country_page(country_slug, indicator_page, currency_code):
               url = f'https://tradingeconomics.com/{country_slug}/{indicator_page}'
@@ -592,7 +452,8 @@ jobs:
                               if val is not None:
                                   if indicator == 'termsOfTrade' and not (TOT_MIN <= val <= TOT_MAX):
                                       print(f"  ✗ {code}: {val} (out of range)")
-                                      if code == 'NZD':  # preserve raw for normalization (base 2002Q2=1000)
+                                      if code == 'NZD':
+                                          # Save raw for normalization (base 2002Q2=1000 → ÷10)
                                           data['NZD_RAW']  = round(val, 2)
                                           dates['NZD_RAW'] = d
                                       break
@@ -638,15 +499,12 @@ jobs:
                       except: pass
               return cot
 
-          # ═══════════════════════════════════════════════════════════════════
-          # MAIN
-          # ═══════════════════════════════════════════════════════════════════
           print("="*60)
-          print("ECONOMIC DATA SCRAPER v11.2")
-          print("ToT EUR: OECD legacy → OECD new → Germany proxy (zero extra requests)")
+          print("ECONOMIC DATA SCRAPER v11.3")
+          print("ToT NZD: TE raw ÷10 (base 2002Q2=1000→~100) — zero extra requests")
+          print("ToT EUR: OECD legacy → OECD new → Germany proxy")
           print("ToT GBP: ONS CTSL → World Bank")
-          print("ToT NZD: TE raw ÷10 normalization (base 2002Q2=1000 → ~100) — zero network calls")
-          print("ToT ALL: World Bank retry logic added (was failing silently on timeout)")
+          print("ToT REST: World Bank fallback")
           print("="*60)
 
           fetch_fx()
@@ -668,7 +526,7 @@ jobs:
           for curr in CURRENCIES:
               pkg = {
                   'lastUpdate': today,
-                  'source': 'TradingEconomics + ONS (GBP) + TE exp/imp ratio (EUR) + WorldBank + COT',
+                  'source': 'TradingEconomics + ONS (GBP) + OECD (EUR) + WorldBank + COT',
                   'data':   all_data[curr],
                   'dates':  all_dates[curr],
               }
@@ -691,7 +549,7 @@ jobs:
           if git diff --quiet && git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Economic data $(date +'%Y-%m-%d') - ToT v11.1 NZD fix"
+            git commit -m "Economic data $(date +'%Y-%m-%d') - v11.3 NZD fix"
             git pull --rebase origin main || true
             git push
           fi
