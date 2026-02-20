@@ -24,8 +24,9 @@ jobs:
 
       - name: Scrape economic data
         run: |
-          python3 << 'EOFPYTHON'
-          import requests
+          python3 -u << 'EOFPYTHON'
+          import requests, sys
+          sys.stdout.reconfigure(line_buffering=True)
           from bs4 import BeautifulSoup
           import json, re, time
           from datetime import date, datetime
