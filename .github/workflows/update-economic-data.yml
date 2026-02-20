@@ -1,4 +1,4 @@
-name: Update Economic Data - v11 (TE + ONS + OECD EUR + DE proxy + WorldBank)
+name: Update Economic Data - v11.2 (parallel ToT, fast timeouts, NZD normalized)
 on:
   schedule:
     - cron: '0 6 * * *'
@@ -220,7 +220,7 @@ jobs:
               for url in legacy_urls:
                   print(f"    → OECD legacy: {url[:80]}...")
                   try:
-                      r = requests.get(url, headers=JSON_HEADERS, timeout=25)
+                      r = requests.get(url, headers=JSON_HEADERS, timeout=10)
                       if r.status_code in (400, 404, 501):
                           print(f"    ✗ HTTP {r.status_code}")
                           continue
@@ -260,7 +260,7 @@ jobs:
               for url in new_urls:
                   print(f"    → OECD new: {url[:80]}...")
                   try:
-                      r = requests.get(url, headers=JSON_HEADERS, timeout=25)
+                      r = requests.get(url, headers=JSON_HEADERS, timeout=10)
                       if r.status_code in (400, 404, 501):
                           print(f"    ✗ HTTP {r.status_code}")
                           continue
@@ -480,11 +480,15 @@ jobs:
               # Step 3: run all tasks in parallel (max 4 threads — WB rate-limit friendly)
               with ThreadPoolExecutor(max_workers=4) as executor:
                   futures = {executor.submit(fetch_task, curr): curr for curr in missing}
-                  for future in as_completed(futures):
-                      curr, val, d = future.result()
-                      if val is not None:
-                          data[curr]  = val
-                          dates[curr] = d
+                  for future in as_completed(futures, timeout=90):
+                      try:
+                          curr, val, d = future.result(timeout=5)
+                          if val is not None:
+                              data[curr]  = val
+                              dates[curr] = d
+                      except Exception as e:
+                          curr = futures[future]
+                          print(f"  ✗ {curr} ToT fetch failed: {e}")
 
               final_missing = [c for c in CURRENCIES if c not in data]
               if final_missing:
@@ -638,7 +642,7 @@ jobs:
           # MAIN
           # ═══════════════════════════════════════════════════════════════════
           print("="*60)
-          print("ECONOMIC DATA SCRAPER v11.1")
+          print("ECONOMIC DATA SCRAPER v11.2")
           print("ToT EUR: OECD legacy → OECD new → Germany proxy (zero extra requests)")
           print("ToT GBP: ONS CTSL → World Bank")
           print("ToT NZD: TE raw ÷10 normalization (base 2002Q2=1000 → ~100) — zero network calls")
