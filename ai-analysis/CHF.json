@@ -2,9 +2,9 @@
   "currency": "CHF",
   "country": "Suiza",
   "bank": "Banco Nacional Suizo (SNB)",
-  "analysis": "El Banco Nacional Suizo mantiene una tasa de interés del 0.00%, con una postura neutral en su política monetaria, mientras que la inflación se encuentra en un nivel muy bajo del 0.1% anual. La economía suiza muestra un crecimiento lento, con un crecimiento del PIB del 0.2% anual, y un desempleo relativamente bajo del 3.2%.\n\nLa actividad económica en Suiza se caracteriza por un crecimiento moderado del consumo, con un aumento de las ventas minoristas del 1.0% mensual, y un crecimiento salarial del 2.0% anual, aunque la producción industrial muestra una caída del 0.3% mensual.\n\nEl sentimiento de mercado hacia el franco suizo es mixto, con un rendimiento FX del 3.60% en el último mes, y una posición neta de -42.3K contratos en el COT, lo que sugiere una perspectiva cautelosa hacia la divisa.",
+  "analysis": "El Banco Nacional Suizo mantiene una tasa de interés del 0.00%, con una postura neutral en medio de una inflación anual del 0.1%, lo que sugiere una política monetaria cautelosa. La economía suiza presenta un crecimiento del PIB del 0.2% anual, lo que indica una expansión lenta. El desempleo se mantiene en un nivel bajo del 3.2%.\n\nLa actividad económica en Suiza se caracteriza por un crecimiento lento, con un PIB total de 937.00 billones de dólares y un desempleo del 3.2%. El sector exterior muestra una balanza comercial positiva de 4.7 billones de dólares al mes, lo que sugiere una contribución positiva al crecimiento económico.\n\nEl sentimiento de mercado hacia el franco suizo es mixto, con un rendimiento del 1.85% en el último mes, lo que indica una apreciación de la divisa. El positioning de los inversores, medido por el COT, muestra una posición neta negativa de 42.3 mil contratos, lo que sugiere una visión bearish hacia el franco suizo.",
   "model": "llama-3.3-70b-versatile",
-  "generatedAt": "2026-02-19T16:25:40.745966+00:00",
+  "generatedAt": "2026-02-20T10:41:07.348977+00:00",
   "dataSnapshot": {
     "interestRate": 0.0,
     "gdpGrowth": 0.2,
@@ -12,7 +12,7 @@
     "unemployment": 3.2,
     "currentAccount": 5.1,
     "cotPositioning": -42300,
-    "fxPerformance1M": 3.6039,
-    "lastUpdate": "2026-02-19"
+    "fxPerformance1M": 1.8508,
+    "lastUpdate": "2026-02-20"
   }
 }

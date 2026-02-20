@@ -2,9 +2,9 @@
   "currency": "CAD",
   "country": "Canadá",
   "bank": "Banco de Canadá (BoC)",
-  "analysis": "El Banco de Canadá mantiene una tasa de interés del 2.25%, con una postura neutral frente a la inflación del 2.3% anual, lo que sugiere una política monetaria prudente. La economía canadiense presenta un crecimiento del PIB del 0.6% anual, lo que indica una expansión moderada. El desempleo se mantiene en un nivel relativamente alto del 6.5%.\n\nLa actividad económica en Canadá se ve influenciada por una cuenta corriente deficitaria del -1.0% del PIB y una balanza comercial deficitaria de -1.6B USD al mes, lo que podría afectar la divisa. Sin embargo, la producción industrial muestra un crecimiento del 4.4% mensual, lo que sugiere una actividad manufacturera en expansión.\n\nEl sentimiento de mercado hacia el CAD se ve influenciado por un rendimiento FX del 1.74% en el último mes, lo que indica una apreciación de la divisa. El COT Positioning muestra 13.3K contratos netos, lo que sugiere una posición larga en la divisa, mientras que la confianza consumidor y empresarial se mantiene en niveles moderados, con 49.3 y 50.9 respectivamente.",
+  "analysis": "El Banco de Canadá mantiene una tasa de interés del 2.25%, con una postura neutral frente a la inflación del 2.3% anual, lo que sugiere una política monetaria cautelosa. La economía canadiense muestra un crecimiento del PIB del 0.6% anual, lo que indica una expansión lenta. El desempleo se mantiene en un 6.5%, lo que puede influir en la decisión del banco central.\n\nLa actividad económica en Canadá se ve afectada por una cuenta corriente deficitaria del -1.0% del PIB y una balanza comercial negativa de -1.0B USD al mes, lo que puede generar presión sobre la divisa. Sin embargo, la producción industrial muestra un crecimiento del 4.4% mensual, lo que puede ser un indicador positivo para la economía. El PMI manufacturero se mantiene en expansión con un valor de 50.4.\n\nEl sentimiento de mercado hacia el CAD se ve influenciado por un rendimiento FX del 0.88% en el último mes, lo que sugiere una apreciación de la divisa. El COT Positioning muestra 13.3K contratos netos, lo que puede indicar una posición compradora en el mercado. La confianza consumidor y empresarial se mantiene en niveles moderados, con 49.3 y 50.9 respectivamente, lo que puede influir en la perspectiva del mercado hacia la divisa canadiense.",
   "model": "llama-3.3-70b-versatile",
-  "generatedAt": "2026-02-19T16:25:36.140340+00:00",
+  "generatedAt": "2026-02-20T10:41:02.931996+00:00",
   "dataSnapshot": {
     "interestRate": 2.25,
     "gdpGrowth": 0.6,
@@ -12,7 +12,7 @@
     "unemployment": 6.5,
     "currentAccount": -1.0,
     "cotPositioning": 13300,
-    "fxPerformance1M": 1.7441,
-    "lastUpdate": "2026-02-19"
+    "fxPerformance1M": 0.8829,
+    "lastUpdate": "2026-02-20"
   }
 }

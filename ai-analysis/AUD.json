@@ -2,9 +2,9 @@
   "currency": "AUD",
   "country": "Australia",
   "bank": "Banco de la Reserva de Australia (RBA)",
-  "analysis": "El Banco de la Reserva de Australia mantiene una tasa de interés del 3.85%, con una postura neutral frente a la inflación del 3.8% anual, lo que sugiere una política monetaria cautelosa. La economía australiana registra un crecimiento del PIB del 0.4% anual, lo que indica una expansión lenta. El desempleo se mantiene en un nivel moderado del 4.1%.\n\nLa actividad económica en Australia se ve influenciada por un crecimiento del PIB lento, aunque el sector manufacturero muestra signos de expansión con un PMI de 52.3. La balanza comercial presenta un superávit de 2.4B USD/mes, lo que apoya la divisa. El consumo también muestra signos de vitalidad, con un aumento de las ventas minoristas del 1.2% mensual.\n\nEl sentimiento de mercado hacia el AUD se ve influenciado por la posición neta de 33.2K contratos en el COT, lo que sugiere un apoyo moderado a la divisa. El rendimiento del AUD en el último mes ha sido positivo, con un aumento del 5.45% frente al USD, lo que refleja una percepción favorable del mercado hacia la economía australiana.",
+  "analysis": "El Banco de la Reserva de Australia mantiene una tasa de interés del 3.85%, con una postura neutral frente a la inflación del 3.8% anual. La economía australiana muestra un crecimiento del PIB del 0.4% anual, con un desempleo del 4.1%.\n\nLa actividad económica se ve influenciada por un crecimiento moderado, con un aumento en las ventas minoristas del 1.2% mensual y una producción industrial del 0.5% mensual. El sector exterior muestra una balanza comercial positiva de 2.4 mil millones de dólares estadounidenses al mes.\n\nEl sentimiento de mercado se refleja en un COT Positioning de 33.2 mil contratos netos, con un rendimiento FX del 4.55% en el último mes, lo que indica una apreciación de la divisa. El índice de confianza consumidor se mantiene en 90.5, mientras que el índice de confianza empresarial es de 103.0.",
   "model": "llama-3.3-70b-versatile",
-  "generatedAt": "2026-02-19T16:25:31.231090+00:00",
+  "generatedAt": "2026-02-20T10:40:58.385557+00:00",
   "dataSnapshot": {
     "interestRate": 3.85,
     "gdpGrowth": 0.4,
@@ -12,7 +12,7 @@
     "unemployment": 4.1,
     "currentAccount": -2.3,
     "cotPositioning": 33200,
-    "fxPerformance1M": 5.453,
-    "lastUpdate": "2026-02-19"
+    "fxPerformance1M": 4.5471,
+    "lastUpdate": "2026-02-20"
   }
 }
