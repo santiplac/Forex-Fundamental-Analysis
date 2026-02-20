@@ -500,7 +500,7 @@ jobs:
               return cot
 
           print("="*60)
-          print("ECONOMIC DATA SCRAPER v11.3")
+          print("ECONOMIC DATA SCRAPER v11.3-debug")
           print("ToT NZD: TE raw ÷10 (base 2002Q2=1000→~100) — zero extra requests")
           print("ToT EUR: OECD legacy → OECD new → Germany proxy")
           print("ToT GBP: ONS CTSL → World Bank")
