@@ -1612,125 +1612,114 @@ const fetchEconomicCalendar = async () => {
             return fallbackResult;
         };
 
-        const fetchHistoricalFXData = async (currencyCode) => {
-            const cacheKey = `historical_fx_${currencyCode}`;
-            const cached = CacheManager.get(cacheKey);
-            if (cached !== null) return cached;
+const fetchHistoricalFXData = async (currencyCode) => {
+    // Esta función ya no se usa para las Tendencias Históricas.
+    // Los datos de tasas reales se cargan directamente desde
+    // fetchRealHistoricalRates() usando los archivos rates/XX.json
+    // que contienen el histórico acumulado desde FRED + scraping diario.
+    return null;
+};
 
-            try {
-                const endDate = new Date();
-                const startDate = new Date();
-                startDate.setMonth(startDate.getMonth() - 6);
-                
-                const formatDate = (date) => date.toISOString().split('T')[0];
-                const url = `https://api.exchangerate.host/timeseries?start_date=${formatDate(startDate)}&end_date=${formatDate(endDate)}&base=USD&symbols=${currencyCode}`;
-                
-                const response = await fetch(url);
-                if (!response.ok) throw new Error('Historical FX fetch failed');
-                
-                const data = await response.json();
-                
-                if (data.rates) {
-                    const dates = Object.keys(data.rates).sort();
-                    const monthlyRates = [];
-                    const monthlyLabels = [];
-                    
-                    let lastMonth = -1;
-                    for (const date of dates) {
-                        const d = new Date(date);
-                        const month = d.getMonth();
-                        
-                        if (month !== lastMonth) {
-                            const rate = data.rates[date][currencyCode];
-                            if (rate) {
-                                monthlyRates.push(rate);
-                                monthlyLabels.push(d.toLocaleDateString('es-ES', { month: 'short' }));
-                                lastMonth = month;
-                            }
-                        }
-                    }
-                    
-                    const result = { labels: monthlyLabels.slice(-6), rates: monthlyRates.slice(-6) };
-                    CacheManager.set(cacheKey, result, CACHE_CONFIG.HISTORICAL_DATA);
-                    return result;
-                }
-                return null;
-            } catch (error) {
-                console.warn(`Historical FX fetch failed for ${currencyCode}`);
-                return null;
-            }
+const fetchRealHistoricalRates = async (currencyCode) => {
+    const cacheKey = `real_historical_rates_${currencyCode}`;
+    const cached = CacheManager.get(cacheKey);
+    if (cached !== null) return cached;
+
+    try {
+        const url = `https://globalinvesting.github.io/rates/${currencyCode}.json`;
+        const response = await fetchWithRetry(url, { cache: 'no-cache', mode: 'cors' }, 3);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+        const observations = data.observations || [];
+
+        if (observations.length < 2) {
+            console.warn(`Insuficientes observaciones históricas para ${currencyCode}: ${observations.length}`);
+            return null;
+        }
+
+        // Tomar hasta 8 observaciones (más que 6 para tener margen)
+        // observations ya viene ordenado más reciente primero
+        const recent = observations.slice(0, 8).reverse(); // más antigua primero para el gráfico
+
+        const MONTH_NAMES_ES = {
+            '01': 'Ene', '02': 'Feb', '03': 'Mar', '04': 'Abr',
+            '05': 'May', '06': 'Jun', '07': 'Jul', '08': 'Ago',
+            '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dic'
         };
 
-        const generateHistoricalData = async (currentData, setDataLoadingStatus) => {
-            const cacheKey = 'historical_data';
-            const cached = CacheManager.get(cacheKey);
-            if (cached !== null) return cached;
-
-            const historical = {};
-            const months = ['Sep', 'Oct', 'Nov', 'Dic', 'Ene', 'Feb'];
-            
-            setDataLoadingStatus({ status: 'Cargando datos históricos...', progress: 90 });
-
-            for (let countryIndex = 0; countryIndex < countries.length; countryIndex++) {
-                const country = countries[countryIndex];
-                const data = currentData[country.code] || {};
-                const baseRate = data.interestRate || 3.0;
-                const strengthObj = calculateStrength(country.code, data, {}, currentData);  // ✅
-const baseStrength = strengthObj.score || 50;  // ✅
-
-                if (country.code !== 'USD') {
-                    try {
-                        const historicalFX = await fetchHistoricalFXData(country.code);
-                        if (historicalFX?.rates?.length > 0) {
-                            historical[country.code] = {
-                                labels: historicalFX.labels,
-                                rates: historicalFX.rates.map((fxRate, i) => {
-                                    const variation = (fxRate - historicalFX.rates[historicalFX.rates.length - 1]) / fxRate * 2;
-                                    return Number((baseRate + variation).toFixed(2));
-                                }),
-                                strength: historicalFX.labels.map((_, i) => {
-                                    const seed = countryIndex * 100 + i + 1000;
-                                    const seededRandom = (seed) => {
-                                        const x = Math.sin(seed) * 10000;
-                                        return x - Math.floor(x);
-                                    };
-                                    const variation = (seededRandom(seed) - 0.5) * 15;
-                                    const trend = (i - 3) * 2;
-                                    return Number(Math.max(20, Math.min(100, baseStrength + variation + trend)).toFixed(1));
-                                })
-                            };
-                            continue;
-                        }
-                    } catch (error) {
-                        console.warn(`Failed to get historical data for ${country.code}`);
-                    }
-                }
-
-                const seededRandom = (seed) => {
-                    const x = Math.sin(seed) * 10000;
-                    return x - Math.floor(x);
-                };
-
-                historical[country.code] = {
-                    labels: months,
-                    rates: months.map((_, i) => {
-                        const seed = countryIndex * 100 + i;
-                        const variation = (seededRandom(seed) - 0.5) * 0.4;
-                        const trend = -(months.length - i - 1) * 0.08;
-                        return Number((baseRate + variation + trend).toFixed(2));
-                    }),
-                    strength: months.map((_, i) => {
-                        const seed = countryIndex * 100 + i + 1000;
-                        const variation = (seededRandom(seed) - 0.5) * 15;
-                        const trend = (i - 3) * 2;
-                        return Number(Math.max(20, Math.min(100, baseStrength + variation + trend)).toFixed(1));
-                    })
-                };
+        const labels = recent.map(o => {
+            // o.date formato: "2025-09-15" o "2025-09-01"
+            const parts = o.date.split('-');
+            if (parts.length >= 2) {
+                const month = MONTH_NAMES_ES[parts[1]] || parts[1];
+                const year = parts[0].slice(2); // últimos 2 dígitos del año
+                return `${month}/${year}`;
             }
+            return o.date;
+        });
 
-            CacheManager.set(cacheKey, historical, CACHE_CONFIG.HISTORICAL_DATA);
-            return historical;
-        };
+        const rates = recent.map(o => parseFloat(o.value));
+
+        const result = { labels, rates, source: 'FRED+Scraping' };
+        CacheManager.set(cacheKey, result, CACHE_CONFIG.HISTORICAL_DATA);
+        console.log(`✅ Histórico real para ${currencyCode}: ${labels.join(', ')}`);
+        return result;
+
+    } catch (error) {
+        console.warn(`No se pudo cargar histórico real para ${currencyCode}:`, error.message);
+        return null;
+    }
+};
+
+const generateHistoricalData = async (currentData, setDataLoadingStatus) => {
+    const cacheKey = 'historical_data';
+    const cached = CacheManager.get(cacheKey);
+    if (cached !== null) return cached;
+
+    const historical = {};
+    setDataLoadingStatus({ status: 'Cargando tasas históricas reales...', progress: 90 });
+
+    for (let i = 0; i < countries.length; i++) {
+        const country = countries[i];
+        const data = currentData[country.code] || {};
+
+        setDataLoadingStatus({
+            status: `${country.name}: histórico de tasas...`,
+            progress: Math.round((90 + (i / countries.length) * 8))
+        });
+
+        // Intentar obtener histórico REAL desde rates/XX.json (FRED + scraping)
+        const realHistory = await fetchRealHistoricalRates(country.code);
+
+        if (realHistory && realHistory.rates && realHistory.rates.length >= 2) {
+            // ✅ DATOS REALES DISPONIBLES
+            // Solo graficamos la tasa de interés real.
+            // El índice de fortaleza histórico se elimina (era simulado).
+            historical[country.code] = {
+                labels: realHistory.labels,
+                rates: realHistory.rates,
+                source: 'real',
+                // strength se omite intencionalmente — no hay datos históricos reales
+                // del índice compuesto. Honestidad sobre lo que tenemos.
+            };
+            console.log(`✅ ${country.code}: histórico real (${realHistory.labels.length} puntos)`);
+        } else {
+            // ❌ Sin histórico real: marcar como no disponible
+            // No generamos datos simulados. El gráfico mostrará mensaje informativo.
+            historical[country.code] = {
+                labels: [],
+                rates: [],
+                source: 'unavailable',
+            };
+            console.warn(`⚠️ ${country.code}: sin histórico real disponible`);
+        }
+    }
+
+    setDataLoadingStatus({ status: 'Datos históricos cargados', progress: 98 });
+    CacheManager.set(cacheKey, historical, CACHE_CONFIG.HISTORICAL_DATA);
+    return historical;
+};
 
 const generateForexPairRecommendations = (economicData, forexRates) => {
     const cacheKey = 'forex_pair_recommendations';
@@ -3129,40 +3118,36 @@ const indicatorTooltips = {
                         const ctx = canvas.getContext('2d');
                         const data = historicalData[country.code];
 
-                        if (!data?.labels || !data?.rates || !data?.strength) {
-                            console.warn(`No data for ${country.code}`);
-                            return;
-                        }
+if (!data?.labels || !data?.rates || data.source === 'unavailable') {
+    // Mostrar mensaje en lugar de gráfico vacío
+    ctx.font = '14px Inter, sans-serif';
+    ctx.fillStyle = '#6e7681';
+    ctx.textAlign = 'center';
+    ctx.fillText('Histórico en construcción', canvas.width / 2, canvas.height / 2 - 10);
+    ctx.font = '12px Inter, sans-serif';
+    ctx.fillText('Ejecuta el workflow de backfill para obtener datos reales', canvas.width / 2, canvas.height / 2 + 15);
+    return;
+}
 
                         try {
                             chartRefs.current[country.code] = new Chart(ctx, {
                                 type: 'line',
                                 data: {
                                     labels: data.labels,
-                                    datasets: [
-                                        {
-                                            label: 'Tasa de Interés (%)',
-                                            data: data.rates,
-                                            borderColor: '#1e88e5',
-                                            backgroundColor: 'rgba(30, 136, 229, 0.1)',
-                                            yAxisID: 'y',
-                                            tension: 0.4,
-                                            borderWidth: 2,
-                                            pointRadius: 3,
-                                            pointHoverRadius: 5
-                                        },
-                                        {
-                                            label: 'Índice de Fortaleza',
-                                            data: data.strength,
-                                            borderColor: '#26a69a',
-                                            backgroundColor: 'rgba(38, 166, 154, 0.1)',
-                                            yAxisID: 'y1',
-                                            tension: 0.4,
-                                            borderWidth: 2,
-                                            pointRadius: 3,
-                                            pointHoverRadius: 5
-                                        }
-                                    ]
+datasets: [
+    {
+        label: 'Tasa de Interés % (datos reales - FRED)',
+        data: data.rates,
+        borderColor: '#1e88e5',
+        backgroundColor: 'rgba(30, 136, 229, 0.1)',
+        yAxisID: 'y',
+        tension: 0.3,
+        borderWidth: 2,
+        pointRadius: 4,
+        pointHoverRadius: 6
+    }
+    // Índice de Fortaleza eliminado — no hay datos históricos reales del índice compuesto
+]
                                 },
                                 options: {
                                     responsive: true,
@@ -3203,17 +3188,6 @@ const indicatorTooltips = {
                                             title: { 
                                                 display: true, 
                                                 text: 'Tasa %', 
-                                                color: '#8b949e' 
-                                            } 
-                                        },
-                                        y1: { 
-                                            type: 'linear', 
-                                            position: 'right', 
-                                            grid: { display: false }, 
-                                            ticks: { color: '#8b949e' }, 
-                                            title: { 
-                                                display: true, 
-                                                text: 'Fortaleza', 
                                                 color: '#8b949e' 
                                             } 
                                         },
@@ -4612,22 +4586,23 @@ const sentiment = getSentiment(strength);
                                     <div className="section-title">Tendencias Históricas y Análisis de Datos</div>
                                 </div>
 
-                                <div style={{
-                                    background: 'rgba(255, 111, 0, 0.08)',
-                                    border: '1px solid rgba(255, 111, 0, 0.3)',
-                                    borderRadius: '6px',
-                                    padding: '0.875rem 1.25rem',
-                                    marginBottom: '1.5rem',
-                                    fontSize: '0.8125rem',
-                                    color: 'var(--text-secondary)',
-                                    lineHeight: '1.6'
-                                }}>
-                                    <strong style={{ color: 'var(--orange)' }}>ℹ️ Nota metodológica:</strong>{' '}
-                                    La línea <strong>Tasa de Interés</strong> refleja datos reales almacenados.
-                                    El <strong>Índice de Fortaleza histórico</strong> es una estimación algorítmica
-                                    basada en el score actual con variación simulada — no representa datos históricos reales.
-                                    Para análisis retrospectivo preciso, consulte las fuentes primarias (FRED, Trading Economics).
-                                </div>
+<div style={{
+    background: 'rgba(38, 166, 154, 0.08)',
+    border: '1px solid rgba(38, 166, 154, 0.3)',
+    borderRadius: '6px',
+    padding: '0.875rem 1.25rem',
+    marginBottom: '1.5rem',
+    fontSize: '0.8125rem',
+    color: 'var(--text-secondary)',
+    lineHeight: '1.6'
+}}>
+    <strong style={{ color: 'var(--green-strong)' }}>✅ Datos reales:</strong>{' '}
+    La línea de <strong>Tasa de Interés</strong> refleja datos históricos reales
+    obtenidos desde <strong>FRED (Federal Reserve)</strong> y actualizados diariamente
+    via scraping de Trading Economics. Fuente oficial de cada banco central.
+    El <strong>Índice de Fortaleza histórico ha sido eliminado</strong> al no contar
+    con datos reales históricos del índice compuesto — solo se muestra información verificable.
+</div>
 
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(500px, 100%), 1fr))', gap: '1.5rem' }}>
                                     {countries.map(country => (
