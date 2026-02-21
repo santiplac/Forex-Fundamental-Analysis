@@ -1,12 +1,17 @@
 {
   "observations": [
     {
-      "value": "0",
-      "date": "2026-01-15",
-      "rawDate": "Jan/26",
-      "source": "TradingEconomics"
+      "value": "1.34",
+      "date": "2024-03-01",
+      "source": "FRED"
+    },
+    {
+      "value": "1.5",
+      "date": "2024-02-01",
+      "source": "FRED"
     }
   ],
   "lastUpdate": "2026-02-21",
-  "totalObservations": 1
+  "series": "IRSTCI01CHM156N",
+  "frequency": "monthly"
 }

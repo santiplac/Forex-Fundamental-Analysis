@@ -1,12 +1,62 @@
 {
   "observations": [
     {
-      "value": "2.25",
-      "date": "2026-02-15",
-      "rawDate": "Feb/26",
-      "source": "TradingEconomics"
+      "value": "4.33",
+      "date": "2024-12-01",
+      "source": "FRED"
+    },
+    {
+      "value": "4.79",
+      "date": "2024-11-01",
+      "source": "FRED"
+    },
+    {
+      "value": "4.77",
+      "date": "2024-10-01",
+      "source": "FRED"
+    },
+    {
+      "value": "5.21",
+      "date": "2024-09-01",
+      "source": "FRED"
+    },
+    {
+      "value": "5.45",
+      "date": "2024-08-01",
+      "source": "FRED"
+    },
+    {
+      "value": "5.49",
+      "date": "2024-07-01",
+      "source": "FRED"
+    },
+    {
+      "value": "5.52",
+      "date": "2024-06-01",
+      "source": "FRED"
+    },
+    {
+      "value": "5.5",
+      "date": "2024-05-01",
+      "source": "FRED"
+    },
+    {
+      "value": "5.47",
+      "date": "2024-04-01",
+      "source": "FRED"
+    },
+    {
+      "value": "5.38",
+      "date": "2024-03-01",
+      "source": "FRED"
+    },
+    {
+      "value": "5.43",
+      "date": "2024-02-01",
+      "source": "FRED"
     }
   ],
   "lastUpdate": "2026-02-21",
-  "totalObservations": 1
+  "series": "IRSTCI01NZM156N",
+  "frequency": "monthly"
 }
