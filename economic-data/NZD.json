@@ -1,5 +1,5 @@
 {
-  "lastUpdate": "2026-02-20",
+  "lastUpdate": "2026-02-21",
   "source": "TradingEconomics + ONS (GBP) + OECD (EUR) + WorldBank + COT",
   "data": {
     "gdp": 260.0,
@@ -9,12 +9,12 @@
     "debt": 45.2,
     "currentAccount": -5.7,
     "production": -0.7,
-    "tradeBalance": -309.19,
+    "tradeBalance": -309.02,
     "retailSales": 1.9,
     "wageGrowth": 2.0,
     "manufacturingPMI": 55.2,
     "termsOfTrade": 156.7,
-    "cotPositioning": -34900
+    "cotPositioning": -35000
   },
   "dates": {
     "gdp": "2024-12-15",
