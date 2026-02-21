@@ -2,6 +2,11 @@
   "observations": [
     {
       "value": "3.75",
+      "date": "2026-02-21",
+      "source": "TradingEconomics"
+    },
+    {
+      "value": "3.75",
       "date": "2026-02-15",
       "rawDate": "Feb/26",
       "source": "TradingEconomics"
@@ -128,5 +133,5 @@
     }
   ],
   "lastUpdate": "2026-02-21",
-  "totalObservations": 25
+  "totalObservations": 26
 }
